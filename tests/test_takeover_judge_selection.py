@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.takeover_judge_selection import (
+from scripts.judge.takeover_judge_selection import (
     completed_task_dirs, excluded_task_ids, load_exclusions, resolve_annotation,
 )
 

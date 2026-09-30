@@ -1,10 +1,6 @@
-# 采集任务来源。configs/collection/mypcbench_runtime.yaml 的 task_source 选其中
-# 一项（src/derail/rollout/tasks.py 读取并转换成官方 runner 的任务格式）。
-# tasks_file 相对仓库根；运行时可用 TASKS_FILE 指向同格式的分片文件。
 sources:
   - source_benchmark: mypcbench
     task_count: 184
-    # 每个 agent 的重复轮数以 mypcbench_runtime.yaml 的 repeats 为准（论文 3 次）。
     repeats_per_agent: 3
     environment_type: snapshot_desktop
     collection_role: [failure_analysis, benchmark_construction]
@@ -13,9 +9,6 @@ sources:
     tasks_file: third_party/MyPCBench/tasks/final/all_tasks_with_grading.json
     task_format: mypcbench_graded
 
-  # 论文 03:25 "We run six agents on the workflows"：ReRail 组合 workflow
-  # （data/synthesis/generation/final_v1 这类合并产物的 rollout_tasks.json）。
-  # 每行是一个 (workflow, instruction 变体)，转换后 id = 行 id（形如 gen-xxxx#v0）。
   - source_benchmark: rerail_workflows
     repeats_per_agent: 3
     environment_type: snapshot_desktop
@@ -24,12 +17,7 @@ sources:
     replay_protocol: snapshot_restore_and_canonical_prefix
     tasks_file: data/synthesis/generation/final_v1/rollout_tasks.json
     task_format: rerail_rollout_tasks
-    # 只收这些 origin（composed = 组合 workflow，seed = 单源任务的改写）。
     origins: [composed, seed]
-    # hazard 世界变体需要 frozen world materializer（phase5 同样拒收），这里只放 base。
     world_variants: [base]
-    # 组合 rubric（derail.gen.pipeline.write_bundle 写的 rubrics/<workflow_id>.json），
-    # 转换时挂成任务的 grading；官方 runner 要求每个任务都有 grading.rubrics。
     rubrics_dir: data/synthesis/generation/final_v1/rubrics
-    # 缺 rubric 的 workflow：error = 整批报错；skip = 跳过并在 stderr 报数。
     on_missing_rubric: error

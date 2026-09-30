@@ -48,7 +48,6 @@ from derail.takeover.history import build_native_history_artifact
 
 
 def _write_minimal_png(path: Path, width: int = 1280, height: int = 800) -> None:
-    # The normalizer only reads the PNG signature and IHDR dimensions; pixel bytes stay raw-only.
     path.write_bytes(
         b"\x89PNG\r\n\x1a\n"
         + (13).to_bytes(4, "big")
@@ -112,7 +111,6 @@ class DerivedWorkflowTests(unittest.TestCase):
         )
         rows = []
         for action_index in range(24):
-            # action 0 and 1 share one model turn, proving turn != executed action.
             turn = 1 if action_index < 2 else action_index
             screenshot = "step_%d.png" % action_index
             _write_minimal_png(task / screenshot)
@@ -485,8 +483,6 @@ class DerivedWorkflowTests(unittest.TestCase):
                 prefix_audit=prefix_audit,
                 patches=(patch, drop_patch),
             )
-            # 24 source steps with the root cause at 3, so the deepest grid point (25) does not
-            # fit and is reported as unavailable instead of instantiated.
             self.assertEqual(plan.available_depths, (0, 5, 10, 15, 20))
             self.assertEqual(plan.unavailable_depth_reasons["25"], "source suffix shorter than root + depth")
             self.assertEqual(
@@ -496,7 +492,6 @@ class DerivedWorkflowTests(unittest.TestCase):
             self.assertEqual(
                 plan.instances[1].executed_action_indices, (0, 1, 3, 4, 5, 6, 7, 8)
             )
-            # Every old state observation from the earliest repaired action onward is invalidated.
             self.assertTrue(plan.repaired_steps[0].observation_after_sha256)
             self.assertEqual(plan.repaired_steps[1].observation_after_sha256, "")
             self.assertEqual(plan.repaired_steps[2].observation_before_sha256, "")

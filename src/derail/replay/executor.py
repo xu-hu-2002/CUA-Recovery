@@ -1,8 +1,4 @@
-"""安全执行 canonical actions。
-
-重要安全边界：release 数据中的 `pyautogui` 字符串只用于人工审计；真实 replay 从
-typed action dispatch 到 backend，绝不调用 eval/exec。
-"""
+"""Safe execution of canonical actions."""
 
 from __future__ import annotations
 
@@ -55,7 +51,7 @@ class DesktopBackend(Protocol):
 
 
 class PyAutoGUIBackend:
-    """真实桌面 backend；import 延迟到实例化，保证离线 schema tests 不依赖 GUI。"""
+    """Real desktop backend; imports pyautogui on instantiation."""
 
     def __init__(self) -> None:
         try:
@@ -102,7 +98,7 @@ class PyAutoGUIBackend:
 
 
 class RecordingBackend:
-    """只记录调用、不接触桌面的 backend，供单元测试和 dry-run 使用。"""
+    """Backend that only records calls, for tests and dry runs."""
 
     def __init__(self) -> None:
         self.calls: List[Tuple[Any, ...]] = []
@@ -147,7 +143,7 @@ class RecordingBackend:
 
 
 class CanonicalExecutor:
-    """把 validated action 映射到 backend primitive。"""
+    """Map validated actions to backend primitives."""
 
     def __init__(self, backend: DesktopBackend, select_all_keys: Sequence[str] = ("ctrl", "a")):
         self.backend = backend
@@ -198,7 +194,6 @@ class CanonicalExecutor:
             self.backend.move_to(action.x_px, action.y_px)
             return
         if isinstance(action, DragAction):
-            # 显式分解 drag，便于日志逐项验证按下/移动/释放是否全部发生。
             self.backend.move_to(action.start_x_px, action.start_y_px)
             self.backend.mouse_down(action.button)
             self.backend.move_to(action.end_x_px, action.end_y_px, action.duration_s)
@@ -210,13 +205,12 @@ class CanonicalExecutor:
         if isinstance(action, ShellAction):
             raise TypeError("shell actions require an isolated VM backend")
         if isinstance(action, TerminateAction):
-            # terminate 是控制流信号，不应向桌面注入任何输入。
             return
         raise TypeError("未处理的 action: %s" % type(action).__name__)
 
 
 def compile_pyautogui(action: Action) -> str:
-    """生成供 appendix/case audit 使用的可读代码，不用于实际执行。"""
+    """Render readable PyAutoGUI code for auditing; never executed."""
 
     if isinstance(action, SequenceAction):
         return "\n".join(compile_pyautogui(item) for item in action.actions)

@@ -1,12 +1,3 @@
-"""Human review acceptance for extracted Task-IR modules (manual v0.2 Phase 1 gate).
-
-A module leaves ``needs_review`` only through a verdict record that names the reviewer, the
-method and the decision per task.  Accepted modules are normalised onto the controlled type
-vocabulary, their public ``interface.side_effects`` are projected onto the coarse v0.1 shape the
-compatibility builder understands (the fragment keeps the full v0.2 effects), and the review
-provenance is attached.  Nothing here changes a fragment's structure.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -64,8 +55,6 @@ class ReviewVerdicts:
 def project_interface_effects(
     module: Mapping[str, Any], ontology: Ontology
 ) -> List[Dict[str, Any]]:
-    """Coarse public view of the fragment's v0.2 effects for pairwise compatibility checks."""
-
     projected = []
     for node in module["fragment"]["nodes"]:
         for effect in node.get("side_effects", ()):
@@ -85,8 +74,6 @@ def project_interface_effects(
 
 
 def latest_by_task(module_files: Iterable[Path]) -> Dict[str, Dict[str, Any]]:
-    """Merge several ``modules.jsonl`` files; later files override earlier ones per task."""
-
     import json
 
     merged: Dict[str, Dict[str, Any]] = {}
@@ -106,8 +93,6 @@ def apply_review(
     registry: ValueTypeRegistry,
     ontology: Ontology,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """Return ``(accepted_modules, report)``; only ``accept`` verdicts become human_verified."""
-
     unknown = sorted(set(verdicts.verdicts) - set(modules))
     if unknown:
         raise ReviewError("verdicts name modules that were not extracted: %s" % unknown)

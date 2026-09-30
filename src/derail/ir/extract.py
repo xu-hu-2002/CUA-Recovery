@@ -1,24 +1,3 @@
-"""LLM-assisted ``task-ir/1.0`` extraction for seed tasks (execution doc v1.2 section 5.1).
-
-The model proposes; programme checks decide.  This module renders the prompt from the task,
-the schema graph and sample rows of the involved databases, parses the reply, normalises
-vocabulary and defaults into a ``task-ir/1.0`` record, runs the static validation
-(``derail.ir.model.validate_task_ir``) and the grounding checks (``derail.ir.validate``), and
-writes one file per task.  Whether the IR is *correct* is decided later by the gold
-interpreter and the rubric check (section 5.3), never here.
-
-Reused from the v0 extractor: the approval-gated OpenAI-compatible client, prompt rendering,
-app aliases, the ontology and the port-type registry.
-
-Entry points
-------------
-``V1ExtractorConfig.from_yaml(path, repo_root)``
-``build_prompt_fields_v1(task, config, schema_graph, samples, ontology, registry)``
-``parse_task_ir_reply(text)``
-``normalize_task_ir(raw, task, config, ontology)``
-``run_extraction_v1(tasks, ..., client=None, saved_replies_dir=None, workers=1, progress=None)``
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -145,8 +124,6 @@ class V1ExtractorConfig:
         )
 
     def databases_for(self, app_ids: Sequence[str]) -> List[str]:
-        """Database stems for canonical app ids; apps without a database are dropped."""
-
         out = []
         for app in app_ids:
             stem = self.app_databases.get(app)
@@ -155,12 +132,9 @@ class V1ExtractorConfig:
         return out
 
 
-# ------------------------------------------------------------------------------ prompt
 def sample_rows(
     db_path: Path, tables: Sequence[str], per_table: int, max_cell_chars: int
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Up to ``per_table`` rows per table from a read-only connection, cells truncated."""
-
     conn = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
     conn.row_factory = sqlite3.Row
     out: Dict[str, List[Dict[str, Any]]] = {}
@@ -170,7 +144,7 @@ def sample_rows(
                 rows = conn.execute(
                     'SELECT * FROM "%s" ORDER BY rowid LIMIT ?' % table, (per_table,)
                 ).fetchall()
-            except sqlite3.OperationalError:  # WITHOUT ROWID table
+            except sqlite3.OperationalError:
                 rows = conn.execute('SELECT * FROM "%s" LIMIT ?' % table, (per_table,)).fetchall()
             cleaned = []
             for row in rows:
@@ -262,7 +236,6 @@ def build_prompt_fields_v1(
     }
 
 
-# ------------------------------------------------------------------------ parse / normalise
 def parse_task_ir_reply(text: str) -> Dict[str, Any]:
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     candidate = fenced.group(1) if fenced else text[text.find("{") : text.rfind("}") + 1]
@@ -290,8 +263,6 @@ _OBSERVABILITY = (
 
 
 def _coerce_observability(verifier: Dict[str, Any]) -> None:
-    """Models often write a sentence where the enum belongs; keep it as ``note``."""
-
     value = verifier.get("observability")
     if value in _OBSERVABILITY:
         return
@@ -303,9 +274,6 @@ def _coerce_observability(verifier: Dict[str, Any]) -> None:
 
 
 def _coerce_equivalents(read: Dict[str, Any], app: str, node_id: str) -> None:
-    """Models write equivalent sources as strings ("file:x", "app.table.column");
-    make them objects."""
-
     out = []
     for item in read.get("equivalent_sources") or []:
         if isinstance(item, Mapping):
@@ -334,12 +302,10 @@ def _coerce_equivalents(read: Dict[str, Any], app: str, node_id: str) -> None:
 
 
 def _strip_app(entity_ref: Any, app: str) -> str:
-    """``speedtax.tax_returns:*`` -> ``tax_returns:*`` (entity ids never carry the app)."""
-
     text = str(entity_ref)
     if text.startswith("derived:") or text == "literal":
         return text
-    if "::" in text:  # "dms::andy_dm_id" -> the port/produce named after the double colon
+    if "::" in text:
         return (
             "derived:%s:%s" % (_strip_app.current_node, text.split("::", 1)[1])
             if _strip_app.current_node
@@ -358,8 +324,6 @@ def _rename(mapping: Dict[str, Any], synonyms: Mapping[str, str]) -> None:
 
 
 def _resolve_app(app: Any, config: V1ExtractorConfig, aliases: AppAliases) -> str:
-    """Map any app spelling to a database stem (or the canonical id for file apps)."""
-
     text = str(app or "").strip()
     if not text:
         return "unspecified"
@@ -393,19 +357,6 @@ def _default_side_effect(
 
 
 def repair_edges(body: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Mechanically repair the three structural mistakes models make (review R1):
-
-    - a self-edge (a node feeding its own produce into its own input): dropped, and the input
-      port that only existed for it is dropped too -- a node's own produces are in scope;
-    - an edge leaving an *input* port that carries a literal: the literal is copied onto the
-      target port and the edge dropped;
-    - an edge leaving an input port that is itself fed by an upstream edge: rewired to the
-      original producer.
-
-    Anything else (a genuine cycle through several nodes) is left for the validator, which
-    names the offending edges.  Returns the list of repairs applied.
-    """
-
     nodes = {str(n.get("node_id")): n for n in body.get("nodes", ())}
     repairs: List[Dict[str, Any]] = []
     edges = list(body.get("edges") or [])
@@ -446,7 +397,7 @@ def repair_edges(body: Dict[str, Any]) -> List[Dict[str, Any]]:
         inputs = {str(i.get("port_id", i.get("name"))): i for i in node.get("inputs") or []}
         source_port = inputs.get(src_port)
         if source_port is None:
-            kept.append(edge)  # unknown port: the validator reports it
+            kept.append(edge)
             continue
         target = nodes.get(dst_node)
         if "literal" in source_port:
@@ -497,12 +448,6 @@ def normalize_task_ir(
     ontology: Ontology,
     aliases: AppAliases,
 ) -> Dict[str, Any]:
-    """Fill defaults and synonyms so a reasonable reply becomes a schema-shaped record.
-
-    Nothing semantic is inferred: an unknown app stays ``unspecified``, a missing verifier
-    stays ``null``, a missing entity_ref becomes ``<table>:*`` (a lookup, the weakest claim).
-    """
-
     body = json.loads(json.dumps(raw["task_ir"]))
     repairs = repair_edges(body)
     nodes: List[Dict[str, Any]] = []
@@ -538,7 +483,6 @@ def normalize_task_ir(
             if derivation["kind"] == "sql":
                 derivation.setdefault("returns", "scalar")
                 if derivation["returns"] in ("lastrowid", "rowcount", "none"):
-                    # A write disguised as a derivation: keep the record, the validator flags it.
                     derivation["returns"] = "scalar"
             produces.append(
                 {
@@ -602,7 +546,7 @@ def normalize_task_ir(
         node["writes"] = writes
         effects = list(node.get("side_effects") or [])
         if node["op"] in READ_ONLY_OPS:
-            node["writes"] = [] if not writes else writes  # keep for the validator to flag
+            node["writes"] = [] if not writes else writes
             node["side_effects"] = []
             node["reversibility_class"] = "R0"
         else:
@@ -701,7 +645,6 @@ class ExtractedTaskIR:
         return self.task_ir is not None and not self.static_errors
 
 
-# ------------------------------------------------------------------------------- runner
 def run_extraction_v1(
     tasks: Sequence[Mapping[str, Any]],
     *,
@@ -718,14 +661,6 @@ def run_extraction_v1(
     workers: int = 1,
     progress: Optional[Callable[[int, int, str, float], None]] = None,
 ) -> Dict[str, Any]:
-    """Render prompts for every task; call the model only when a client is supplied.
-
-    Without a client this is a dry run (prompts only).  ``saved_replies_dir`` re-parses
-    ``<task_id>.txt`` replies instead of calling.  Every parsed reply is normalised, validated
-    and written to ``task_ir/<task_id>.json`` with its static errors and grounding issues in
-    ``provenance``; ``manifest.json`` summarises counts.  Outputs are written in task order.
-    """
-
     system = config.base.prompt_system.read_text(encoding="utf-8")
     template = config.base.prompt_user.read_text(encoding="utf-8")
     inventory = (
@@ -837,7 +772,7 @@ def run_extraction_v1(
             errors.append("PARSE: %s" % exc)
         except (TaskIRError, SynthesisValidationError) as exc:
             errors.append("STATIC: %s" % exc)
-        except Exception as exc:  # jsonschema.ValidationError and friends
+        except Exception as exc:
             errors.append("SCHEMA: %s" % str(exc).splitlines()[0][:300])
         if task_ir is not None:
             issues = validate_grounding(

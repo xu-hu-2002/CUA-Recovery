@@ -60,7 +60,6 @@ class SchemaGraphTests(unittest.TestCase):
             ("workbuzz.messages", "sender_email", "workbuzz.members", "email"),
             self._relations(rule="email_principal"),
         )
-        # No principal table in the calendar database: its e-mail columns stay unlinked.
         self.assertFalse(
             [
                 r

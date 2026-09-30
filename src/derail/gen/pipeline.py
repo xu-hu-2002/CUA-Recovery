@@ -1,22 +1,3 @@
-"""Phase 4 driver: accepted Task IRs -> composed, verified, profiled, hazard-annotated task
-bundle (execution doc v1.2 sections 7.1-7.6).
-
-The module owns the orchestration only; every step reuses the modules built for it:
-
-* ``derail.gen.compat`` / ``derail.gen.graft`` -- compat index and beam search;
-* ``derail.ir.gold_interpreter`` -- gold execution of composed IRs (the ``executable`` gate);
-* ``derail.gen.verifiers`` -- verifier bundle and the mutation test;
-* ``derail.gen.graft.compose_rubric`` -- the composed rubric (source rubric items, expected
-  values updated to the composed gold);
-* ``derail.detect.profile`` -- static latent profile (computed inside ``evaluate``);
-* ``derail.gen.hazards`` -- base rates and ``hazard-injection/1.0`` records (status pending;
-  the seeder consistency check runs in the VM);
-* ``derail.gen.realize`` -- realization prompt (dry run) and optional model call.
-
-Outputs are plain files under one directory (see ``write_bundle``) so the collaborator can pick
-the bundle up from git and run the VM-side steps.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -66,11 +47,7 @@ def fingerprint(task_ir: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
-# ------------------------------------------------------------------------- gold execution
 class GoldExecutor:
-    """Gold-executes IRs on fresh copies of the base databases and caches the lineage per IR
-    fingerprint, so the beam-search gate and the later steps share one execution."""
-
     def __init__(
         self,
         interpreter: GoldInterpreter,
@@ -118,7 +95,7 @@ class GoldExecutor:
                 files_root=self.files_root,
             ) as world:
                 gold = self.interpreter.run(task_ir, world, self.repository)
-        except Exception as exc:  # any failure is a rejection of the candidate, not a crash
+        except Exception as exc:
             self.errors[key] = "%s: %s" % (type(exc).__name__, str(exc)[:300])
             return None
         if gold.get("final_verifier_passed") is False:
@@ -131,7 +108,6 @@ class GoldExecutor:
         return self.run(task_ir) is not None
 
 
-# --------------------------------------------------------------------------- selection
 @dataclass
 class Candidate:
     task_ir: Dict[str, Any]
@@ -139,7 +115,7 @@ class Candidate:
     score: float
     rejections: List[str]
     grafts: int
-    origin: str  # "seed" | "composed"
+    origin: str
     gold: Optional[Dict[str, Any]] = None
     gold_error: Optional[str] = None
     verifier_bundle: Optional[Dict[str, Any]] = None
@@ -175,12 +151,6 @@ EXECUTION_ERROR_POLICIES = ("exclude", "caught", "not_caught")
 
 
 def mutation_rejection_rate(outcomes: Sequence[Any], execution_errors: str = "exclude") -> float:
-    """R(M) over the mutation outcomes.  A mutation is caught when a downstream node verifier
-    or the frozen final verifier fails or the outcome diverges from the gold (``caught_by``
-    set by ``mutation_test``).  ``execution_errors`` says how mutations whose re-execution
-    raised count: ``exclude`` (paper: R is aggregated over mutations that executed; this is
-    ``verifiers.rejection_rate``), ``caught`` or ``not_caught``."""
-
     if execution_errors not in EXECUTION_ERROR_POLICIES:
         raise ValueError("unknown execution_errors policy %r" % execution_errors)
     if execution_errors == "exclude":
@@ -205,10 +175,6 @@ def bucket_quotas(sampling: Mapping[str, Any]) -> Dict[str, int]:
 def select_by_targets(
     candidates: Sequence[Candidate], sampling: Mapping[str, Any]
 ) -> Dict[str, Any]:
-    """Greedy quota fill per semantic bucket, best score first.  Seeds may only fill the
-    control bucket(s) outside ``target_buckets`` (D-036).  Unfilled quota is reported as a
-    shortfall rather than back-filled from another bucket."""
-
     quotas = bucket_quotas(sampling)
     target_buckets = set(sampling.get("target_buckets", ()))
     min_rate = sampling.get("gates", {}).get("min_mutation_rejection_rate")
@@ -249,7 +215,6 @@ def select_by_targets(
     }
 
 
-# ----------------------------------------------------------------------------- hazards
 _DATE_NAME = re.compile(r"date|time|start|end|when|day", re.IGNORECASE)
 
 
@@ -266,12 +231,6 @@ def hazard_candidates(
     selectors: Mapping[str, Mapping[str, Any]],
     max_per_task: int,
 ) -> List[Dict[str, Any]]:
-    """``hazard-injection/1.0`` records for ``task_ir``: a hazard targets a node whose literal
-    input (an instruction constant) or produced gold value matches its selector
-    (``edge_selectors`` in the hazards config).  The target edge is the node's first outgoing
-    value edge (the node itself when it has none).  One record per (hazard, node); at most
-    ``max_per_task`` records, injectable hazards first."""
-
     dag = dag_index(task_ir)
     gold_values: Dict[str, List[Dict[str, Any]]] = {}
     for entry in gold.get("values", ()):
@@ -360,7 +319,6 @@ def hazard_candidates(
     return records[:max_per_task]
 
 
-# ------------------------------------------------------------------------- realization
 def realization_step(
     candidate: Candidate,
     config: RealizationConfig,
@@ -369,11 +327,6 @@ def realization_step(
     client: Any = None,
     public_texts: Sequence[str] = (),
 ) -> Dict[str, Any]:
-    """Dry run always (prompt rendered); with ``client`` up to ``realizations_per_task``
-    instructions are generated (identical wordings dropped) and each is checked for missing
-    literals / gold leaks.  ``instruction`` is the first accepted one; ``instructions`` lists
-    every variant with its verdict.  Round-trip re-extraction is a later stage."""
-
     fields = build_realization_fields(
         candidate.task_ir, candidate.gold, style_stats, public_context=list(public_texts)
     )
@@ -438,12 +391,9 @@ def realization_step(
     return result
 
 
-# ------------------------------------------------------------------------------ records
 def generation_record(
     candidate: Candidate, generation_version: str, min_variants: int = 2
 ) -> Dict[str, Any]:
-    # The base world is one variant (researcher decision 2026-09-06, D-037); every injectable
-    # hazard adds one.
     variants = [h for h in candidate.hazards if h["status"] == "pending"]
     return {
         "schema_version": GENERATION_RECORD_VERSION,
@@ -493,7 +443,6 @@ def generation_record(
     }
 
 
-# ------------------------------------------------------------------------------- driver
 @dataclass
 class GenerationConfig:
     sampling: Mapping[str, Any]
@@ -512,8 +461,6 @@ class GenerationConfig:
     max_seeds: Optional[int] = None
     persona_literals: Sequence[Any] = ()
     workers: int = 1
-    # Composed rubrics: source task id -> its rubric items (MyPCBench ``grading.rubrics``) and
-    # the rubric-check config whose patterns find the expected values; no rubric without both.
     source_rubrics: Mapping[str, Sequence[Mapping[str, Any]]] = field(default_factory=dict)
     rubric_check: Optional[RubricCheckConfig] = None
 
@@ -530,11 +477,6 @@ def verify_candidate(
     workdir: Union[str, Path],
     seeds: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Gold-execute, freeze the verifiers (D-040), re-execute, compile the verifier bundle,
-    compose the rubric, run the mutation test and collect hazard records for one candidate.
-    ``seeds`` (task id -> seed IR) gives the source tasks for the rubric.  Pure function of
-    its inputs so it can run in a worker process."""
-
     out: Dict[str, Any] = {
         "task_ir": dict(task_ir),
         "gold": None,
@@ -549,8 +491,6 @@ def verify_candidate(
     if gold is None:
         out["gold_error"] = executor.errors.get(fingerprint(task_ir))
         return out
-    # Every candidate, seeds included: anchor verifiers to the gold values, then prove the
-    # frozen IR still executes; the frozen form ships.
     frozen = freeze_verifiers(task_ir, gold)
     gold = executor.run(frozen)
     if gold is None:
@@ -616,9 +556,6 @@ _WORKER: Dict[str, Any] = {}
 
 
 def _worker_executor() -> GoldExecutor:
-    """Per-process executor in a forked worker: state inherited from the parent through
-    ``_WORKER``; each process keeps its own world copies under ``workdir/w<pid>``."""
-
     state = _WORKER
     if "executor" not in state:
         parent: GoldExecutor = state["parent_executor"]
@@ -637,8 +574,6 @@ def _worker_executor() -> GoldExecutor:
 def _worker_search(
     seed: Mapping[str, Any],
 ) -> List[Tuple[Dict[str, Any], Dict[str, Any], float, List[str], int]]:
-    """One seed's beam against the whole pool, in a worker."""
-
     executor = _worker_executor()
     config: GenerationConfig = _WORKER["config"]
     results = beam_search(
@@ -678,9 +613,6 @@ def run_generation(
     progress: Optional[Progress] = None,
     instruction_of: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, Any]:
-    """Run every step for the seeds and return ``{"candidates", "compat_index", "selection",
-    "base_rates", "style_stats"}``; ``write_bundle`` persists the result."""
-
     log = progress or (lambda _msg: None)
     seeds = list(seeds)[: config.max_seeds] if config.max_seeds else list(seeds)
     started = time.time()

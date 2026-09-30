@@ -1,25 +1,3 @@
-"""Canonical world facts and their equivalent sources (execution doc v1.2 section 2.2).
-
-A *fact* is ``(table, column, entity, value)``: one cell of one database row (or one attribute
-of a file).  ``table`` is app-qualified (``"hoolicalendar.events"``) because table names repeat
-across the seventeen application databases; ``entity`` is the stable row id ``"events:530"``.
-
-The same fact often has several *equivalent sources* -- the seeder writes a trip's date into
-the flight, the hotel booking, the confirmation e-mail and the calendar event.  ``reads(j)`` of
-a Task IR node names the primary source; the ``EquivalenceRegistry`` answers "which other
-cells carry the same fact", which is what the omission detector and the latent-horizon
-predictor need (a fact read from any equivalent source counts as obtained).
-
-Entry points
-------------
-``Fact`` / ``FactKey``                       canonical records
-``normalize_value(value)``                  comparison form (dates to ISO, text stripped ...)
-``facts_from_row(app, table, rowid, row)``  every cell of a row as facts
-``EquivalenceRegistry.from_records(...)``   symmetric registry of equivalent sources
-``registry.equivalents(key)``               all keys carrying the same fact (including key)
-``registry.values_match(a, b)``             value comparison honouring the match rule
-"""
-
 from __future__ import annotations
 
 import re
@@ -35,8 +13,6 @@ _WS = re.compile(r"\s+")
 
 
 def qualified_table(app: str, table: str) -> str:
-    """``"hoolicalendar.events"``; a name that is already qualified is returned unchanged."""
-
     return table if "." in table else "%s.%s" % (app, table)
 
 
@@ -48,15 +24,11 @@ def split_table(table: str) -> Tuple[str, str]:
 
 
 def entity_id(table: str, rowid: Any) -> str:
-    """Stable entity id ``"<table>:<rowid>"`` (table without app prefix)."""
-
     _, name = split_table(table) if "." in table else ("", table)
     return "%s:%s" % (name, rowid)
 
 
 def entity_rowid(entity: str) -> int:
-    """Inverse of :func:`entity_id`; raises on derived or non-numeric ids."""
-
     if entity.startswith(DERIVED_PREFIX):
         raise ValueError("entity %r is derived, not a row" % entity)
     _, _, rowid = entity.rpartition(":")
@@ -64,16 +36,6 @@ def entity_rowid(entity: str) -> int:
 
 
 def normalize_value(value: Any) -> Any:
-    """Comparison form of a cell value.
-
-    - ``None`` and booleans pass through; numbers become ``float`` when they are not integral.
-    - ISO date-times are reduced to ``YYYY-MM-DDTHH:MM:SS`` in their own clock (the offset is
-      dropped, not applied: application databases mix naive local stamps and ``+00:00`` stamps
-      for the same wall time).
-    - Text is whitespace-collapsed and stripped; case is preserved because identifiers
-      (channel names, e-mail addresses) are case-sensitive in the applications.
-    """
-
     if value is None or isinstance(value, bool):
         return value
     if isinstance(value, int):
@@ -97,8 +59,6 @@ def normalize_value(value: Any) -> Any:
 
 
 def date_part(value: Any) -> Optional[str]:
-    """``YYYY-MM-DD`` of a date or date-time value, else ``None``."""
-
     normalized = normalize_value(value)
     if isinstance(normalized, str):
         if _ISO_DATE.match(normalized):
@@ -160,8 +120,6 @@ def facts_from_row(
     row: Mapping[str, Any],
     columns: Optional[Sequence[str]] = None,
 ) -> List[Fact]:
-    """Every cell of ``row`` (or only ``columns``) as facts of entity ``table:rowid``."""
-
     qualified = qualified_table(app, table)
     entity = entity_id(qualified, rowid)
     names = list(columns) if columns is not None else [str(key) for key in row]
@@ -172,13 +130,6 @@ MATCH_RULES = ("exact", "date", "contains")
 
 
 def values_match(primary: Any, other: Any, rule: str = "exact") -> bool:
-    """Whether ``other`` carries the same information as ``primary`` under ``rule``.
-
-    ``exact``    normalized values are equal.
-    ``date``     the calendar dates agree (time-of-day and clock offset ignored).
-    ``contains`` ``other`` is free text that contains the primary value's date or text.
-    """
-
     if rule == "exact":
         return normalize_value(primary) == normalize_value(other)
     if rule == "date":
@@ -205,14 +156,6 @@ class EquivalentSource:
 
 @dataclass
 class EquivalenceRegistry:
-    """Symmetric registry: ``primary fact key -> equivalent sources``.
-
-    Records look like ``{"fact": {table, column, entity}, "equivalents": [{table, column,
-    entity, match}]}``; they come from the seeder's cross-application links (execution doc
-    section 2.1) and from successful rollouts (section 8.4).  Registration is symmetric, so
-    querying any member returns the whole equivalence set.
-    """
-
     _links: Dict[FactKey, Dict[FactKey, str]] = field(default_factory=dict)
 
     @classmethod
@@ -233,8 +176,6 @@ class EquivalenceRegistry:
         self._links.setdefault(other, {})[primary] = match
 
     def equivalents(self, key: FactKey) -> List[EquivalentSource]:
-        """All keys carrying the same fact, ``key`` itself first with rule ``exact``."""
-
         out = [EquivalentSource(key, "exact")]
         for other, match in sorted(
             self._links.get(key, {}).items(),
@@ -274,12 +215,6 @@ def first_observation_of(
     events: Sequence[Mapping[str, Any]],
     registry: Optional[EquivalenceRegistry] = None,
 ) -> Optional[Mapping[str, Any]]:
-    """Earliest ``observation-event/1.0`` in which ``fact`` (or an equivalent) was observed.
-
-    Events are scanned in the given order.  This is the primitive behind the omission
-    detector ("was this required fact ever observed") and the earliest-identifiable rule.
-    """
-
     sources = registry.equivalents(fact.key) if registry else [EquivalentSource(fact.key)]
     wanted = {
         (source.key.table, source.key.column, source.key.entity): source.match for source in sources

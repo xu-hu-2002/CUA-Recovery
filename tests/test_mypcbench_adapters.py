@@ -47,8 +47,6 @@ from derail.mypcbench.tool_agent import (
 
 
 def _load_vendored_claude_adapter():
-    """Load the ignored vendored adapter without requiring the Anthropic SDK."""
-
     root = pathlib.Path(__file__).resolve().parents[1]
     path = root / "third_party/MyPCBench/agent-harness/agents/claude_cuabash.py"
     anthropic = types.ModuleType("anthropic")
@@ -289,8 +287,6 @@ class _FakeClient:
 
 
 class _FakeEnv:
-    """替身 VM 控制句柄：记录 _execute_command 调用并回放固定结果。"""
-
     def __init__(self, output="", error="", returncode=0):
         self.commands = []
         self._result = {"output": output, "error": error, "returncode": returncode}
@@ -328,9 +324,6 @@ class SafeCompilerTests(unittest.TestCase):
                 compiler.compile("click", {"x": invalid})
 
     def test_holo_bare_coordinate_pair_string_is_accepted(self):
-        # qwen3_coder 把两个坐标压进 x 时，Holo-3.1 给出的是裸逗号对而不是 JSON
-        # 数组。2026-08-08 smoke10 的真实样本：x="867, 163" 在 repair 轮被模型
-        # 自己确认为 x=867, y=163，编译结果必须与那一轮完全一致。
         compiler = SafePyAutoGUICompiler((1280, 800), "normalized_0_1000")
         self.assertEqual(
             compiler.compile("click", {"x": "867, 163"}),
@@ -338,8 +331,6 @@ class SafeCompilerTests(unittest.TestCase):
         )
 
     def test_coordinate_pair_string_keeps_normalized_scaling_and_bounds(self):
-        # 补回被 parser 吃掉的 y，不等于放宽归一化协议：串里的数仍按 0--1000
-        # 缩放，越界仍然拒绝。
         compiler = SafePyAutoGUICompiler((1280, 800), "normalized_0_1000")
         self.assertEqual(
             compiler.compile("click", {"x": "[500, 500]"}),
@@ -350,7 +341,6 @@ class SafeCompilerTests(unittest.TestCase):
                 compiler.compile("click", {"x": invalid})
 
     def test_scroll_delta_in_range_is_passed_through_untouched(self):
-        # 单位与走上游 scaffold 的对照组（qwen3_5 自己发 -3/-5/-10）保持一致。
         compiler = SafePyAutoGUICompiler((1280, 800), "normalized_0_1000")
         for notches in (-3, -30, 1, 30):
             with self.subTest(delta_y=notches):
@@ -362,9 +352,6 @@ class SafeCompilerTests(unittest.TestCase):
                 self.assertEqual(compiler.clamps, [])
 
     def test_pixel_scale_scroll_is_clamped_and_reported_not_rejected(self):
-        # 拒绝会消耗 schema repair 预算，耗尽后 predict() 直接返回 FAIL —— 那就
-        # 把「单位理解错」变成了「整局作废」，正是要从数据里剔除的那类失败。
-        # 所以截断执行，但必须留下可审计的 intervention。
         compiler = SafePyAutoGUICompiler((1280, 800), "normalized_0_1000")
         for requested, executed in ((-300, -30), (500, 30), (-253, -30), (10000, 30)):
             with self.subTest(delta_y=requested):
@@ -380,8 +367,6 @@ class SafeCompilerTests(unittest.TestCase):
                 self.assertEqual(clamp["executed_delta_y"], executed)
 
     def test_scroll_schema_publishes_the_notch_bound(self):
-        # schema 里的 minimum/maximum 必须和编译器的拒绝阈值是同一个数，否则
-        # 模型看到的契约和实际执行的契约会分叉。
         scroll = next(
             tool for tool in build_computer_tools(1000, 1000)
             if tool["function"]["name"] == "scroll"
@@ -470,13 +455,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(agent._turns[0][-1]["tool_call_id"], "call_1")
 
     def test_upstream_context_policy_folds_images_and_keeps_an_action_log(self):
-        """kimi_k3 的窗口策略：丢 turn 但不丢动作，留 turn 但可以丢图。
-
-        v1 的「只留最近 3 步」让 hard_app-f010 在第 85 步忘掉自己第 74 步刚确认过
-        的结论，整套重做。这里钉住三件事：窗口外的 turn 消失、它们的动作仍出现在
-        `Previous actions:` 里、留下来的 turn 超出图片上限时只掉图不掉消息。
-        """
-
         def call(index):
             return {
                 "id": f"call_{index}",
@@ -505,7 +483,6 @@ class NativeToolAgentTests(unittest.TestCase):
             agent.predict("Do the task", {"screenshot": b"png"})
 
         sent = client.completions.requests[-1]["messages"]
-        # 5 个历史 turn × 3 条消息 + system + 当前 user。
         self.assertEqual(len(sent), 1 + 5 * 3 + 1)
 
         def images(message):
@@ -514,9 +491,6 @@ class NativeToolAgentTests(unittest.TestCase):
                 return 0
             return sum(1 for part in content if part.get("type") == "image_url")
 
-        # 5 个历史 turn，上限 2 张、每次折 2 张：折两轮后只剩 1 张历史图，加上永不
-        # 折叠的当前截图共 2 张。成块折叠会打到上限以下，上游同样如此 —— 换来的是
-        # 折叠前缀只增不减，prompt cache 不会每步失效。
         self.assertEqual(sum(images(message) for message in sent), 2)
         folded = [
             message
@@ -529,8 +503,6 @@ class NativeToolAgentTests(unittest.TestCase):
         ]
         self.assertEqual(len(folded), 4)
 
-        # tool 消息必须仍然紧跟着发出它的 assistant —— 折叠后留下孤儿 tool 消息
-        # 就是网关 400 的那一类错误。
         for index, message in enumerate(sent):
             if message["role"] == "tool":
                 self.assertEqual(sent[index - 1]["role"], "assistant")
@@ -539,7 +511,6 @@ class NativeToolAgentTests(unittest.TestCase):
                     {c["id"] for c in sent[index - 1]["tool_calls"]},
                 )
 
-        # 掉出窗口的 7 步仍以动作日志的形式可见。
         text = next(
             part["text"]
             for part in sent[-1]["content"]
@@ -551,14 +522,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertNotIn("Step 7:", text)
 
     def test_window_without_action_log_drops_history_outright(self):
-        """v1 那套「只留最近 N 步」的策略仍然可配，且行为没变。
-
-        全部 scaffold 现在都对齐到上游的 100/20/10 + 动作日志，这条守的是退路：
-        history_turns == max_images_in_context 且关掉动作日志时，窗口外的 turn 连
-        同它做过的事一起消失 —— 那正是 hard_app-f010 转圈的成因，改配置时要能一眼
-        看出自己退回了哪里。
-        """
-
         call = {
             "id": "call_1",
             "type": "function",
@@ -586,8 +549,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertNotIn(_FOLDED_SCREENSHOT_PLACEHOLDER, dumped)
 
     def test_scroll_clamp_reaches_trajectory_and_is_told_to_the_model(self):
-        # 截断只有同时满足两点才算「不静默」：写进 trajectory 供事后审计，且当轮
-        # 就通过 tool 消息回告模型，让它下一步能自己改用格数。
         call = {
             "id": "call_scroll",
             "type": "function",
@@ -740,7 +701,6 @@ class NativeToolAgentTests(unittest.TestCase):
         )
 
     def test_wait_before_an_action_is_executed_in_order(self):
-        # 「先等界面稳定，再点」语义上无害：MyPCBench 逐个执行，"WAIT" 就是 sleep。
         message = self._batch_message(
             "lead",
             [("wait", {"seconds": 2}), ("click", {"x": 500, "y": 500})],
@@ -772,10 +732,8 @@ class NativeToolAgentTests(unittest.TestCase):
 
         parsed = json.loads(response)
         self.assertEqual(actions, ["WAIT"])
-        # 折叠是一次 scaffold 干预，必须留痕，而不是静默改写模型输出。
         self.assertEqual(parsed["interventions"][0]["type"], "wait_normalization")
         self.assertEqual(parsed["interventions"][0]["collapsed_tool_call_ids"], ["waits_1"])
-        # 模型原样发出的两个 tool call 都保留，且都有对应的 tool 回复。
         self.assertEqual(len(parsed["tool_calls"]), 2)
         self.assertEqual(
             [message["tool_call_id"] for message in agent._turns[0][2:]],
@@ -799,13 +757,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(json.loads(response)["interventions"], [])
 
     def test_batched_interactions_execute_in_order_without_a_repair(self):
-        """多交互动作批次原样执行，不再触发 schema_repair。
-
-        归因不靠"一屏一动作"这条限制：run_mypcbench.py 逐个 env.step、逐个存截图、
-        逐个写 traj 行，一批 N 个动作照样得到 N 张图和 N 条记录。v1 里这条限制拒了
-        513 次，主力是 click→click 和 click→write（填表单的点击-输入节奏）。
-        """
-
         batched = self._batch_message(
             "batch",
             [
@@ -831,12 +782,9 @@ class NativeToolAgentTests(unittest.TestCase):
         )
         parsed = json.loads(response)
         self.assertEqual(parsed["interventions"], [])
-        # 只发了一次请求：没有被打回重说。
         self.assertEqual(len(client.completions.requests), 1)
 
     def test_answer_may_close_the_turn_it_shares_with_an_action(self):
-        # click→answer 在 v1 里出现 27 次："点完这一下就交卷"。以前 answer 被打回，
-        # 要等下一轮才发得出去；中途若被别的机制终止，这个答案就永远丢了。
         batched = self._batch_message(
             "finish",
             [("click", {"x": 500, "y": 500}), ("answer", {"status": "success"})],
@@ -903,7 +851,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(actions, ["pyautogui.click(1023, 447, button='left')", "WAIT"])
 
     def test_consecutive_clicks_run_as_one_batch(self):
-        # v1 里被拒最多的形状（299 次）：菜单连选、列表逐条勾。
         batched = types.SimpleNamespace(
             content=None,
             tool_calls=[
@@ -979,7 +926,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(json.loads(response)["interventions"][0]["type"], "schema_repair")
 
     def test_invalid_argument_inside_a_batch_still_gets_repaired(self):
-        # 放开批处理不等于放开校验：批次里任何一个 call 参数不合法，整批仍被打回。
         bad = self._batch_message(
             "bad",
             [("click", {"x": 500, "y": 500}), ("click", {"x": 99999, "y": 1})],
@@ -1011,8 +957,6 @@ class NativeToolAgentTests(unittest.TestCase):
         )
 
     def _alternating_cycle(self, rounds):
-        """交替发出 click / esc，共 2*rounds 条消息。"""
-
         sequence = []
         for index in range(2 * rounds):
             if index % 2 == 0:
@@ -1025,12 +969,6 @@ class NativeToolAgentTests(unittest.TestCase):
 
     @staticmethod
     def _guarded_protocol():
-        """出厂 protocol 已停用守卫；守卫机制本身仍需覆盖，这里显式打开。
-
-        用 v1 曾经的阈值（8 / 15），这样这组测试同时也是"要复现 v1 失败分布该怎么
-        配"的可执行文档。
-        """
-
         return dataclasses.replace(
             qwen36_protocol(),
             alternating_action_repeat_limit=8,
@@ -1046,7 +984,6 @@ class NativeToolAgentTests(unittest.TestCase):
         agent = NativeToolComputerAgent(
             "Qwen/Qwen3.6-27B", (1280, 800), protocol, client=client
         )
-        # 循环要满 limit 轮才算数；在那之前每一步都必须原样执行。
         for index in range(2 * limit - 1):
             _, actions = agent.predict("Task", {"screenshot": f"png-{index}".encode()})
             self.assertNotEqual(actions, ["FAIL"])
@@ -1058,8 +995,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(len(client.completions.requests), 2 * limit + 1)
 
     def test_stall_guard_fires_when_screen_frozen_despite_varied_actions(self):
-        # 每一步动作都不同，只有屏幕不变。动作重复类的检测器全都不会触发，
-        # 命中的必须是空转检测；模型随后用 answer(failure) 逃生。
         sequence = [
             self._action_message(f"m{index}", "move", {"x": 100 + index, "y": 100})
             for index in range(15)
@@ -1081,7 +1016,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertIn("unchanged for 15", parsed["interventions"][0]["reason"])
 
     def test_stall_guard_ignores_moving_screen(self):
-        # 屏幕每步都在变时，即使远超 15 步也不能触发空转检测。
         sequence = [
             self._action_message(f"m{index}", "move", {"x": 100 + index, "y": 100})
             for index in range(20)
@@ -1095,9 +1029,6 @@ class NativeToolAgentTests(unittest.TestCase):
             self.assertEqual(actions, [f"pyautogui.moveTo({100 + index}, 100)"])
 
     def test_both_derail_scaffolds_ship_with_loop_guards_disabled(self):
-        # 守卫已停用：v1 实测它掐掉的绝大多数是没走完的长任务而不是死循环
-        # （Holo 70/184 局被掐，均分 0.066 vs 自然 DONE 的 0.379）。终止只由
-        # max_steps 决定。两个 scaffold 必须同口径，否则失败分布不可比。
         qwen, holo = qwen36_protocol(), holo31_protocol()
         for field in ("alternating_action_repeat_limit", "stalled_state_step_limit"):
             self.assertEqual(
@@ -1108,7 +1039,6 @@ class NativeToolAgentTests(unittest.TestCase):
             self.assertEqual(getattr(holo, field), 0, f"{field} 应为 0（守卫停用）")
 
     def test_disabled_guard_never_aborts_even_on_a_hard_cycle(self):
-        # 停用后，把 v1 会被判死循环的形状原样喂进去，必须一步不落地执行。
         sequence = self._alternating_cycle(12)
         agent = NativeToolComputerAgent(
             "Qwen/Qwen3.6-27B", (1280, 800), qwen36_protocol(), client=_FakeClient(sequence)
@@ -1154,8 +1084,6 @@ class NativeToolAgentTests(unittest.TestCase):
             "Qwen/Qwen3.6-27B", (1280, 800), protocol, client=_FakeClient(sequence)
         )
 
-        # 前 limit-1 次连点必须原样通过：连点几下同一个位置（翻页、逐条勾选）是
-        # 正常操作，不能当死循环处理。
         for _ in range(limit - 1):
             _, actions = agent.predict("Task", {"screenshot": b"state"})
             self.assertEqual(actions, ["pyautogui.click(762, 291, button='left')"])
@@ -1166,8 +1094,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(json.loads(response)["interventions"][0]["type"], "loop_repair")
 
     def test_repeating_a_screen_action_pair_is_not_a_loop_on_its_own(self):
-        # 曾经有一条"同画面 + 同动作累计出现 3 次"的判据，已移除：它不要求连续，
-        # 会把逐条处理列表这类正常任务误判成死循环。
         actions_by_step = [("click", {"x": 100, "y": 100}), ("click", {"x": 200, "y": 200})]
         sequence = [
             self._action_message(f"s{index}", *actions_by_step[index % 2])
@@ -1207,20 +1133,12 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(qwen38.protocol.coordinate_protocol, "absolute_pixels")
         self.assertEqual(qwen38.protocol.tool_choice, "auto")
         self.assertEqual(holo.protocol.coordinate_protocol, "normalized_0_1000")
-        # 两个 scaffold 统一 auto：required 逼模型每轮必须调工具，想说"做不到"时
-        # 没有出口，v1 里 Holo 因此一次都没主动发过 fail，70 次 FAIL 全是守卫掐的。
         self.assertEqual(holo.protocol.tool_choice, "auto")
-        # kimi 同样统一 auto；temperature 必须为 None（网关拒绝显式 temperature）。
         self.assertEqual(kimi.protocol.coordinate_protocol, "absolute_pixels")
         self.assertEqual(kimi.protocol.tool_choice, "auto")
         self.assertIsNone(kimi.protocol.temperature)
 
     def test_kimi_request_omits_temperature_but_keeps_budget(self):
-        """kimi-k3 显式传 temperature 会被 400 拒绝；请求体必须省略该字段。
-
-        对照组 qwen36 继续携带 temperature=0.0，确认改动只影响 None 分支。
-        """
-
         call = {
             "id": "click_0",
             "type": "function",
@@ -1256,15 +1174,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(qwen_client.completions.requests[0]["temperature"], 0.0)
 
     def test_shipped_protocol_comes_from_yaml(self):
-        """改 yaml 必须真的改变 decoder 行为。
-
-        v1 之前这些 yaml 是纯文档，改了不生效：holo 的 yaml 写 temperature 0.0 而
-        代码跑的是 0.8，写 coordinate_protocol 却根本没人读。当时的补救是让测试
-        比对两边；现在 yaml 是唯一权威，所以这里改的是断言方向 —— 把配置目录指
-        向一份改过的副本，agent 必须跟着变。逐字段的取值由
-        tests/test_agent_config.py 的金标快照钉住。
-        """
-
         source = pathlib.Path(__file__).resolve().parents[1] / "configs" / "agents"
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
@@ -1286,18 +1195,10 @@ class NativeToolAgentTests(unittest.TestCase):
                 self.assertEqual(holo.protocol.max_images_in_context, 7)
                 self.assertEqual(holo.protocol.history_turns, 9)
                 self.assertFalse(holo.protocol.previous_action_log)
-                # 没改的那份不受影响。
                 qwen = create_mypcbench_agent("derail_qwen36", "qwen", (1280, 800), "pw")
                 self.assertEqual(qwen.protocol.tool_choice, "auto")
 
     def test_yaml_matches_shipped_protocol(self):
-        """四个 derail_tool_agent 的协议必须逐字段来自各自的 yaml。
-
-        kimi_k3 以前在 tool_agent.py 里自建协议，max_tokens 还挂在
-        MYPCBENCH_KIMI_MAX_TOKENS 这个环境变量上，既不在 yaml 也不在这条测试的
-        字段清单里 —— 两层护栏都漏掉了同两个字段。现在四个走同一条装配路径。
-        """
-
         import yaml
 
         config_dir = pathlib.Path(__file__).resolve().parents[1] / "configs" / "agents"
@@ -1331,9 +1232,6 @@ class NativeToolAgentTests(unittest.TestCase):
                         getattr(protocol, field),
                         f"{agent_id}.yaml 的 {field} 与实际装配的协议不一致",
                     )
-                # system_prompt 是唯一一个 yaml 存文件名、协议存内容的字段，而且
-                # 内容是拼出来的：scaffold 段（yaml 指名的那个文件）+ 共享环境块
-                # —— enable_bash 决定拼哪份变体（bash 版带 sudo 密码与 CLI 行）。
                 prompt_dir = config_dir.parents[1] / "prompts" / "agents"
                 scaffold = (prompt_dir / config["system_prompt_file"]).read_text(
                     encoding="utf-8"
@@ -1345,16 +1243,9 @@ class NativeToolAgentTests(unittest.TestCase):
                 )
                 shared = (prompt_dir / shared_name).read_text(encoding="utf-8")
                 self.assertEqual(protocol.system_prompt, (scaffold + shared).strip())
-                # 环境块与模型无关，缺了 agent 就不知道 app 在 localhost:PORT——
-                # 2026-08-10 的 smoke 里 EvoCUA 正是因此把 Cheskepdia 当成公网站点。
-                # scaffold 文件里则不该再有副本，两份只会不声不响地漂开。
                 self.assertIn("3012 | Cheskepdia", protocol.system_prompt)
                 self.assertNotIn("## Persona", scaffold)
-                # 完成纪律：判官只读最后一条回复，模型必须知道终止前要写下答案。
                 self.assertIn("Task completion discipline", protocol.system_prompt)
-                # GUI-only agent 不提 bash（对没有 shell 的 agent 提终端，小模型
-                # 会去 GUI 终端里敲命令——kimi_k3 的 F3 就是这么丢的 109 次）；
-                # cuabash 变体保留从句，并拿到 sudo 密码行。
                 if config["enable_bash"]:
                     self.assertIn("different bash command", protocol.system_prompt)
                     self.assertIn("sudo password", protocol.system_prompt)
@@ -1362,17 +1253,6 @@ class NativeToolAgentTests(unittest.TestCase):
                     self.assertNotIn("different bash command", protocol.system_prompt)
 
     def test_upstream_scaffold_configs_are_marked_as_such(self):
-        """不经过 SafePyAutoGUICompiler 的 config 必须自报家门。
-
-        它们的 coordinate_protocol 用的是上游词汇（normalized_0_999 /
-        smart_resize_absolute_pixels），不在 SafePyAutoGUICompiler 的枚举里 ——
-        因为它们根本不经过那个编译器。没有这个标记就会被误读成配错了。
-
-        两个值的区别：upstream_official 由 DERAIL factory 构造（yaml 是 live
-        权威），upstream_runner 由 MyPCBench 自己构造（yaml 纯文档）。以前这两种
-        共用 upstream_official 一个值，同一个标签底下配置权威性正好相反。
-        """
-
         import yaml
 
         config_dir = pathlib.Path(__file__).resolve().parents[1] / "configs" / "agents"
@@ -1394,7 +1274,6 @@ class NativeToolAgentTests(unittest.TestCase):
         config = load_agent_config("opencua_72b")
         with mock.patch.dict("os.environ", {"DERAIL_AGENT_MAX_STEPS": "8"}):
             self.assertEqual(_upstream_step_budget(config), 9)
-        # runner 没导出上限时才回落到 yaml 的 upstream_max_steps_fallback。
         with mock.patch.dict("os.environ", {}, clear=True):
             self.assertEqual(
                 _upstream_step_budget(config), config["upstream_max_steps_fallback"] + 1
@@ -1407,14 +1286,6 @@ class NativeToolAgentTests(unittest.TestCase):
 
 
 class BashToolAgentTests(unittest.TestCase):
-    """kimi_k3_cuabash 的 bash 分流：gpt 式 agent-internal 语义的逐条钉死。
-
-    2026-08-20 立项的对照组核心约定（见 configs/agents/kimi_k3_cuabash.yaml）：
-    bash 在 predict 内执行、结果以 tool 消息回填后继续对话，不消耗 runner 的
-    max_steps 步数；一次一条命令、单独成批；护栏 = 命令长度 + 输出截断 + 轮数
-    上限。这里每条都对应一个测试，谁漂了跨组对比就不再成立。
-    """
-
     def _bash_message(self, call_id, command):
         return types.SimpleNamespace(
             content=None,
@@ -1461,32 +1332,25 @@ class BashToolAgentTests(unittest.TestCase):
 
         response, actions = agent.predict("Do it", {"screenshot": b"png"})
 
-        # bash 轮不产生 GUI action：最终动作只有 click，runner 只见一步。
         self.assertEqual(actions, ["pyautogui.click(500, 500, button='left')"])
-        # 命令走 runner 注入的 env 通道，与 qwen_cuabash / openai_cuabash 同源。
         self.assertEqual(env.commands, [("ls -la", True)])
-        # 两次 chat 请求：bash 轮 + 收到结果后的 click 轮 —— 同一 predict 内续话。
         self.assertEqual(len(client.completions.requests), 2)
         sent = client.completions.requests[-1]["messages"]
         assistant, tool_reply = sent[-2], sent[-1]
         self.assertEqual(assistant["role"], "assistant")
         self.assertEqual(assistant["tool_calls"][0]["function"]["name"], "bash")
-        # tool 回复紧跟着它的 assistant，id 配对 —— 网关对孤儿 tool 消息会 400。
         self.assertEqual(tool_reply["role"], "tool")
         self.assertEqual(tool_reply["tool_call_id"], "b1")
         self.assertIn("exit code: 0", tool_reply["content"])
         self.assertIn("total 0", tool_reply["content"])
         parsed = json.loads(response)
-        # 每轮 bash 都留痕：命令、退出码、双流长度，供事后审计 bash 依赖度。
         self.assertEqual(parsed["interventions"][0]["type"], "bash_round")
         self.assertEqual(parsed["interventions"][0]["command"], "ls -la")
         self.assertEqual(parsed["interventions"][0]["exit_code"], 0)
         self.assertFalse(parsed["interventions"][0]["truncated"])
-        # compiled_actions 只含 GUI 动作，bash 不冒充屏幕交互。
         self.assertEqual(parsed["compiled_actions"][0]["name"], "click")
 
     def test_bash_must_arrive_alone(self):
-        # bash 与 GUI 动作混发：整批打回一次 schema_repair，命令不执行。
         mixed = types.SimpleNamespace(
             content=None,
             tool_calls=[
@@ -1521,7 +1385,6 @@ class BashToolAgentTests(unittest.TestCase):
         self.assertEqual(env.commands, [])
 
     def test_bash_budget_abort_fails_the_step(self):
-        # 模型连续 bash 不回头：烧满 8 轮预算后第 9 轮判 FAIL，全部轮次留痕。
         client = _FakeClient(
             [self._bash_message(f"b{i}", f"cmd{i}") for i in range(_MAX_BASH_ROUNDS_PER_STEP + 1)]
         )
@@ -1538,15 +1401,11 @@ class BashToolAgentTests(unittest.TestCase):
         self.assertEqual(len(client.completions.requests), _MAX_BASH_ROUNDS_PER_STEP + 1)
 
     def test_steps_accounting_returns_each_bash_round_as_an_empty_step(self):
-        # 统一记账（DERAIL_BASH_ACCOUNTING=steps）：bash 轮不再步内续话，而是
-        # 作为完整一步返回空 actions，交给 runner 记 TOOL_CALL 行并计入步数。
-        # runner 的 has_pending 判定靠 agent.messages（含 system prompt 恒非空）。
         with mock.patch.dict(os.environ, {"DERAIL_BASH_ACCOUNTING": "steps"}):
             client = _FakeClient([self._bash_message("b1", "ls -la"), self._click_message("c1")])
             env = _FakeEnv(output="total 0", returncode=0)
             agent = self._agent(client, env)
 
-            # 第一 predict：bash 轮 -> 空 actions（runner 将记 TOOL_CALL 并计一步）。
             response, actions = agent.predict("Do it", {"screenshot": b"png"})
             self.assertEqual(actions, [])
             parsed = json.loads(response)
@@ -1554,22 +1413,17 @@ class BashToolAgentTests(unittest.TestCase):
             self.assertEqual(parsed["interventions"][0]["command"], "ls -la")
             self.assertEqual(env.commands, [("ls -la", True)])
             self.assertEqual(agent._consecutive_bash_steps, 1)
-            # messages 恒非空 -> runner has_pending 为真 -> 走 TOOL_CALL 分支。
             self.assertTrue(len(agent.messages) > 0)
-            self.assertTrue(agent._turns)  # 该 bash 轮已落成一个完整 turn
+            self.assertTrue(agent._turns)
 
-            # 第二 predict：续话，模型回到 GUI -> click 落地，连发计数清零。
             response2, actions2 = agent.predict("Do it", {"screenshot": b"png"})
             self.assertEqual(actions2, ["pyautogui.click(500, 500, button='left')"])
             self.assertEqual(agent._consecutive_bash_steps, 0)
-            # 第二次请求里要能看到上一轮 bash 的 assistant+tool 回填（历史续接）。
             sent = client.completions.requests[-1]["messages"]
             tool_replies = [m for m in sent if m.get("role") == "tool"]
             self.assertTrue(any(m.get("tool_call_id") == "b1" for m in tool_replies))
 
     def test_steps_accounting_aborts_on_pathological_consecutive_bash(self):
-        # steps 模式的安全阀：连发 bash 超过 _MAX_CONSECUTIVE_BASH_STEPS 仍不回
-        # GUI，判 FAIL。这里把阈值 patch 小以便快速触发（生产值为 64）。
         with mock.patch.dict(os.environ, {"DERAIL_BASH_ACCOUNTING": "steps"}), \
              mock.patch(
                  "derail.mypcbench.tool_agent._MAX_CONSECUTIVE_BASH_STEPS", 3
@@ -1586,7 +1440,7 @@ class BashToolAgentTests(unittest.TestCase):
             parsed = json.loads(response)
             self.assertEqual(parsed["abort"]["type"], "BASH_BUDGET_ABORT")
             self.assertIn("consecutive", parsed["abort"]["reason"])
-            self.assertEqual(len(env.commands), 3)  # 第 4 轮被拦，未执行
+            self.assertEqual(len(env.commands), 3)
 
     def test_steps_accounting_rejects_unknown_mode(self):
         with mock.patch.dict(os.environ, {"DERAIL_BASH_ACCOUNTING": "bogus"}):
@@ -1595,7 +1449,6 @@ class BashToolAgentTests(unittest.TestCase):
 
 
     def test_bash_without_env_feeds_error_text_back(self):
-        # 漏接 env（装配事故）不崩 predict：错误文本回填，模型转回 GUI 路径。
         client = _FakeClient([self._bash_message("b1", "ls"), self._click_message("c1")])
         agent = self._agent(client, env=None)
 
@@ -1609,7 +1462,6 @@ class BashToolAgentTests(unittest.TestCase):
         self.assertEqual(round_info["error"], "no_env")
 
     def test_bash_output_is_truncated_and_audited(self):
-        # 单条命令打爆上下文的护栏：回填截断，intervention 记原始长度。
         client = _FakeClient(
             [self._bash_message("b1", "cat big"), self._click_message("c1")]
         )
@@ -1635,7 +1487,6 @@ class BashToolAgentTests(unittest.TestCase):
         self.assertEqual(bash_names - gui_names, {"bash"})
         self.assertFalse(kimi_k3_protocol().enable_bash)
         self.assertTrue(kimi_k3_cuabash_protocol().enable_bash)
-        # schema 公布的长度上限必须与解码校验同源，否则模型看到的契约是假的。
         bash_tool = next(
             tool
             for tool in build_computer_tools(1279, 799, include_bash=True)
@@ -1648,8 +1499,6 @@ class BashToolAgentTests(unittest.TestCase):
 
 
     def test_factory_wires_env_into_the_cuabash_agent_only(self):
-        # runner 的 get_agent(..., env=env) 经 factory kwargs 落到 agent._env：
-        # cuabash 拿到执行通道，GUI-only 的 kimi_k3 保持 None（不触碰）。
         env = _FakeEnv()
         bash_agent = create_mypcbench_agent(
             "derail_kimi_k3_cuabash", "kimi-k3", (1280, 800), "pw", env=env

@@ -1,18 +1,3 @@
-"""Post-error continuation statistics for one failed rollout (manual v0.2 section 14A.1).
-
-Given the canonical action list and the human root-cause index, this module derives the three
-quantities that decide how many depth instances a failure can supply:
-
-* ``post_error_steps`` -- executed actions after the root cause;
-* ``terminated_explicitly`` -- whether the episode ended with a terminate action rather than
-  by exhausting the action budget;
-* ``loop_detected`` -- whether the post-error suffix repeats one action signature at least
-  ``min_repeats`` times (a deterministic, auditable heuristic; version-tagged in the output).
-
-Everything operates on plain action dictionaries so it works on canonical ``trajectory.jsonl``
-rows without re-validating them through the strict ``Action`` dataclasses.
-"""
-
 from __future__ import annotations
 
 import json
@@ -35,12 +20,6 @@ class LoopConfig:
 
 
 def action_signature(action: Mapping[str, Any], *, click_cell_px: int = 40) -> str:
-    """Canonical string for "the same action": kind plus parameters, pixels quantized to cells.
-
-    Frame-size keys are dropped; every ``*_px`` integer is replaced by its cell index so two
-    clicks on the same control a few pixels apart share a signature.
-    """
-
     reduced: Dict[str, Any] = {}
     for key in sorted(action):
         if key.startswith("frame_"):
@@ -83,8 +62,6 @@ def compute_continuation(
     loop: LoopConfig = LoopConfig(),
     early_stop_window: int = 5,
 ) -> ContinuationStats:
-    """Derive continuation statistics; ``actions`` are ordered canonical action dicts."""
-
     length = len(actions)
     if root_cause_action_index < 0 or root_cause_action_index >= length:
         raise ValueError(
@@ -109,7 +86,6 @@ def compute_continuation(
     start_offset = None
     established_offset = None
     if counted:
-        # Most frequent signature; ties resolve to the one that appears first.
         best = max(counted.values())
         loop_signature = next(sig for sig in signatures if sig is not None and counted[sig] == best)
         repeat_count = best

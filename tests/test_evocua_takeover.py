@@ -41,7 +41,6 @@ class EvoCUATakeoverTests(unittest.TestCase):
     def test_seeded_agent_rebuilds_the_upstream_s2_request(self) -> None:
         adapter = create_native_history_adapter("evocua_32b", "open calc")
         history = build_native_history(adapter, [_step(0), _step(1)])
-        # The rendered assistant turn carries the action, not the reasoning.
         self.assertEqual(history[2]["content"][0]["text"], RESPONSES[0])
         self.assertEqual(
             [c["function"]["name"] for c in adapter.extract_tool_calls(history)],

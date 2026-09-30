@@ -1,5 +1,3 @@
-"""Error-free prefix repair 的不可变 patch 机制。"""
-
 from __future__ import annotations
 
 import json
@@ -13,7 +11,7 @@ from derail.derived.validation import strict_bool
 
 
 class PrefixRepairError(ValueError):
-    """Repair patch 违反论文协议或不能应用到指定轨迹。"""
+    pass
 
 
 @dataclass(frozen=True)
@@ -33,9 +31,6 @@ class PrefixAudit:
     rationale: str
     approved: bool
     schema_version: str = "0.2.0"
-    # Reviewers required to confirm the repaired prefix.  The paper (App. C "Prefix repair",
-    # App. E) asks annotators to confirm it without fixing a count; the protocol default lives in
-    # configs/benchmark/derail_v1.yaml (prefix_repair.min_reviewers).  Not serialized.
     min_reviewers: int = field(default=1, compare=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -49,8 +44,6 @@ class PrefixAudit:
         if self.audited_prefix_action_indices != expected:
             raise PrefixRepairError("prefix audit 必须逐一覆盖 clean-prefix 最大 depth 边界内的 actions")
         if any(index >= self.root_cause_action_index for index in self.unrelated_error_action_indices):
-            # The paper repairs unrelated mistakes *before* t_r; the root action and everything
-            # after it is the error being tested and must replay unchanged.
             raise PrefixRepairError("prefix repair 只能修改 root cause 之前的 actions")
         if len(set(self.unrelated_error_action_indices)) != len(
             self.unrelated_error_action_indices
@@ -230,12 +223,6 @@ class RepairPatch:
 def apply_repair_patches(
     steps: Sequence[CanonicalStep], patches: Iterable[RepairPatch]
 ) -> Tuple[CanonicalStep, ...]:
-    """在内存中生成 repaired trajectory，不修改输入轨迹。
-
-    该函数还检查 patch 中的 old_action 是否和当前轨迹一致。这样可以防止 annotator
-    基于旧版本轨迹产生的 patch 被错误地套到新版本 case 上。
-    """
-
     patch_by_step: Dict[int, RepairPatch] = {}
     for patch in patches:
         if patch.step_id in patch_by_step:
@@ -255,8 +242,6 @@ def apply_repair_patches(
             if earliest_patch is None or step.step_id < earliest_patch:
                 repaired_steps.append(step)
                 continue
-            # 任一 prefix 动作改变后，后续旧状态和 tool result 都不再可信。即使该动作本身
-            # 没有被替换，也必须等待真实 replay 重建 observation 证据。
             repaired_steps.append(
                 CanonicalStep(
                     step_id=step.step_id,
@@ -282,8 +267,6 @@ def apply_repair_patches(
                 "step %d 的 old_action 与轨迹不匹配，拒绝应用过期 patch" % step.step_id
             )
         if patch.operation == "drop":
-            # Keep the source ID absent rather than renumbering later actions. Replay reconnects
-            # the next retained action to the state produced by the preceding retained action.
             continue
         assert patch.new_action is not None
         before_is_still_valid = earliest_patch == step.step_id
@@ -297,7 +280,6 @@ def apply_repair_patches(
                 observation_before_uri=(
                     step.observation_before_uri if before_is_still_valid else ""
                 ),
-                # 修复动作改变了后续状态，旧的 after hash 不再可信，必须通过 replay 重算。
                 observation_after_sha256="",
                 tool_result="pending_replay",
                 source_agent=step.source_agent,
@@ -314,13 +296,6 @@ def apply_repair_patches(
 
 
 def load_repaired_prefix(path: Path) -> Tuple[CanonicalStep, ...]:
-    """Read a repaired canonical trajectory written by ``scripts/prepare_clean_prefix.py``.
-
-    Unlike ``load_canonical_jsonl`` the indices may have gaps: dropped pre-root actions are
-    absent and every retained action keeps its source ``action_index_global``, so the annotated
-    root, error horizon and ``t_r + d`` need no remapping.
-    """
-
     steps = []
     with Path(path).open(encoding="utf-8") as handle:
         for line in handle:

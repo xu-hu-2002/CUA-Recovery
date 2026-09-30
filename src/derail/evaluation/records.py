@@ -9,7 +9,6 @@ from derail.derived.layout import DEPTH_GRID
 from derail.derived.validation import strict_bool
 from derail.takeover.protocol import load_takeover_config
 
-# Steps allowed after takeover (paper 05:12); configs/takeover/takeover.yaml max_steps.
 POST_TAKEOVER_ACTION_BUDGET = int(load_takeover_config()["max_steps"])
 PESR_SUCCESS_THRESHOLD = 1.0
 

@@ -1,16 +1,10 @@
-# Rollout plan parameters (meeting 2026-09-07: the final dataset needs > 10,000 trajectories;
-# collaborator confirmed the compute).  Used by scripts/estimate_trajectories.py; rates marked
-# "assumed" are replaced by measured values once the first rollouts are in.
 schema_version: rollout-budget/1.0
 target_trajectories: 10000
 rollout_models: 6
 takeover_models: 4
-# Variants per task = world variants (base world + injectable hazards, D-037) x instruction
-# realizations (D-041).  The world-variant default applies when no generation bundle is given.
 world_variants_per_task_default: 1.5
 realizations_per_task: 2
-# Assumed until measured on the first rollout batch.
 failure_rate: 0.45
-usable_takeover_depths: 3.5      # of the depth grid {0,5,10,15,20,25}, those inside the failed suffix
+usable_takeover_depths: 3.5  # depth-grid points inside the failed suffix
 steps_per_trajectory: 30
 seconds_per_step: 10

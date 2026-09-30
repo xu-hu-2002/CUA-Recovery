@@ -1,14 +1,3 @@
-"""Phase 2: statistics. Every rate in the pipeline is produced by ``rate_with_ci``.
-
-Conventions enforced here
--------------------------
-* A rate is never reported without its numerator, denominator and 95% CI.
-* Any denominator below ``low_n`` carries a ``[LOW_N]`` marker.
-* Missing values are counted and reported; they are never imputed and never
-  folded into a category.
-* All resampling uses ``SEED``.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
@@ -25,8 +14,6 @@ LOW_N_MARK = "[LOW_N]"
 
 @dataclass(frozen=True)
 class Rate:
-    """A proportion with everything needed to judge it."""
-
     k: int
     n: int
     rate: float
@@ -40,11 +27,6 @@ class Rate:
 
 
 def rate_with_ci(k: int, n: int, low_n: int = 10, method: str = "wilson") -> Rate:
-    """The single entry point for every proportion in this pipeline.
-
-    Returns k, n, k/n and a 95% CI. With ``n == 0`` the rate and both bounds are
-    NaN -- an undefined proportion is reported as undefined, not as zero.
-    """
     k, n = int(k), int(n)
     if k > n:
         raise ValueError(f"numerator {k} exceeds denominator {n}")
@@ -55,7 +37,6 @@ def rate_with_ci(k: int, n: int, low_n: int = 10, method: str = "wilson") -> Rat
 
 
 def rate_row(k: int, n: int, low_n: int = 10, **extra) -> dict:
-    """``rate_with_ci`` flattened into a tidy-CSV row, with the LOW_N marker."""
     r = rate_with_ci(k, n, low_n)
     row = dict(extra)
     row.update(numerator=r.k, denominator=r.n, rate=r.rate,
@@ -64,7 +45,6 @@ def rate_row(k: int, n: int, low_n: int = 10, **extra) -> dict:
 
 
 def bh_fdr(pvalues: list[float]) -> list[float]:
-    """Benjamini-Hochberg q-values; NaN p-values pass through as NaN."""
     p = np.asarray(pvalues, dtype=float)
     ok = ~np.isnan(p)
     q = np.full_like(p, np.nan)
@@ -73,15 +53,7 @@ def bh_fdr(pvalues: list[float]) -> list[float]:
     return q.tolist()
 
 
-# --------------------------------------------------------------------------
-# 1. task score
-# --------------------------------------------------------------------------
 def task_score_by_agent(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """Task success rate per agent plus an overall row.
-
-    Analysis set: the whole clean table (every row already passed the whitelist
-    and wrong-rollout filters).
-    """
     rows = []
     for agent, g in clean.groupby("agent"):
         rows.append(rate_row(int(g["task_score"].sum()), len(g), low_n,
@@ -92,7 +64,6 @@ def task_score_by_agent(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
 
 
 def task_score_by_group(clean: pd.DataFrame, group: str, low_n: int = 10) -> pd.DataFrame:
-    """Task success rate split by agent x ``group`` (e.g. task_category)."""
     rows = []
     for (agent, key), g in clean.groupby(["agent", group], dropna=False):
         rows.append(rate_row(int(g["task_score"].sum()), len(g), low_n,
@@ -104,11 +75,6 @@ def task_score_by_group(clean: pd.DataFrame, group: str, low_n: int = 10) -> pd.
 
 
 def unpaired_group_test(clean: pd.DataFrame, value_col: str, low_n: int = 10) -> pd.DataFrame:
-    """Chi-square across agents plus pairwise Fisher with BH-FDR.
-
-    Unpaired because the agents do not share a common task set; see the report's
-    data-hygiene section for the coverage numbers that justify this choice.
-    """
     agents = sorted(clean["agent"].unique())
     table = np.array([
         [int((clean[clean.agent == a][value_col] == 1).sum()),
@@ -118,7 +84,6 @@ def unpaired_group_test(clean: pd.DataFrame, value_col: str, low_n: int = 10) ->
     rows = []
     chi2, p, dof, expected = sps.chi2_contingency(table)
     n = table.sum()
-    # Cramer's V for a k x 2 table.
     v = float(np.sqrt((chi2 / n) / (min(table.shape) - 1))) if n and min(table.shape) > 1 else np.nan
     rows.append(dict(comparison="omnibus", test="chi2_contingency", statistic=chi2,
                      dof=dof, p_value=p, q_value=np.nan, effect_size_name="cramers_v",
@@ -141,11 +106,7 @@ def unpaired_group_test(clean: pd.DataFrame, value_col: str, low_n: int = 10) ->
     return pd.DataFrame(rows)
 
 
-# --------------------------------------------------------------------------
-# 2. rubric score
-# --------------------------------------------------------------------------
 def _bootstrap_ci(values: np.ndarray, n_resamples: int, seed: int) -> tuple[float, float]:
-    """Percentile bootstrap CI of the mean. NaN if fewer than 2 observations."""
     values = values[~np.isnan(values)]
     if len(values) < 2:
         return float("nan"), float("nan")
@@ -157,14 +118,6 @@ def _bootstrap_ci(values: np.ndarray, n_resamples: int, seed: int) -> tuple[floa
 
 def rubric_score_by_agent(clean: pd.DataFrame, low_n: int = 10,
                           n_resamples: int = 10000, seed: int = SEED) -> pd.DataFrame:
-    """MACRO and MICRO rubric scores per agent, plus overall.
-
-    MACRO: mean over rollouts of each rollout's rubric_pass_ratio. Every rollout
-    counts once regardless of how many rubrics its task defines.
-    MICRO: pooled passed rubrics / pooled defined rubrics. Tasks with more
-    rubrics pull harder. The two differ whenever rubric counts vary by task,
-    which they do here (3..17 rubrics).
-    """
     rows = []
     groups = [(a, g) for a, g in clean.groupby("agent")] + [("OVERALL", clean)]
     for agent, g in groups:
@@ -202,17 +155,11 @@ def rubric_score_by_agent(clean: pd.DataFrame, low_n: int = 10,
 
 
 def rubric_ratio_distribution(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """Histogram of rubric_pass_ratio in fixed 0.1 bins, per agent.
-
-    Reported as counts rather than a smoothed density so that bimodality (mass
-    piled at 0 and at 1) stays visible instead of being averaged away.
-    """
     edges = np.round(np.arange(0, 1.0001, 0.1), 3)
     rows = []
     for agent, g in list(clean.groupby("agent")) + [("OVERALL", clean)]:
         v = g["rubric_pass_ratio"].to_numpy(dtype=float)
         counts, _ = np.histogram(v, bins=edges)
-        # np.histogram puts 1.0 in the last bin already (right-closed final bin).
         for i, c in enumerate(counts):
             rows.append(rate_row(int(c), len(v), low_n, agent=agent,
                                  bin_low=edges[i], bin_high=edges[i + 1]))
@@ -220,12 +167,6 @@ def rubric_ratio_distribution(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFr
 
 
 def rubric_by_agent_matrix(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """Pass rate of each rubric slot R1..Rn, per agent.
-
-    Rubric ids are positional within a task's bundle, so R3 means different
-    criteria across tasks. This table is therefore a slot-level view, not a
-    criterion-level one, and must not be read as "rubric 3 is hard".
-    """
     rows = []
     for agent, g in list(clean.groupby("agent")) + [("OVERALL", clean)]:
         slot_pass, slot_total = {}, {}
@@ -240,11 +181,6 @@ def rubric_by_agent_matrix(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame
 
 
 def weighted_ratio_distribution(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """Histogram of weighted_rubric_score in fixed 0.1 bins, per agent.
-
-    Reported alongside the unweighted distribution so that a difference in shape,
-    not only in mean, is visible.
-    """
     edges = np.round(np.arange(0, 1.0001, 0.1), 3)
     rows = []
     for agent, g in list(clean.groupby("agent")) + [("OVERALL", clean)]:
@@ -258,12 +194,6 @@ def weighted_ratio_distribution(clean: pd.DataFrame, low_n: int = 10) -> pd.Data
 
 
 def rubric_weight_profile(clean: pd.DataFrame) -> pd.DataFrame:
-    """Describe the rubric weight vectors themselves.
-
-    Establishes whether weighting can carry information at all: if every task
-    weighted its rubrics uniformly, the weighted score would be identical to the
-    unweighted pass ratio and would add nothing.
-    """
     rows = []
     for _, r in clean.iterrows():
         w = r["rubric_weights"]
@@ -285,12 +215,6 @@ def rubric_weight_profile(clean: pd.DataFrame) -> pd.DataFrame:
 
 
 def weighted_vs_unweighted_gap(clean: pd.DataFrame, top: int = 15) -> pd.DataFrame:
-    """Rollouts where weighting moves the score the most.
-
-    These are the only rows where the weighted metric can change a conclusion;
-    if the list is short and the gaps are small, the two metrics are effectively
-    interchangeable for this dataset.
-    """
     d = clean.assign(gap=(clean["weighted_rubric_score"] - clean["rubric_pass_ratio"]))
     d = d[d["gap"].notna()].copy()
     d["abs_gap"] = d["gap"].abs()
@@ -300,23 +224,12 @@ def weighted_vs_unweighted_gap(clean: pd.DataFrame, top: int = 15) -> pd.DataFra
     return d.sort_values("abs_gap", ascending=False).head(top)[cols]
 
 
-# --------------------------------------------------------------------------
-# 3. error types ("root cause")
-# --------------------------------------------------------------------------
 def error_analysis_set(clean: pd.DataFrame) -> pd.DataFrame:
-    """The denominator for every error-type statistic.
-
-    Failed rollouts that carry a failure annotation **and** still have at least
-    one label after normalisation. Rollouts emptied by label normalisation are
-    excluded here and counted by ``label_missing_by_agent`` instead, so they
-    never silently deflate a rate.
-    """
     return clean[(clean["task_score"] == 0) & clean["has_failure_annotation"]
                  & ~clean["error_types_emptied_by_normalization"]]
 
 
 def label_missing_by_agent(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """Failed rollouts left with no error label after normalisation, per agent."""
     failed = clean[(clean["task_score"] == 0) & clean["has_failure_annotation"]]
     rows = []
     for agent, g in list(failed.groupby("agent")) + [("OVERALL", failed)]:
@@ -328,15 +241,6 @@ def label_missing_by_agent(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame
 
 def error_type_rates(long: pd.DataFrame, clean: pd.DataFrame, level: str,
                      low_n: int = 10) -> pd.DataFrame:
-    """Rollout-normalised and label-normalised distribution of ``level``.
-
-    Analysis set: failed rollouts (``task_score == 0``) carrying a failure
-    annotation.
-
-    ROLLOUT-NORMALIZED = rollouts containing label L / failed rollouts. Labels
-    are multi-select, so the column sums to more than 1 by design.
-    LABEL-NORMALIZED  = occurrences of L / total label occurrences; sums to 1.
-    """
     failed = error_analysis_set(clean)
     rows = []
     scopes = [(a, long[long.agent == a], failed[failed.agent == a])
@@ -357,10 +261,6 @@ def error_type_rates(long: pd.DataFrame, clean: pd.DataFrame, level: str,
 
 
 def label_cardinality(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """How many error labels a failed rollout carries, per agent.
-
-    Denominator excludes rollouts emptied by label normalisation.
-    """
     failed = error_analysis_set(clean)
     rows = []
     for agent, g in list(failed.groupby("agent")) + [("OVERALL", failed)]:
@@ -377,12 +277,6 @@ def label_cardinality(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
 
 def error_level_homogeneity(long: pd.DataFrame, clean: pd.DataFrame, level: str,
                             low_n: int = 10) -> pd.DataFrame:
-    """Per-value cross-agent proportion test with BH-FDR, plus an omnibus test.
-
-    Each value of ``level`` is tested as present/absent across agents on the
-    failed-rollout denominator. Fisher is used when any expected count is below
-    5, which is common here.
-    """
     failed = error_analysis_set(clean)
     agents = sorted(failed["agent"].unique())
     denom = {a: int((failed.agent == a).sum()) for a in agents}
@@ -414,11 +308,6 @@ def error_level_homogeneity(long: pd.DataFrame, clean: pd.DataFrame, level: str,
 
 
 def top_labels_rank_correlation(long: pd.DataFrame, level: str) -> pd.DataFrame:
-    """Spearman rho between agents' label-frequency rankings.
-
-    A uniformly high rho indicates the error mix tracks the task set rather than
-    the policy; this is descriptive only.
-    """
     agents = sorted(long["agent"].unique())
     counts = {a: long[long.agent == a][level].value_counts() for a in agents}
     labels = sorted(set().union(*[set(c.index) for c in counts.values()]))
@@ -434,15 +323,7 @@ def top_labels_rank_correlation(long: pd.DataFrame, level: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# --------------------------------------------------------------------------
-# 4. error depth
-# --------------------------------------------------------------------------
 def depth_sample_composition(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFrame:
-    """Where every failed rollout ends up in the depth analysis, per agent.
-
-    Depth is defined only for failed rollouts with a recorded root cause. The
-    remaining rows are reported by reason, never dropped without a count.
-    """
     failed = clean[clean["task_score"] == 0]
     rows = []
     for agent, g in list(failed.groupby("agent")) + [("OVERALL", failed)]:
@@ -458,11 +339,6 @@ def depth_sample_composition(clean: pd.DataFrame, low_n: int = 10) -> pd.DataFra
 
 
 def depth_descriptives(clean: pd.DataFrame, group_cols: list[str], low_n: int = 10) -> pd.DataFrame:
-    """Descriptive statistics of OBSERVED (uncensored) depth by group.
-
-    Censored rows are excluded here by necessity and counted in the companion
-    composition table; the Kaplan-Meier summary is what uses them.
-    """
     obs = clean[clean["depth_status"] == "observed"]
     rows = []
     grouped = list(obs.groupby(group_cols, dropna=False)) if group_cols else []
@@ -481,13 +357,6 @@ def depth_descriptives(clean: pd.DataFrame, group_cols: list[str], low_n: int = 
 
 
 def depth_km_summary(clean: pd.DataFrame, group_col: str, low_n: int = 10) -> pd.DataFrame:
-    """Kaplan-Meier summary of depth by group, treating "failure never becomes
-    clear" as right censoring.
-
-    event = the failure became clear; time = depth. A median that the survival
-    curve never reaches is reported as ``not reached`` rather than as the
-    largest observed value.
-    """
     from lifelines import KaplanMeierFitter
 
     sub = clean[clean["depth_status"].isin(["observed", "right_censored"])]
@@ -520,7 +389,6 @@ def depth_km_summary(clean: pd.DataFrame, group_col: str, low_n: int = 10) -> pd
 
 
 def depth_logrank(clean: pd.DataFrame, group_col: str) -> pd.DataFrame:
-    """Multivariate log-rank test of depth across groups (censoring-aware)."""
     from lifelines.statistics import multivariate_logrank_test
 
     sub = clean[clean["depth_status"].isin(["observed", "right_censored"])].copy()
@@ -538,12 +406,6 @@ def depth_logrank(clean: pd.DataFrame, group_col: str) -> pd.DataFrame:
 
 def depth_bins_by_group(clean: pd.DataFrame, group_col: str, mapping: dict,
                         low_n: int = 10) -> pd.DataFrame:
-    """Ordinal depth-bin proportions per group.
-
-    Continuous depth is the difference of two noisy annotated step indices, so
-    the binned view is the more robust one; ``CENSORED_UNRESOLVED`` is kept as
-    its own bin instead of being assigned.
-    """
     labels = list(mapping["depth_bins"]["labels"]) + ["CENSORED_UNRESOLVED"]
     sub = clean[clean["depth_bin"].notna()]
     rows = []
@@ -555,15 +417,6 @@ def depth_bins_by_group(clean: pd.DataFrame, group_col: str, mapping: dict,
 
 
 def depth_by_error_type(long: pd.DataFrame, level: str, low_n: int = 10) -> pd.DataFrame:
-    """Median depth per error label, censoring-aware, sorted latest-first.
-
-    A rollout with k distinct labels contributes to k rows, so these groups
-    overlap; the table describes labels, not a partition of rollouts.
-
-    Rows are de-duplicated on (trajectory_id, level) first. Without that, a
-    rollout carrying two labels of the same category would enter that category's
-    Kaplan-Meier fit twice and inflate its denominator.
-    """
     from lifelines import KaplanMeierFitter
 
     long = long.drop_duplicates(subset=["trajectory_id", level])
@@ -590,14 +443,12 @@ def depth_by_error_type(long: pd.DataFrame, level: str, low_n: int = 10) -> pd.D
 
 
 def coverage_matrix(clean: pd.DataFrame) -> pd.DataFrame:
-    """task_id x agent coverage; decides paired vs unpaired design."""
     m = pd.crosstab(clean["task_id"], clean["agent"])
     m["n_agents_covering"] = (m > 0).sum(axis=1)
     return m.reset_index()
 
 
 def missingness(clean: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Per-agent missing count and rate for each requested column."""
     rows = []
     for agent, g in list(clean.groupby("agent")) + [("OVERALL", clean)]:
         for c in columns:

@@ -1,16 +1,4 @@
-"""采集任务来源（configs/collection/sources.yaml）：MyPCBench 原始任务或 ReRail 组合 workflow。
-
-两种来源最终都变成官方 runner / run_rollout_v1.py 能吃的任务列表（每项至少有 ``id`` 与
-``instruction``）。ReRail 行的转换与 phase5 的 ``task_config`` 相同（只带 id + instruction，
-env.reset 不需要别的字段），额外字段只作 provenance；``grading`` 取合成 bundle 里该
-workflow 的组合 rubric（``rubrics_dir``/<workflow_id>.json，derail.gen.graft.compose_rubric
-写出的 MyPCBench grading 形状），官方 run_mypcbench.load_tasks 要求每个任务都有
-``grading.rubrics``。缺 rubric 的 workflow 按 ``on_missing_rubric``（error | skip）处理。
-
-    python -m derail.rollout.tasks --source rerail_workflows --out <run_root>/_tasks/rerail.json
-
-输出一行 JSON 摘要到 stdout（``tasks_file`` / ``tasks`` / ``graded``），供采集脚本记进 manifest。
-"""
+"""Build collection task lists from MyPCBench tasks or ReRail workflows."""
 
 from __future__ import annotations
 

@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""Step-level snapshots by changelog replay (execution doc v1.2 section 4.3).
-
-Any step's state = baseline database + the changelog prefix up to that step.  ``replay``
-applies ``_changelog`` rows (INSERT / UPDATE / DELETE with full-row JSON) to a copy of the
-baseline without going through the GUI; ``digest`` hashes a database's user tables so the
-replayed state can be compared with the directly executed one (section 4.6 go condition).
-
-Standard library only; the file is deployed into the VM and imported by repository tests.
-
-    python3 changelog_replay.py replay --baseline base.sqlite --changelog log.jsonl \
-        --until-action 12 --out step12.sqlite
-    python3 changelog_replay.py digest step12.sqlite
-"""
+"""Step-level snapshots by changelog replay."""
 
 from __future__ import annotations
 
@@ -32,9 +20,6 @@ def _quote(name: str) -> str:
 
 
 def apply_row(conn: sqlite3.Connection, row: Mapping[str, object]) -> None:
-    """Apply one ``changelog-row/1.0`` record (triggers, if installed, must be disabled by the
-    caller so the replay itself is not logged)."""
-
     table = _quote(str(row["tbl"]))
     op = str(row["op"])
     if op == "DELETE":
@@ -65,13 +50,6 @@ def replay(
     until_action: Optional[int] = None,
     until_seq: Optional[int] = None,
 ) -> Dict[str, int]:
-    """Copy ``baseline`` to ``out`` and apply rows in ``seq`` order up to the given bound.
-
-    Rows with ``action_index`` below zero (setup / reset changes) are applied like any other;
-    ``until_action`` is inclusive.  Triggers present in the copy are dropped first so the
-    replay does not append to the copy's own log.
-    """
-
     shutil.copyfile(baseline, out)
     conn = sqlite3.connect(out)
     applied = skipped = 0
@@ -97,8 +75,6 @@ def replay(
 
 
 def load_volatile_rules(path: Optional[str]) -> Dict[str, object]:
-    """``{"patterns": [...], "keep": {table: [columns]}}`` from ``volatile_columns.json``."""
-
     if not path:
         return {"patterns": [], "keep": {}}
     with open(path, "r", encoding="utf-8") as handle:
@@ -127,11 +103,6 @@ def _encode(value: object) -> object:
 
 
 def _tables(conn: sqlite3.Connection) -> List[str]:
-    """Ordinary tables, sorted.  ``PRAGMA table_list`` needs SQLite >= 3.37; older versions
-    return no rows for an unknown pragma (no error), which used to hash every database to the
-    same empty digest.  The fallback reads ``sqlite_master`` and drops virtual tables and their
-    ``<vtab>_*`` shadow tables, matching what ``table_list`` reports as ``table``."""
-
     try:
         listed = conn.execute("PRAGMA table_list").fetchall()
     except sqlite3.OperationalError:
@@ -162,13 +133,6 @@ def digest(
     rules: Optional[Mapping[str, object]] = None,
     app: Optional[str] = None,
 ) -> str:
-    """sha256 over user tables (sorted), rows in rowid order, values JSON-encoded.
-
-    Mirrors ``derail.world.state.database_digest`` byte for byte so the two sides of the
-    section 4.6 comparison can be computed on either machine.  ``rules`` (volatile column
-    rules, D-012) drops the matching columns; ``app`` defaults to the file stem.
-    """
-
     app = app or os.path.splitext(os.path.basename(path))[0]
     conn = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
     hasher = hashlib.sha256()

@@ -1,12 +1,3 @@
-"""Depth instantiation, reversibility stratum and dedup for v1 cases (doc v1.2 section 10.3).
-
-Builds on the v0.2 helpers (``derail.longhorizon.cases``): the failure analysis supplies the
-root cause and type, the change log supplies the R3 effects within root + d (the stratum is
-computed, never annotated), the static profile supplies the predicted latent horizon of the
-root-cause node.  Every depth of the configured grid with enough post-error steps becomes a
-``derail-case/1.0`` candidate; near-duplicates are merged with the v0.2 dedup key.
-"""
-
 from __future__ import annotations
 
 from derail.cases.gold_action import attach_gold_actions
@@ -31,9 +22,6 @@ _HIGH_CONSEQUENCE = {"R2", "R3"}
 def effects_within(
     trace: Mapping[str, Any], gold: Mapping[str, Any], start: int, end: int
 ) -> List[Dict[str, Any]]:
-    """Effects (with reversibility class) the agent executed between actions ``start`` and
-    ``end`` inclusive, classified through the gold writes' effect classes by table."""
-
     class_by_table: Dict[str, str] = {}
     type_by_table: Dict[str, str] = {}
     for write in gold.get("writes_gold", ()):
@@ -48,7 +36,6 @@ def effects_within(
             table = "%s.%s" % (row["db"], row["tbl"])
             klass = class_by_table.get(table)
             if klass is None:
-                # an insert into a messages / mail table is a send even when gold never sends
                 klass = (
                     "R3"
                     if row["op"] == "INSERT"
@@ -81,13 +68,6 @@ def build_cases(
     test_eligibility: bool = True,
     require_error_explicit: bool = True,
 ) -> Tuple[List[Dict[str, Any]], Dict[int, str]]:
-    """``derail-case/1.0`` records for one failed rollout and the skipped depths.  Every
-    record carries the programme-derived ``gold_action`` (D-046).
-
-    With ``test_eligibility`` (test split, paper Alg. 1 / App. C) a depth whose takeover point
-    falls after the automatically located ``t_e`` is skipped as well, through the shared
-    ``eligible_depths`` rule."""
-
     root = analysis.get("root_cause_action_index")
     if (
         root is None
@@ -173,8 +153,6 @@ def build_cases(
 def dedup_records(
     records: Sequence[Mapping[str, Any]],
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """Apply the v0.2 dedup rule across records of many rollouts; returns (kept, removed)."""
-
     by_id = {r["case_id"]: dict(r) for r in records}
     candidates = []
     for r in records:

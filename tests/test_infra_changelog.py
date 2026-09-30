@@ -1,6 +1,4 @@
-"""Trigger change log and changelog replay on the miniworld (execution doc v1.2 sections 4.1,
-4.3, 4.6): every change is attributed to the announced action, and baseline + changelog
-prefix reproduces the directly executed state digest for digest."""
+"""Trigger change log and changelog replay on the miniworld."""
 
 from __future__ import annotations
 
@@ -111,7 +109,6 @@ class ChangelogTests(unittest.TestCase):
         report = replayer.replay(str(self.baseline), rows, str(out))
         self.assertEqual(report["skipped"], 0)
         self.assertEqual(replayer.digest(str(out), EXCLUDE), direct_full)
-        # Prefix up to action 2: recompute the direct state on a second copy.
         partial = Path(self.tmp.name) / "partial.sqlite"
         replayer.replay(str(self.baseline), rows, str(partial), until_action=2)
         direct2 = sqlite3.connect(str(Path(self.tmp.name) / "direct2.sqlite"))
@@ -168,7 +165,6 @@ class ChangelogTests(unittest.TestCase):
             replayer.digest(str(self.live), EXCLUDE, rules, "hoolicalendar"),
             database_digest(self.conn, EXCLUDE, skip),
         )
-        # The volatile change is invisible to the rule-aware digest but visible to the plain one.
         self.assertEqual(
             replayer.digest(str(self.live), EXCLUDE, rules, "hoolicalendar"),
             replayer.digest(str(self.baseline), EXCLUDE, rules, "hoolicalendar"),
@@ -178,8 +174,6 @@ class ChangelogTests(unittest.TestCase):
         )
 
     def test_digest_tells_different_databases_apart_on_this_sqlite(self):
-        # PRAGMA table_list needs SQLite >= 3.37; older builds return no rows and every
-        # database used to hash to the same empty digest.
         paths = []
         for index, title in enumerate(("a", "b")):
             path = Path(self.tmp.name) / ("plain_%d.sqlite" % index)

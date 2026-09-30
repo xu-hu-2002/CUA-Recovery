@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Run one real Phase 5 hazard seed smoke against the frozen guest image,
-extract base and variant world snapshots, and upload evidence to OSS."""
+"""Run one Phase 5 hazard seed smoke against the frozen guest image and upload evidence to OSS."""
 
 from __future__ import annotations
 
@@ -79,7 +78,6 @@ async def guest_exec(sandbox, command: str, timeout: int = 300) -> str:
         "http://127.0.0.1:8080/pcapi/execute "
         "-H 'Content-Type: application/json' --data-binary @-"
     )
-    # A timed-out POST may already have mutated the guest; never replay it.
     result = await sandbox.arun(
         "bash -lc " + shlex.quote(remote), mode="nohup",
         wait_timeout=timeout + 30, wait_interval=5,
@@ -106,13 +104,7 @@ async def guest_reset(sandbox) -> dict:
 async def guest_fetch_file(sandbox, guest_path: str, sandbox_path: str,
                            timeout: int = 600, attempts: int = 3,
                            retry_delay: int = 15) -> str:
-    """Proven by vm_acceptance: /pcapi/file streams a guest file via gateway.
-
-    Runs in nohup mode because normal mode ignores wait_timeout and is capped by the
-    SDK's fixed 300s HTTP read timeout. /pcapi/file only reads guest state, so a
-    stalled attempt may be retried; each attempt stages to its own path and renames
-    atomically, so a still-running earlier attempt cannot race the next one.
-    """
+    """Fetch a guest file through /pcapi/file in nohup mode, staging each attempt atomically."""
     body = shlex.quote(json.dumps({"file_path": guest_path}))
     target = shlex.quote(sandbox_path)
     failure = "no attempt made"
@@ -332,7 +324,6 @@ async def run() -> int:
             sandbox, REPO / "scripts/phase5/guest_admin.py", "/opt/phase5/guest_admin.py"
         )
 
-        # =============================== PHASE 1: reset + guard + base snapshot
         print("[phase1] reset + guard + base evidence snapshot", flush=True)
         base_snap_py = EVIDENCE_TEMPLATE.replace("{stage}", "BASE").replace(
             "{dirs}", json.dumps(list(EVIDENCE_DIRS))
@@ -344,13 +335,11 @@ async def run() -> int:
             f"pathlib.Path(\"/tmp/phase5-snapshot-base.py\").write_bytes(base64.b64decode(\"{base_b64}\"))'",
             timeout=60,
         )
-        # Step 1: reset the guest (synchronous, waits for completion)
         print("[phase1] step 1/3: reset", flush=True)
         reset_result = await guest_reset(sandbox)
         (local_dir / "reset.json").write_text(json.dumps(reset_result, indent=2) + "\n")
         print(f"[phase1] reset: {json.dumps(reset_result)}", flush=True)
 
-        # Step 2: run guard to stop apps and clear sidecars
         print("[phase1] step 2/3: guard", flush=True)
         guard_result = await guest_exec(
             sandbox,
@@ -362,7 +351,6 @@ async def run() -> int:
         (local_dir / "guard.txt").write_text(guard_result)
         print(f"[phase1] guard: {guard_result[:500]}", flush=True)
 
-        # Step 3: build base evidence snapshot
         print("[phase1] step 3/3: base snapshot", flush=True)
         snap_result = await guest_exec(
             sandbox,
@@ -397,7 +385,6 @@ async def run() -> int:
             raise RuntimeError("base snapshot transfer checksum mismatch")
         print(f"[phase1] base snapshot verified sha256={base_tar_sha}", flush=True)
 
-        # =============================== PHASE 2: patch + seed + variant snapshot
         print("[phase2] launching persona patch + seed", flush=True)
         patch_json = json.dumps(PATCH, separators=(",", ":"))
         patch_b64 = base64.b64encode(patch_json.encode()).decode()
@@ -449,7 +436,6 @@ PY""", timeout=60))
         else:
             raise RuntimeError("hazard seeder exceeded 30-minute timeout")
 
-        # Integrity check (in-guest)
         integrity = await guest_exec(sandbox, """python3 - <<'PY'
 import glob, json, sqlite3
 errors=[]
@@ -466,7 +452,6 @@ PY""")
         (local_dir / "seed.json").write_text(json.dumps(status, indent=2) + "\n")
         print(f"[phase2] integrity check:\n{integrity}", flush=True)
 
-        # Variant snapshot
         print("[phase2] building variant snapshot", flush=True)
         variant_snap_py = EVIDENCE_TEMPLATE.replace("{stage}", "VARIANT").replace(
             "{dirs}", json.dumps(list(EVIDENCE_DIRS))
@@ -532,8 +517,6 @@ PY""")
         for name in ("summary.json", "integrity.json", "seed.json", "reset.json", "guard.txt"):
             await driver._stage_sandbox_file(sandbox, local_dir / name, f"/tmp/phase5-{name}")
 
-        # =============================== UPLOAD to OSS
-        # Secrets already staged by _setup_sandbox_proxy; ossutil config at OSS_CONFIG_REMOTE_PATH.
         print("[evidence] uploading to OSS", flush=True)
         upload_script = (
             f"set -e; set -a; . {shlex.quote(driver.SECRETS_REMOTE_PATH)}; set +a; "

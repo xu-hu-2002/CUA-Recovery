@@ -32,8 +32,6 @@ def validate_schema(value: Any, schema_name: str, repository: Path) -> None:
         branch = _branch_for(target, value) if exc.validator == "oneOf" else None
         if branch is None:
             raise
-        # Re-validate against the branch selected by schema_version so the error names the
-        # offending field instead of "not valid under any of the given schemas".
         branch_schema = dict(branch[1])
         branch_schema.setdefault("$id", target.get("$id", ""))
         try:
@@ -45,15 +43,12 @@ def validate_schema(value: Any, schema_name: str, repository: Path) -> None:
 
 
 def _branch_for(schema: dict, value: Any):
-    """``(name, subschema)`` of the ``$defs`` branch whose ``schema_version`` const matches."""
-
     version = value.get("schema_version") if isinstance(value, dict) else None
     for name, sub in (schema.get("$defs") or {}).items():
         const = ((sub.get("properties") or {}).get("schema_version") or {}).get("const")
         if version is not None and const == version:
             return name, sub
     if version is None:
-        # v0.2-style records without schema_version: the branch that does not require one.
         for name, sub in (schema.get("$defs") or {}).items():
             if "schema_version" not in (sub.get("required") or []):
                 return name, sub

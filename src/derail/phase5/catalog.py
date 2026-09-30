@@ -28,8 +28,6 @@ def stable_key(row: Mapping[str, Any]) -> str:
 
 
 def projected_total(count: int, budget: Budget = Budget()) -> float:
-    """Project actual selected combinations without an average-variant shortcut."""
-
     return count * budget.trajectories_per_combination
 
 
@@ -40,8 +38,6 @@ def select_prefix(
     maximum: float = 10_500,
     budget: Budget = Budget(),
 ) -> list[dict[str, Any]]:
-    """Select the first stable-SHA prefix whose projected count is in range."""
-
     ordered = [dict(row) for row in sorted(rows, key=stable_key)]
     for size in range(1, len(ordered) + 1):
         total = projected_total(size, budget)
@@ -53,6 +49,4 @@ def select_prefix(
 
 
 def validate_hazards_before_freeze(records: list[Mapping[str, Any]]) -> None:
-    """Require all hazard inputs to be terminal before a run manifest is frozen."""
-
     assert_manifest_safe(records)

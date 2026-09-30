@@ -204,7 +204,6 @@ def probe_all_apps() -> None:
             time.sleep(1)
     if pending:
         raise RuntimeError(f"app ports did not become ready: {sorted(pending)}")
-    # Listeners can bind immediately before their final migration transaction commits.
     time.sleep(2)
 
 
@@ -274,9 +273,6 @@ def run_trajectory(index: int, spec: tuple) -> dict:
         )
     set_apps("stop")
     request("/derail/cursor", {"action_index": -1})
-    # The shipped persona databases intentionally precede app-owned migrations.
-    # Warm every service once so the replay baseline matches the runtime schema;
-    # changelog replay is a DML ledger and does not attempt to reproduce DDL.
     set_apps("start")
     probe_all_apps()
     probe_pages()

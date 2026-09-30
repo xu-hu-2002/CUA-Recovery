@@ -1,5 +1,4 @@
-"""Training samples from the miniworld traces: recovery cases (paper format), the token-matched
-success control, and the v1.2 step-level samples (base, detection, negative, weights)."""
+"""Training samples from the miniworld traces."""
 
 from __future__ import annotations
 
@@ -77,13 +76,13 @@ class TrainSampleTests(unittest.TestCase):
         trace = _trace("mw002_success")
         ledger = ledger_upto(trace, 4, CONFIG)
         names = [e["name"] for e in ledger]
-        self.assertIn("hoolicalendar.events.start_at@events:545", names)  # typed at step 5
-        self.assertNotIn("hoolicalendar.events.location@events:545", names)  # never used
+        self.assertIn("hoolicalendar.events.start_at@events:545", names)
+        self.assertNotIn("hoolicalendar.events.location@events:545", names)
 
     def test_base_and_negative_samples_validate(self):
         trace = _trace("mw002_success")
         samples = base_samples(trace, CONFIG)
-        self.assertEqual(len(samples), 7)  # eight steps minus DONE
+        self.assertEqual(len(samples), 7)
         for sample in samples:
             validate_schema(sample, "training_sample.schema.json", REPOSITORY)
         self.assertEqual(samples[5]["target"]["check"], "consistent")
@@ -99,7 +98,7 @@ class TrainSampleTests(unittest.TestCase):
         samples = detection_samples(trace, self.analysis, CONFIG)
         self.assertEqual(
             [s["truncation_action_index"] for s in samples], [7]
-        )  # evidence at 7, last 8: offsets 0 only
+        )
         sample = samples[0]
         validate_schema(sample, "training_sample.schema.json", REPOSITORY)
         refs = sample["evidence_refs"]
@@ -124,7 +123,7 @@ class TrainSampleTests(unittest.TestCase):
         }
         samples = verification_samples(trace, censored, self.gold, self.task_ir, profile, CONFIG)
         self.assertEqual(len(samples), 1)
-        self.assertEqual(samples[0]["truncation_action_index"], 6)  # before the DM insert (R3)
+        self.assertEqual(samples[0]["truncation_action_index"], 6)
         self.assertEqual(samples[0]["target"]["action"]["type"], "reread")
 
     def test_check_weights_and_manifest(self):
@@ -138,7 +137,6 @@ class TrainSampleTests(unittest.TestCase):
         manifest = dataset_manifest(samples, WEIGHTED, weights)
         self.assertEqual(manifest["by_kind"], {"base": 7, "detection": 1})
         self.assertEqual(manifest["by_split"], {"train": 8})
-        # the paper's objective: no class balancing
         self.assertEqual(set(balance_check_weights(samples, CONFIG).values()), {1.0})
 
     def test_config_defaults_follow_the_paper(self):
@@ -167,13 +165,11 @@ class TrainSampleTests(unittest.TestCase):
         self.assertEqual(
             [h["action_index"] for h in history], list(range(case["cut_action_index"] + 1))
         )
-        self.assertTrue(all("thought" not in h for h in history))  # reasoning stripped
+        self.assertTrue(all("thought" not in h for h in history))
         self.assertEqual((case["workflow_id"], case["split"]), ("mw-002", "train"))
         self.assertEqual(case["evidence_refs"]["affected_write_ref"]["tbl"], "dm_messages")
-        # test-split workflows contribute nothing
         heldout = replace(CONFIG, split_function=lambda w: "test")
         self.assertEqual(recovery_cases(failure, analysis, heldout), [])
-        # the (l, H_c, r*) sample keeps H_c and no hint
         accepted = RecoveryAttempt(
             "l1_step", 1, [{"action_index": 5, "thought": "t", "action": {"type": "x"}}], True
         )
@@ -201,7 +197,7 @@ class TrainSampleTests(unittest.TestCase):
         self.assertTrue(report["within_tolerance"])
         self.assertAlmostEqual(report["matched_tokens"], round(3 * unit, 1))
         other = [dict(r, workflow_id="mw-009") for r in recovery]
-        self.assertEqual(token_matched(controls, other, CONFIG)[0], [])  # same workflows only
+        self.assertEqual(token_matched(controls, other, CONFIG)[0], [])
 
 
 if __name__ == "__main__":

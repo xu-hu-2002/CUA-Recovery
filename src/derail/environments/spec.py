@@ -1,5 +1,3 @@
-"""冻结环境协议所需的最小 metadata。"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

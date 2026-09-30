@@ -1,13 +1,4 @@
-"""History renderer for the upstream EvoCUA S2 protocol.
-
-Its live loop stores the raw model completion in ``self.responses`` and replays
-the last ``max_history_turns`` of them verbatim as assistant turns
-(``evocua_agent.py:177`` / ``_build_s2_messages``).  For self-takeover the source
-transcript itself is therefore the lossless rendering.  For any other source the
-assistant turns are rendered from the canonical actions in the S2 grammar
-(``Action:`` line plus ``<tool_call>`` JSON), exactly as the other scaffold
-renderers lower canonical actions into their own tool calls.
-"""
+"""History renderer for the upstream EvoCUA S2 protocol."""
 
 from __future__ import annotations
 
@@ -33,17 +24,12 @@ from derail.canonical.summaries import summarize_action
 
 from .base import ActionNotSupportedError, AgentCapabilities, HistoryStep
 
-# S2 asks for the call as inline JSON rather than an OpenAI `tool_calls` field
-# (prompts.py:S2_SYSTEM_PROMPT), so conformance checks parse it out of the text.
 _TOOL_CALL_BLOCK = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
 
 
 class EvoCUAS2Adapter:
     """Render replay evidence as EvoCUA S2 image/raw-response turns."""
 
-    # Mirrors the upstream `computer_use` action enum (prompts.py:build_s2_tools_def)
-    # projected onto canonical kinds.  `shell` is absent because EvoCUA is a
-    # pure-GUI agent with no bash tool.
     capabilities = AgentCapabilities(
         agent_id="evocua_32b",
         action_kinds=frozenset(
@@ -64,8 +50,6 @@ class EvoCUAS2Adapter:
                 "no_op",
             }
         ),
-        # configs/agents/evocua_32b.yaml pins coordinate_type=relative, so the
-        # prompt always advertises the 1000x1000 grid regardless of frame size.
         coordinate_protocol="normalized_0_999",
         history_format="evocua_s2_raw_response_turns",
     )
@@ -78,8 +62,7 @@ class EvoCUAS2Adapter:
 
     @staticmethod
     def _upstream() -> Any:
-        # Imported lazily: the live factory imports this module to build the
-        # takeover wrapper, so a module-level import would be circular.
+        # Lazy import avoids a circular import with the factory.
         from derail.mypcbench.factory import load_evocua_upstream
 
         return load_evocua_upstream()
@@ -87,7 +70,6 @@ class EvoCUAS2Adapter:
     @classmethod
     def _tools_def(cls) -> Dict[str, Any]:
         module = cls._upstream()
-        # coordinate_type=relative -> upstream hardcodes the normalized grid.
         description = module.S2_DESCRIPTION_PROMPT_TEMPLATE.format(
             resolution_info="* The screen's resolution is 1000x1000."
         )
@@ -95,23 +77,13 @@ class EvoCUAS2Adapter:
 
     @classmethod
     def system_prompt(cls) -> str:
-        """Return the exact S2 system prompt the live agent builds each turn.
-
-        ``load_evocua_upstream`` applies the DERAIL shared environment block to
-        ``S2_SYSTEM_PROMPT`` under the same idempotence flag the live factory
-        uses, so an offline preflight measures the same prompt the VM run sends.
-        """
+        """Return the exact S2 system prompt the live agent builds each turn."""
 
         module = cls._upstream()
         return module.S2_SYSTEM_PROMPT.format(tools_xml=json.dumps(cls._tools_def()))
 
     def tool_definitions(self) -> List[Dict[str, Any]]:
-        """Return the S2 tool schema.
-
-        EvoCUA ships it inside the system prompt instead of an API `tools`
-        field, but it is still the schema every call must satisfy, so
-        conformance checks validate against it like any other target.
-        """
+        """Return the S2 tool schema."""
 
         return [self._tools_def()]
 
@@ -119,12 +91,7 @@ class EvoCUAS2Adapter:
     def extract_tool_calls(
         cls, messages: Sequence[Mapping[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Lift the inline `<tool_call>` JSON into OpenAI-shaped call dicts.
-
-        Its presence marks this renderer as a text protocol: callers must not
-        expect an OpenAI `tool_calls` field, per-call IDs, or `tool` result
-        messages, none of which exist in S2.
-        """
+        """Lift the inline `<tool_call>` JSON into OpenAI-shaped call dicts."""
 
         calls: List[Dict[str, Any]] = []
         for message in messages:
@@ -171,7 +138,6 @@ class EvoCUAS2Adapter:
 
     @staticmethod
     def _grid(action: Any, x_px: int, y_px: int) -> List[int]:
-        # Inverse of upstream adjust_coordinates for coordinate_type=relative (0..999 grid).
         return [round(x_px * 999 / action.frame_width), round(y_px * 999 / action.frame_height)]
 
     @classmethod
@@ -194,7 +160,6 @@ class EvoCUAS2Adapter:
                  "coordinate": cls._grid(action, action.end_x_px, action.end_y_px)},
             ]
         if isinstance(action, TypeAction):
-            # clear_existing executes as ctrl+a before typing (replay.executor).
             clear = [{"action": "key", "keys": ["ctrl", "a"]}] if action.clear_existing else []
             return clear + [
                 {"action": "type", "text": action.text + ("\n" if action.press_enter else "")}
@@ -250,8 +215,6 @@ class EvoCUAS2Adapter:
                 ],
             }
         )
-        # Self-takeover: the recorded visible completion (reasoning already stripped
-        # by load_trajectory_log unless history.strip_reasoning is false).
         messages.append(
             {"role": "assistant", "content": [{"type": "text", "text": response}]}
         )

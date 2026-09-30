@@ -1,13 +1,3 @@
-"""Client for the DERAIL endpoints of the MyPCBench control API (infra/control_api_derail.py).
-
-Standard library only; the transport is injectable so the harness can be tested without a VM.
-
-    client = DerailControlClient("http://127.0.0.1:5000")
-    client.set_cursor(12)
-    rows = client.changelog(since={"hoolicalendar": 40, "workbuzz": 7})
-    records = client.observations(12)
-"""
-
 from __future__ import annotations
 
 import json
@@ -56,8 +46,6 @@ class DerailControlClient:
         return self._call("POST", "/derail/cursor", {"action_index": int(action_index)})
 
     def latest_seq(self) -> Dict[str, int]:
-        """Per-database highest ``_changelog.seq`` (0 when the log is empty)."""
-
         return {k: int(v) for k, v in self._call("GET", "/derail/seq", None).get("seq", {}).items()}
 
     def changelog(self, since: Mapping[str, int]) -> List[Dict[str, Any]]:

@@ -1,10 +1,3 @@
-"""Semantic ontology loader (manual v0.2 sections 2.1, 5.1, 5.2).
-
-The ontology is protocol vocabulary and lives in ``configs/synthesis/ontology_*.yaml``.  This
-module only parses and cross-checks it; no vocabulary is hard-coded here beyond the field
-names of the YAML file.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -39,28 +32,20 @@ class Ontology:
 
     @property
     def read_only_class(self) -> str:
-        """The node-level class reserved for nodes without side effects (R0)."""
-
         return self.reversibility_classes[0]
 
     def class_rank(self, reversibility_class: str) -> int:
-        """Return the ordinal position of a class so classes can be compared."""
-
         try:
             return self.reversibility_classes.index(reversibility_class)
         except ValueError as exc:
             raise OntologyError("unknown reversibility class %r" % reversibility_class) from exc
 
     def max_class(self, classes: Tuple[str, ...]) -> str:
-        """Return the most consequential class in ``classes`` (R0 when empty)."""
-
         if not classes:
             return self.read_only_class
         return max(classes, key=self.class_rank)
 
     def effect_category(self, effect_type: str) -> str:
-        """Coarse v0.1 category (create/modify/delete/send/submit/pay) of a concrete effect type."""
-
         spec = self.effect_types.get(effect_type)
         if spec is None or not spec.get("category"):
             raise OntologyError("effect type %r has no category" % effect_type)

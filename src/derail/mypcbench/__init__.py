@@ -1,4 +1,4 @@
-"""DERAIL 与冻结版 MyPCBench runner 之间的 agent 接口层。"""
+"""Agent interface layer between DERAIL and the frozen MyPCBench runner."""
 
 from .factory import create_mypcbench_agent
 

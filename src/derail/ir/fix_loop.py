@@ -1,17 +1,3 @@
-"""Fix loop for Task IR v1 extraction (execution doc v1.2 section 5.3).
-
-A task whose IR failed a programme check (static validation, grounding, gold execution or the
-rubric check) is re-extracted with the failure messages appended to the original prompt, at
-most ``max_rounds`` times.  Replies are saved per round; nothing is edited by hand.  Tasks
-that still fail after the last round are ``needs_review``.
-
-Entry points
-------------
-``collect_problems(run_dir, task_id)``        the messages to feed back (from the manifest,
-                                               the IR's grounding issues, the rubric check)
-``run_fix_round(...)``                          one round over the failing tasks
-"""
-
 from __future__ import annotations
 
 import json
@@ -29,8 +15,6 @@ def _load(path: Path) -> Any:
 
 
 def collect_problems(run_dir: Path, task_id: str) -> List[str]:
-    """Human-readable problems for ``task_id`` from ``run_dir`` (manifest, IR, rubric check)."""
-
     problems: List[str] = []
     manifest = _load(run_dir / "manifest.json") or {}
     for entry in manifest.get("per_task", []):
@@ -93,8 +77,6 @@ def collect_problems(run_dir: Path, task_id: str) -> List[str]:
 
 
 def failing_tasks(run_dir: Path) -> List[str]:
-    """Task ids that are not ``auto_validated`` in the run's rubric check (or never got there)."""
-
     manifest = _load(run_dir / "manifest.json") or {}
     validated = set()
     checks = run_dir / "rubric_check" / "rubric_checks.jsonl"
@@ -148,8 +130,6 @@ def run_fix_round(
     client: LLMClient,
     **extraction_kwargs: Any,
 ) -> Dict[str, Any]:
-    """Re-extract every task of ``tasks`` that failed in ``previous_run_dir``."""
-
     todo = set(failing_tasks(previous_run_dir))
     selected = [t for t in tasks if t["id"] in todo]
     problems = {t["id"]: collect_problems(previous_run_dir, t["id"]) for t in selected}

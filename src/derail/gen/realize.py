@@ -1,16 +1,3 @@
-"""Instruction realization and round-trip fidelity (doc v1.2 section 7.6; v0.2 section 12).
-
-- ``graph_summary(task_ir)``: the graph as prose facts (ops, apps, literals, side effects),
-  without gold values.
-- ``hidden_values(task_ir, gold)``: every gold value string the instruction must not leak.
-- ``build_realization_fields(...)`` / ``parse_realization_reply(...)``.
-- ``round_trip_compare(source_ir, reextracted_ir, gold, instruction, config)``: node-op
-  recall, edge recall, unauthorized nodes, literal consistency, gold leak -> verdict.
-
-Model calls go through the same approval-gated client as extraction (``derail.longhorizon
-.extraction.OpenAICompatibleClient``); everything here is testable without it.
-"""
-
 from __future__ import annotations
 
 import json
@@ -102,11 +89,6 @@ def hidden_values(
     gold: Optional[Mapping[str, Any]],
     public_texts: Sequence[str] = (),
 ) -> List[str]:
-    """Gold values that are not user-known: not an input literal, not stated (in any word
-    order) in the task's own or its parent seeds' instructions (``public_texts``), not a bare
-    year, and not a single short common word (a project called "sales" is not a leak).
-    These must be looked up, not stated."""
-
     known = {str(normalize_value(v)).lower() for v in literals_of(task_ir)}
     public = " ".join(
         [str(task_ir.get("instruction") or "")] + [str(t) for t in public_texts] + sorted(known)
@@ -125,7 +107,7 @@ def hidden_values(
             continue
         words = _WORDS.findall(lowered)
         if words and set(words) <= public_words:
-            continue  # the same name in another word order ("Q2 team morale initiative")
+            continue
         if (
             isinstance(value, str)
             and len(words) <= 1
@@ -206,10 +188,6 @@ def round_trip_compare(
     persona_literals: Sequence[Any] = (),
     public_texts: Sequence[str] = (),
 ) -> Dict[str, Any]:
-    """Fidelity verdict of a realized instruction (v0.2 section 12.3).  Persona identity
-    literals are known to the assistant and need not appear in the instruction;
-    ``public_texts`` (parent seed instructions) are not leaks."""
-
     src_ops = Counter(n["op"] for n in source_ir["nodes"])
     persona = {str(normalize_value(v)).lower() for v in persona_literals}
     literal_texts = [

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Decide how a Phase 5 variant world can be realized, without mutating the golden world.
-
-The frozen guest already ships a seeded world, and /reset restores that same seeded state, so
-seeding a patched persona on top of it collides on deterministic primary keys. This probe asks
-the one question that gates Stage 2: can /opt/generator build a complete world into an empty
---data-dir, and does such a regeneration reproduce the baked BASE world?
-"""
+"""Decide how a Phase 5 variant world can be realized without mutating the golden world."""
 
 from __future__ import annotations
 
@@ -30,13 +24,10 @@ GENERATOR_DIR = "/opt/generator"
 GENERATOR_ARCHIVE = "/tmp/phase5-generator.tar.gz"
 CALENDAR_DB = "hoolicalendar.sqlite"
 TAGS = ("base", "variant")
-# configs/synthesis/hazards_v1.yaml: distractor_candidates / same_title_prefix_events
 RATE_QUERY = (
     "SELECT COUNT(*) FROM (SELECT substr(title, 1, 12) p FROM events "
     "GROUP BY p HAVING COUNT(*) > 1)"
 )
-# generate.py derives a fresh seed and reference time when these flags are absent, which made the
-# two arms differ by more than the patch. Both arms must pass the same values verbatim.
 PROBE_SEED = "4242424242"
 PROBE_REFERENCE_TIME = "2026-09-01T07:24:24.351485+00:00"
 SCAN_TOKENS = ("CREATE TABLE", "executescript", "sqlite_master", "INSERT OR IGNORE",
@@ -109,7 +100,6 @@ def stage_script(patch: list) -> str:
         paths = probe_paths(tag)
         persona = f"{paths['personas']}/{PERSONA}.json"
         commands.append(
-            # The control API may stage as root while generate.py runs as --uid=user.
             f"mkdir -p {shlex.quote(paths['personas'])} {shlex.quote(paths['data'])} "
             f"{shlex.quote(paths['home'])}\n"
             f"chmod 777 {shlex.quote(paths['personas'])} {shlex.quote(paths['data'])} "
@@ -319,7 +309,6 @@ def verdict(measurement: dict, generations: dict) -> dict:
         and reference_times["base"] == reference_times["variant"])
     base_rate = summary["base"]["same_title_prefix_events"]
     variant_rate = summary["variant"]["same_title_prefix_events"]
-    # An uncontrolled pair differs by more than the patch, so no rate verdict is reportable.
     summary["variant_rate_is_base_plus_one"] = None if not summary["arms_controlled"] else (
         isinstance(base_rate, int) and variant_rate == base_rate + 1)
     summary["seeder_consistent"] = (

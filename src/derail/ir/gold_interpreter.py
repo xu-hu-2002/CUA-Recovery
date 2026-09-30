@@ -1,29 +1,3 @@
-"""Gold interpreter: execute a ``task-ir/1.0`` against isolated database copies.
-
-Execution doc v1.2 section 5.2 / 7.7.  Every node lists ``produces`` whose ``derivation`` is
-executed in topological order -- ``sql`` (read-only, enforced by an SQLite authorizer),
-``expr`` (restricted evaluator), ``literal``, ``upstream`` or ``create`` (insert the row
-described by the node's ``writes``) -- and ``writes`` that the interpreter applies itself
-(UPDATE / DELETE by row id, INSERT through ``create``).  The operation name is semantic
-metadata checked for consistency (read-only ops may not write), not a dispatch key.
-
-While a derivation runs, the authorizer records every ``(table, column)`` actually read;
-pairs missing from the node's declared ``reads`` are reported as ``reads_undeclared``
-(DECISIONS D-003): ``reads(j)`` is the whole basis of latent horizon, so it is audited, not
-trusted.  Declared reads over a result set (``<table>:*``) are resolved to the row ids the
-node produced when they are visible (``resolved_reads``, D-005).
-
-Outputs ``gold-lineage/1.0``: gold values, state digest after every node (volatile columns
-excluded, D-012), ``Writes_gold`` read back from the database, verifier results and the
-final-verifier verdict.
-
-Entry points
-------------
-``InterpreterConfig.from_yaml(path, repo_root)``
-``WorldCopy.open(world_id, sources, workdir)``
-``GoldInterpreter(config).run(task_ir, world, repository) -> dict``
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -117,7 +91,6 @@ class WorldCopy:
     connections: Dict[str, sqlite3.Connection] = field(default_factory=dict)
     files_root: Optional[Path] = None
     inventory: Optional[FileInventory] = None
-    # (source path, size, mtime_ns) per app: identity of the bytes this copy started from.
     source_keys: Dict[str, Tuple[str, int, int]] = field(default_factory=dict)
 
     @classmethod
@@ -128,8 +101,6 @@ class WorldCopy:
         workdir: Union[str, Path],
         files_root: Optional[Union[str, Path]] = None,
     ) -> "WorldCopy":
-        """Copy the databases (and, when given, the home file tree) into ``workdir``."""
-
         target = Path(workdir)
         target.mkdir(parents=True, exist_ok=True)
         paths: Dict[str, Path] = {}
@@ -194,10 +165,6 @@ def _jsonable(value: Any) -> Any:
 
 
 def _bindable(scope: Mapping[str, Any]) -> Dict[str, Any]:
-    """Scalars of the scope, plus every produce of earlier nodes reachable through ``V`` whose
-    name is not already bound (models bind :name for values of other nodes; harmless when the
-    name is unique, and SQLite ignores unused parameters)."""
-
     out = {key: value for key, value in scope.items() if isinstance(value, _BINDABLE)}
     env = scope.get("V")
     if isinstance(env, Mapping):
@@ -207,14 +174,11 @@ def _bindable(scope: Mapping[str, Any]) -> Dict[str, Any]:
                     continue
                 if name not in out:
                     out[name] = value
-                # Qualified form used by composed verifiers (derail.gen.graft rebinding).
                 out["%s__%s" % (node_id, name)] = value
     return out
 
 
 class _ReadAuditor:
-    """SQLite authorizer: deny writes, record (table, column) reads."""
-
     def __init__(self) -> None:
         self.reads: Set[Tuple[str, str]] = set()
 
@@ -227,11 +191,6 @@ class _ReadAuditor:
 
 
 class _DigestCache:
-    """Per-app database/table digests, recomputed only for a database whose connection
-    reports new ``total_changes`` since the last computation (reads and the interpreter's
-    own SQL never change it; every write, trigger included, does).  Untouched copies reuse
-    the digests of their source bytes through ``shared`` (keyed by path, size, mtime)."""
-
     def __init__(
         self,
         world: "WorldCopy",
@@ -292,7 +251,6 @@ class GoldInterpreter:
         self._effective_excludes: Tuple[str, ...] = tuple(self.config.exclude_tables)
         self._digest_cache: Dict[Tuple[str, int, int, str], Tuple[str, Dict[str, str]]] = {}
 
-    # ----------------------------------------------------------------- public entry point
     def run(
         self,
         task_ir: Mapping[str, Any],
@@ -300,10 +258,6 @@ class GoldInterpreter:
         repository: Union[str, Path],
         overrides: Optional[Mapping[Tuple[str, str], Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute the IR; ``overrides`` maps ``(node_id, produce_name)`` to a value that
-        replaces the derived one (mutation execution, doc sections 6.3 / 7.5).  Overridden
-        values are listed in ``provenance.overrides``."""
-
         validate_task_ir(task_ir, repository)
         overrides = dict(overrides or {})
         dag = dag_index(task_ir)
@@ -336,8 +290,6 @@ class GoldInterpreter:
         for node_id in dag.order:
             node = dag.nodes[node_id]
             env[node_id] = {}
-            # A node whose upstream was skipped by a control gate is skipped with it: its
-            # inputs have no value (composed tasks, conditionalization).
             if any(dep in skipped for dep in dag.incoming[node_id]) or not self._control_allows(
                 node_id, task_ir, env, base_scope
             ):
@@ -413,7 +365,6 @@ class GoldInterpreter:
         validate_schema(record, "gold_lineage.schema.json", Path(repository))
         return record
 
-    # -------------------------------------------------------------------------- helpers
     def _columns(self, world: WorldCopy, app: str, table: str) -> List[str]:
         key = (app, table)
         if key not in self._column_cache:
@@ -421,9 +372,6 @@ class GoldInterpreter:
         return self._column_cache[key]
 
     def _excluded_tables(self, world: WorldCopy) -> Tuple[str, ...]:
-        """Configured names plus every table matching a shadow-table pattern (FTS indexes,
-        per-viewer state tables maintained by triggers)."""
-
         names = set(self.config.exclude_tables)
         for conn in world.connections.values():
             for table in table_names(conn):
@@ -443,13 +391,10 @@ class GoldInterpreter:
     def _is_volatile(self, table: str, column: str) -> bool:
         return self.config.volatile is not None and self.config.volatile.is_volatile(table, column)
 
-    # -------------------------------------------------------------------------- binding
     @staticmethod
     def _edge_bindings(
         task_ir: Mapping[str, Any],
     ) -> Dict[Tuple[str, str], Optional[Tuple[str, str]]]:
-        """``(node, port) -> producing (node, port)``; control gates map to ``None``."""
-
         binding: Dict[Tuple[str, str], Optional[Tuple[str, str]]] = {}
         for edge in task_ir["edges"]:
             target = (str(edge["to"]["node_id"]), str(edge["to"]["port_id"]))
@@ -465,15 +410,12 @@ class GoldInterpreter:
         binding: Mapping[Tuple[str, str], Optional[Tuple[str, str]]],
         env: Mapping[str, Mapping[str, Any]],
     ) -> Dict[str, Any]:
-        """Input port values: the edge-bound upstream value, else the port's ``literal``
-        (an instruction constant, D-009), else the grounding string of a world port."""
-
         node_id = str(node["node_id"])
         scope: Dict[str, Any] = {}
         for port in node.get("inputs", ()):
             port_id = str(port["port_id"])
             if (node_id, port_id) in binding and binding[(node_id, port_id)] is None:
-                continue  # control gate, no value
+                continue
             source = binding.get((node_id, port_id))
             if source is not None:
                 upstream_node, upstream_port = source
@@ -518,7 +460,6 @@ class GoldInterpreter:
                 ) from exc
         return True
 
-    # ----------------------------------------------------------------------- derivation
     def _derive(
         self,
         produce: Mapping[str, Any],
@@ -627,8 +568,6 @@ class GoldInterpreter:
         name: str,
         actual_reads: Set[Tuple[str, str]],
     ) -> Any:
-        """``file`` derivations: text / lines / regex / regex_all / json / csv_rows / exists."""
-
         if world.inventory is None:
             raise GoldInterpreterError(
                 "FILES_UNAVAILABLE", "%s reads a file but the world has no file tree" % name
@@ -685,10 +624,6 @@ class GoldInterpreter:
         world: WorldCopy,
         env: Mapping[str, Mapping[str, Any]],
     ) -> str:
-        """A ``create`` on ``files.documents``.  The path comes from, in order: a ``path`` write
-        for this entity, the derivation's ``path``, or the single ``file:<path>`` entity the
-        node writes; the content from the ``content`` write.  Returns ``file:<path>``."""
-
         node_id = str(node["node_id"])
         derivation = produce["derivation"]
         entity_ref = "derived:%s:%s" % (node_id, produce["name"])
@@ -746,8 +681,6 @@ class GoldInterpreter:
         env: Mapping[str, Mapping[str, Any]],
         world: WorldCopy,
     ) -> None:
-        """Writes on ``files.documents``: ``content`` creates or overwrites the file."""
-
         node_id = str(node["node_id"])
         created = {
             "derived:%s:%s" % (node_id, p["name"])
@@ -787,7 +720,6 @@ class GoldInterpreter:
         ):
             world.inventory = FileInventory.build(world.files_root)
 
-    # --------------------------------------------------------------------------- writes
     def _write_value(
         self,
         write: Mapping[str, Any],
@@ -825,9 +757,6 @@ class GoldInterpreter:
         world: WorldCopy,
         env: Mapping[str, Mapping[str, Any]],
     ) -> int:
-        """INSERT the row whose cells are the node's writes with entity_ref
-        ``derived:<node>:<name>``."""
-
         node_id = str(node["node_id"])
         entity_ref = "derived:%s:%s" % (node_id, produce["name"])
         cells = [w for w in node.get("writes", ()) if w["entity_ref"] == entity_ref]
@@ -861,9 +790,6 @@ class GoldInterpreter:
         env: Mapping[str, Mapping[str, Any]],
         world: WorldCopy,
     ) -> None:
-        """UPDATE / DELETE declared cells of existing rows (rows created by ``create`` already
-        carry their cells)."""
-
         node_id = str(node["node_id"])
         created = {
             "derived:%s:%s" % (node_id, p["name"])
@@ -1025,7 +951,6 @@ class GoldInterpreter:
                 % (node["node_id"], ", ".join("%s.%s" % key for key in undeclared)),
             )
 
-    # ---------------------------------------------------------------------------- reads
     def _primary_keys(self, world: WorldCopy, table: str) -> Set[str]:
         app, name = split_table(table)
         key = (app, "pk:" + name)
@@ -1040,9 +965,6 @@ class GoldInterpreter:
     def _audit_reads(
         self, node: Mapping[str, Any], actual: Set[Tuple[str, str]], world: WorldCopy
     ) -> List[Dict[str, Any]]:
-        """Reads the SQL performed that the node did not declare.  Primary-key columns are
-        row identity, not facts, and are never reported."""
-
         declared = {(str(r["table"]), str(r["column"])) for r in node.get("reads", ())}
         declared_tables_all = {t for t, c in declared if c == "*"}
         out = []
@@ -1057,8 +979,6 @@ class GoldInterpreter:
     def _resolve_reads(
         self, node: Mapping[str, Any], env: Mapping[str, Mapping[str, Any]], world: WorldCopy
     ) -> List[Dict[str, Any]]:
-        """Resolve ``<table>:*`` reads to the row ids the node produced when visible (D-005)."""
-
         node_id = str(node["node_id"])
         produced = env.get(node_id, {})
         out = []
@@ -1117,8 +1037,6 @@ class GoldInterpreter:
     def _filter_columns(
         self, node: Mapping[str, Any], read: Mapping[str, Any], world: WorldCopy
     ) -> List[str]:
-        """Columns of the read's table named after WHERE in the node's SQL derivations."""
-
         app, table = split_table(str(read["table"]))
         try:
             columns = set(self._columns(world, app, table))
@@ -1144,7 +1062,6 @@ class GoldInterpreter:
                     found.append(ident)
         return found
 
-    # ------------------------------------------------------------------------ verifiers
     def _evaluate_predicate(
         self,
         verifier: Mapping[str, Any],
@@ -1206,7 +1123,6 @@ class GoldInterpreter:
         if not verifier:
             return None
         if verifier.get("kind") == "all_of":
-            # Composed tasks: every part (each with its own app and equivalent states) must hold.
             results = [
                 self._evaluate_final(part, scope, task_ir, world)
                 for part in verifier.get("parts", ())

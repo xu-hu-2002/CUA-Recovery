@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "14_takeover_bundle_prefix.py"
+SCRIPT = Path(__file__).parents[1] / "scripts" / "takeover" / "bundle_prefix.py"
 SPEC = importlib.util.spec_from_file_location("takeover_bundle_prefix", SCRIPT)
 assert SPEC and SPEC.loader
 bundle_prefix = importlib.util.module_from_spec(SPEC)
@@ -180,7 +180,6 @@ class TakeoverBundlePrefixTests(unittest.TestCase):
             self.assertEqual(rows, {0: {"action_index_global": 0}})
 
     def test_replayed_screenshot_path_resolves_from_the_judge_working_directory(self):
-        """The Judge forks with cwd=save_dir, so a repo-relative path drops the image."""
         with tempfile.TemporaryDirectory() as directory:
             task, selection, screenshots, _ = self._fixture(Path(directory))
             replayed = task / "prefix_replay"
@@ -206,10 +205,7 @@ class TakeoverBundlePrefixTests(unittest.TestCase):
                 self.assertTrue((task / recorded).is_file(), step["screenshot"])
 
 
-
 class BundleEvidenceTests(unittest.TestCase):
-    """Tool payloads of tool-only rounds and the final state s_T land in the bundle."""
-
     def test_claude_tool_round_and_final_state_are_filled(self):
         with tempfile.TemporaryDirectory() as directory:
             task = Path(directory) / "task"
@@ -247,7 +243,7 @@ class BundleEvidenceTests(unittest.TestCase):
             self.assertEqual(bundle_prefix.enrich_task(task, 1000, "state_probes.jsonl"), "evidence-present")
 
             wrapper_spec = importlib.util.spec_from_file_location(
-                "full_traj_judge", Path(__file__).parents[1] / "scripts" / "30_full_traj_judge.py")
+                "full_traj_judge", Path(__file__).parents[1] / "scripts" / "judge" / "full_traj_judge.py")
             wrapper = importlib.util.module_from_spec(wrapper_spec)
             wrapper_spec.loader.exec_module(wrapper)
             section = wrapper.final_state_section(bundle)

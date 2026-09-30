@@ -1,11 +1,3 @@
-# canonical action 使用环境真实像素；模型坐标由 adapter 单独转换。
-#
-# 下半部分的 guest 命令由 src/derail/rollout/state_probe.py 执行：
-# 01_collect_trajectories.sh 把本文件路径导出为 DERAIL_ENVIRONMENT_CONFIG，并把
-# src/derail/rollout/site_hook 放进 PYTHONPATH，官方 runner 的 MyPCBenchEnv 就会
-# 在 reset 之后跑确定性命令、在每次 step 之后记录状态指纹（不改 third_party）。
-# 注意：01 用扁平解析读 screen_width/height，所以这里每条命令必须写成单行，
-# 且不能用 YAML 列表（- item）；嵌套映射可以。
 environment_id: mypcbench_1280x800
 screen_width: 1280
 screen_height: 800
@@ -13,12 +5,6 @@ coordinate_origin: top_left
 snapshot_backend: TODO
 reset_command: TODO
 
-# ── 确定性（论文 02:6：disable automatic updates and notification daemons）──
-# 每次 env.reset 之后、agent 第一步之前在 guest 里依次执行（名字 -> 单行 shell）。
-# 退出码非 0 视为失败。fail = 该任务记为出错（runner 写 result.txt=0.0 +
-# incomplete.txt）；warn = 记进 state_probe_file 的 reset 行后继续。
-# 这些命令还没有在 pinned qcow2 上实测，首次采集前先跑 smoke，看 reset 行里的
-# determinism 结果，再决定是否改成 fail。
 determinism_on_error: warn
 disabled_nondeterminism_sources:
   apt_auto_update: 'for u in apt-daily.timer apt-daily-upgrade.timer apt-daily.service apt-daily-upgrade.service unattended-upgrades.service packagekit.service; do systemctl cat "$u" >/dev/null 2>&1 || continue; sudo -n systemctl mask --now "$u" || exit 1; done'
@@ -26,20 +12,9 @@ disabled_nondeterminism_sources:
   update_notifier: 'pkill -x update-notifier; [ $? -le 1 ]'
   desktop_notification_banners: 'DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus gsettings set org.gnome.desktop.notifications show-banners false'
 
-# ── 每步状态指纹（供回放校验与根因分析对齐源 rollout）─────────────────────
-# 探针定义只有这一处：采集（src/derail/rollout/state_probe.py）与接管回放
-# （configs/takeover/takeover.yaml 的 environment_config 指向本文件）都经
-# derail.replay.mypcbench.build_state_probe_commands 渲染、probe_state_fingerprint 取指纹，
-# 所以两边的命令和 digest 规则一致。每次 env.step 之后执行，结果写进任务目录的
-# state_probe_file，每行带 traj_index（traj.jsonl 的 0-based 行号；reset 行为 -1）。
-# kind: sqlite_digest = 把 script 与 volatile_columns 送进 guest，逐库算 digest（与
-#   derail.world.state 同一定义，剔除易变列），组件名为 <probe>/<库文件名>；
-# kind: shell = 单行只读命令，输出取 sha256。
 state_probe_enabled: true
 state_probe_on_error: warn
 state_probe_file: state_probes.jsonl
-# true = 除 digest 外再存探针原始输出（截到 state_probe_output_max_chars），
-# 便于根因分析看出是哪个库 / 哪个文件变了；judge 的 s_T 摘要也取它。
 state_probe_record_output: true
 state_probe_output_max_chars: 4000
 state_probes:

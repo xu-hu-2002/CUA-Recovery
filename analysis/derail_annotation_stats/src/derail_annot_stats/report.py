@@ -1,12 +1,3 @@
-"""Phase 3/4: render report.md and sanity_checks.md from already-computed tables.
-
-This module performs no statistics. It only formats what stats.py produced, so a
-number can never appear in the report without existing in a CSV.
-
-Prose rule: sections describe the data. They do not attribute a difference to a
-model's capability, because the design cannot support that claim.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -40,7 +31,6 @@ def _md_table(df: pd.DataFrame, cols: list[str] | None = None, floatfmt: str = "
 
 def methodology_warnings(clean: pd.DataFrame, exclusions: pd.DataFrame,
                          coverage: pd.DataFrame, diagnostics: dict) -> str:
-    """The warning block. Its claims are required to precede every result."""
     pairs = (clean.groupby("agent")["annotator"].unique()
              .apply(lambda x: ", ".join(sorted(x))).to_dict())
     mapping_lines = "\n".join(f"  - `{a}` → `{v}`" for a, v in sorted(pairs.items()))
@@ -127,7 +117,6 @@ These are reported as `UNMAPPED` rather than being assigned to a category.
 
 
 def _fact_task_score(clean: pd.DataFrame, ts: pd.DataFrame) -> str:
-    """Factual description of section 1, computed from the tables themselves."""
     agree = int((clean["task_score"] == clean["recomputed_task_score"]).sum())
     d = ts[ts.agent != "OVERALL"].sort_values("rate", ascending=False)
     hi, lo = d.iloc[0], d.iloc[-1]
@@ -145,7 +134,6 @@ def _fact_task_score(clean: pd.DataFrame, ts: pd.DataFrame) -> str:
 
 
 def _fact_macro_micro(rb: pd.DataFrame) -> str:
-    """State the MACRO/MICRO gap per agent, with its direction."""
     lines = []
     for r in rb[rb.agent != "OVERALL"].itertuples():
         gap = r.macro_mean - r.micro_rate
@@ -162,12 +150,6 @@ def _fact_macro_micro(rb: pd.DataFrame) -> str:
 
 
 def _fact_bimodality(dist: pd.DataFrame) -> str:
-    """Data-driven bimodality check on rubric_pass_ratio.
-
-    Flags a distribution as bimodal when the two extreme deciles together hold
-    more than half the mass and each exceeds every interior decile. This is a
-    stated rule applied to the counts, not a visual impression.
-    """
     lines = []
     for agent, g in dist.groupby("agent"):
         g = g.sort_values("bin_low")
@@ -192,7 +174,6 @@ def _fact_bimodality(dist: pd.DataFrame) -> str:
 
 
 def _fact_error_types(rates: pd.DataFrame, card: pd.DataFrame) -> str:
-    """Top labels per agent plus label cardinality, as plain counts."""
     lines = []
     for agent, g in rates[(rates.level == "error_type") & (rates.agent != "OVERALL")].groupby("agent"):
         top = g.sort_values("rate", ascending=False).head(3)
@@ -210,7 +191,6 @@ def _fact_error_types(rates: pd.DataFrame, card: pd.DataFrame) -> str:
 
 
 def _fact_rank_corr(rc: pd.DataFrame) -> str:
-    """Describe the between-agent rank agreement of label frequencies."""
     lines = [f"- `{r.agent_a}` vs `{r.agent_b}`: ρ = {r.spearman_rho:.3f} "
              f"(p = {r.p_value:.3f}, {int(r.n_labels)} labels)"
              for r in rc.itertuples()]
@@ -230,7 +210,6 @@ def _fact_rank_corr(rc: pd.DataFrame) -> str:
 
 
 def _fact_depth(km: pd.DataFrame, comp: pd.DataFrame, lr: pd.DataFrame) -> str:
-    """Describe the depth distributions using the censoring-aware medians."""
     lines = []
     for r in km[km.group_value != "OVERALL"].itertuples():
         c = comp[comp.agent == r.group_value]
@@ -249,7 +228,6 @@ def _fact_depth(km: pd.DataFrame, comp: pd.DataFrame, lr: pd.DataFrame) -> str:
 
 
 def _fact_weights(prof: pd.DataFrame) -> str:
-    """State whether the weight vectors can carry information at all."""
     present = prof[prof["weights_present"]]
     n = len(present)
     if n == 0:
@@ -273,7 +251,6 @@ def _fact_weights(prof: pd.DataFrame) -> str:
 
 
 def _fact_weighted_gap(rb: pd.DataFrame) -> str:
-    """Say plainly whether weighting changes the ranking or only the decimals."""
     d = rb[rb.agent != "OVERALL"]
     max_shift = float(np.nanmax(np.abs(d["weighted_minus_macro_mean"])))
     max_row = float(np.nanmax(d["weighted_minus_macro_maxabs"]))
@@ -297,7 +274,6 @@ def _fact_weighted_gap(rb: pd.DataFrame) -> str:
 def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
                  clean: pd.DataFrame, exclusions: pd.DataFrame,
                  diagnostics: dict) -> str:
-    """Assemble report.md. Every table shown here is also written as a CSV."""
     parts: list[str] = []
     A = parts.append
 
@@ -307,7 +283,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
       "Reversibility, clean prefix, sole-blocker and co-occurrence analyses were "
       "explicitly out of scope for this run and are not computed.\n")
 
-    # ---- 0 -------------------------------------------------------------
     A("## 0. Data hygiene and sample size\n")
     A("### 0.1 Analysis set\n")
     A(_md_table(tables["sample_size"]))
@@ -327,10 +302,8 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
     A("### 0.4 Missingness by field\n")
     A(_md_table(tables["missingness"]))
 
-    # ---- 0.5 -----------------------------------------------------------
     A(methodology_warnings(clean, exclusions, tables["annotation_coverage"], diagnostics))
 
-    # ---- 1 -------------------------------------------------------------
     A("\n## 1. Task score\n")
     A("### 1.1 Task success rate by agent\n")
     A(_md_table(tables["task_score_by_agent"],
@@ -348,7 +321,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
                 ["agent", "group_value", "numerator", "denominator", "rate",
                  "ci_low", "ci_high", "low_n_flag"]))
 
-    # ---- 2 -------------------------------------------------------------
     A("\n## 2. Rubric score\n")
     A("### 2.1 MACRO and MICRO\n")
     A("MACRO averages each rollout's pass ratio, so every rollout weighs the same. "
@@ -394,7 +366,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
       "different criteria across tasks. Read it as a slot-position view only.\n")
     A(f"\n![rubric heatmap]({figures['rubric_heatmap'].name})\n")
 
-    # ---- 3 -------------------------------------------------------------
     A("\n## 3. Root cause: error type distribution\n")
     A("Analysis set: rollouts with `task_score == 0` carrying a failure "
       "annotation. Labels are multi-select, so rollout-normalised rates sum to "
@@ -436,7 +407,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
     A(_md_table(tables["error_rank_correlation"]))
     A(_fact_rank_corr(tables["error_rank_correlation"]))
 
-    # ---- 4 -------------------------------------------------------------
     A("\n## 4. Error depth\n")
     A("Depth = `clear_failure_step − root_cause_step`, both 0-based action "
       "indices. Computed only for failed rollouts with a recorded root cause. "
@@ -474,7 +444,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
       "and do not partition the failed rollouts.\n")
     A(_md_table(tables["depth_by_error_type"]))
 
-    # ---- appendix ------------------------------------------------------
     A("\n## Appendix: internal inconsistencies\n")
     A(_md_table(tables["inconsistencies"]))
     A("\n## Appendix: excluded rows\n")
@@ -485,7 +454,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
 
 def build_sanity(tables: dict[str, pd.DataFrame], clean: pd.DataFrame,
                  exclusions: pd.DataFrame, checks: list[dict]) -> str:
-    """Render sanity_checks.md from explicit pass/fail assertions."""
     parts = ["# Sanity checks\n",
              "Each row is a check that was actually executed. `PASS`/`FAIL` is "
              "computed, not asserted by hand.\n"]

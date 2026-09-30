@@ -1,11 +1,3 @@
-"""Controlled value-type vocabulary and port normalisation (manual v0.2 section 6.2).
-
-Typed compatibility only works over a shared vocabulary.  The registry lives in
-``configs/synthesis/value_types_*.yaml``; this module folds free-form extractor names onto it,
-parses collection spellings into ``many`` cardinality, and reports what it could not resolve.
-Unresolved names are kept verbatim and flagged, never guessed.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -86,8 +78,6 @@ class ValueTypeRegistry:
         return cls.from_dict(raw)
 
     def resolve(self, name: str) -> TypeResolution:
-        """Fold one type name; collection spellings resolve their element type."""
-
         original = str(name or "").strip()
         collection = False
         inner = original
@@ -99,7 +89,6 @@ class ValueTypeRegistry:
                 break
         canonical = self.aliases.get(_snake(inner))
         if canonical is None:
-            # Unregistered: keep the element name (collection wrapper stripped) for review.
             return TypeResolution(original, inner, False, collection)
         return TypeResolution(original, canonical, True, collection)
 
@@ -112,8 +101,6 @@ class ValueTypeRegistry:
         )
 
     def type_system_config(self) -> Dict[str, Any]:
-        """The ``type_system`` block ``derail.synthesis.compatibility.TypeSystem`` consumes."""
-
         parents = {
             name: list(spec.get("parents", ()))
             for name, spec in sorted(self.types.items())
@@ -122,8 +109,6 @@ class ValueTypeRegistry:
         return {"parents": parents, "converters": [dict(item) for item in self.converters]}
 
     def vocabulary_text(self) -> str:
-        """Compact listing for prompts: ``Name (< Parent)``."""
-
         parts = []
         for name, spec in self.types.items():
             parents = spec.get("parents")
@@ -134,12 +119,6 @@ class ValueTypeRegistry:
 def normalize_module_types(
     module: Mapping[str, Any], registry: ValueTypeRegistry
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Return a copy with every fragment and interface port normalised, plus a report.
-
-    Ports keep ``original_type`` and ``original_cardinality`` for audit.  The report lists
-    unregistered type names with the ports that use them.
-    """
-
     result = copy.deepcopy(dict(module))
     unregistered: Dict[str, List[str]] = {}
     changed = 0

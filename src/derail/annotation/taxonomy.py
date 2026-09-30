@@ -13,11 +13,6 @@ from derail.annotation.records import Adjudication, AnnotationError
 def error_types_outside_seed(
     error_types: Iterable[str], taxonomy: Mapping[str, Any]
 ) -> Tuple[str, ...]:
-    """Validate the taxonomy contract and return codes not present in its seed list.
-
-    Open coding intentionally accepts these codes.  A frozen taxonomy rejects them.
-    """
-
     frozen = taxonomy.get("frozen")
     mode = taxonomy.get("mode")
     expected_mode = "frozen" if frozen is True else "open_coding"
@@ -38,8 +33,6 @@ def error_types_outside_seed(
 def summarize_open_codes(
     adjudications: Sequence[Adjudication], seed_labels: Iterable[str]
 ) -> Dict[str, Any]:
-    """Compute descriptive statistics over human-adjudicated error codes."""
-
     seed = set(seed_labels)
     label_counts: Counter[str] = Counter()
     outside_seed_counts: Counter[str] = Counter()

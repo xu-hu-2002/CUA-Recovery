@@ -65,8 +65,6 @@ class StateFingerprint:
 
     @property
     def sha256(self) -> str:
-        # The visible desktop may contain clocks/cursors.  It remains evidence, but deterministic
-        # state equivalence is intentionally derived from task-specific non-screenshot probes.
         return _digest({"components": dict(self.components)})
 
     def to_dict(self) -> Dict[str, Any]:

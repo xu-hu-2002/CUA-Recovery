@@ -17,8 +17,6 @@ def terminalize(
     record: Mapping[str, Any], *, accepted: bool, reason: str | None = None,
     attempt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return an immutable terminal record without overwriting prior attempts."""
-
     if record.get("status") in TERMINAL_STATUSES:
         raise HazardRecordError("terminal hazard records are immutable")
     if not accepted and not reason:
@@ -43,8 +41,6 @@ def terminalize(
 
 
 def assert_manifest_safe(records: list[Mapping[str, Any]]) -> None:
-    """Reject duplicate IDs and every non-terminal record before rollout."""
-
     ids: set[str] = set()
     for record in records:
         injection_id = str(record.get("injection_id", ""))

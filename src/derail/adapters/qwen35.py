@@ -27,9 +27,6 @@ class Qwen35StateAdapter:
         coordinate_protocol="normalized_0_1000",
         history_format="qwen35vl_snapshot_state_public_response",
     )
-    # Vendored Qwen35VLAgent 每次 predict 都用当天日期与折叠说明重建 system
-    # prompt，因此可回放的公开状态里本就没有 system record；takeover wrapper
-    # （qwen35_takeover.seed_native_history）也以纯 state records 为契约。
     history_starts_with_system_message = False
 
     def __init__(self, instruction: str = "") -> None:
@@ -46,12 +43,6 @@ class Qwen35StateAdapter:
             raise ValueError("Qwen 3.5 source response is empty")
         actions = list(_ACTION_LINE.finditer(response))
         calls = list(_TOOL_CALL.finditer(response))
-        # Cases:
-        #   1. Normal — one Action line + at least one complete tool_call.
-        #   2. No Action line but has tool_call: action embedded in function params.
-        #   3. No Action line and no tool_call: no-op terminal text-only response.
-        #   4. Has Action line but no complete tool_call: truncated/incomplete response
-        #      (e.g. truncated before </tool_call>); treat as no-op.
         if len(actions) == 1 and len(calls) >= 1:
             action = actions[0].group("action").strip()
         elif len(actions) == 0 and len(calls) >= 1:
@@ -68,10 +59,6 @@ class Qwen35StateAdapter:
 
     def render_step(self, step: HistoryStep) -> List[Dict[str, Any]]:
         self.capabilities.require(step.action)
-        # Canonical rows are executed-action granular, while Qwen stores one
-        # screenshot/response/action summary per model turn.  Repeated actions
-        # from the same response must still be replayed in the VM, but must not
-        # duplicate the model-visible turn state.
         if step.action_index_within_turn > 0:
             return []
         response, action, reasoning = self._source_response(step.trajectory_log)

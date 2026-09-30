@@ -1,9 +1,4 @@
-"""Takeover protocol settings and the prefix / replayed-state rules they drive.
-
-One config (``configs/takeover/takeover.yaml``) feeds the shell launcher, the history preflight
-and the per-episode runner, so the repaired prefix, the injected history and the replay gate
-are decided identically before and after the VM boots.
-"""
+"""Takeover protocol settings and the prefix / replayed-state rules they drive."""
 
 from __future__ import annotations
 
@@ -75,12 +70,7 @@ def load_takeover_steps(
     prefix_config: Mapping[str, Any],
     repaired_dir: Optional[Path] = None,
 ) -> Tuple[Tuple[CanonicalStep, ...], Dict[str, Any]]:
-    """Return the steps to replay/inject and where they came from.
-
-    The repaired trajectory uses the canonical layout ``<dir>/<trajectory_id>/<file>`` and keeps
-    original global action indices: removed actions leave gaps, and nothing from the root
-    cause on may differ from the recorded rollout.
-    """
+    """Return the steps to replay/inject and where they came from."""
 
     original = load_canonical_jsonl(canonical_path)
     info: Dict[str, Any] = {
@@ -92,7 +82,6 @@ def load_takeover_steps(
         return original, info
     base = Path(repaired_dir) if repaired_dir else Path(str(prefix_config["repaired_dir"]))
     if not base.is_absolute():
-        # <build_dir>/canonical/<trajectory_id>/<file> -> <build_dir>/<repaired_dir>
         base = canonical_path.resolve().parents[2] / base
     path = base / trajectory_id / str(prefix_config["trajectory_filename"])
     if not path.is_file():
@@ -147,13 +136,7 @@ def takeover_prefix(
 def recorded_state_fingerprint(
     steps: Sequence[CanonicalStep], prefix_end: int, probe_file: str
 ) -> Tuple[Optional[StateFingerprint], str]:
-    """Fingerprint the source rollout recorded after action ``prefix_end``.
-
-    Read from ``<probe_file>`` (derail.rollout.state_probe) next to the source traj.jsonl: the
-    last record whose ``traj_index`` is the bound row's 0-based line.  The runner writes one
-    row per executed action, so every action of a multi-action turn has its own row and
-    probe.  Returns ``(None, reason)`` when nothing comparable exists.
-    """
+    """Fingerprint the source rollout recorded after action ``prefix_end``."""
 
     by_index = {step.action_index_global: step for step in steps}
     step = by_index[prefix_end]
@@ -161,8 +144,6 @@ def recorded_state_fingerprint(
     if not step.source_record_uri:
         return None, "source_record_uri_missing"
     if following is not None and following.source_record_uri == step.source_record_uri:
-        # Canonical actions split from one runner row share its single probe; the states
-        # between them were never recorded.
         return None, "takeover_point_inside_recorded_turn"
     path, line_number, _row = read_source_row(step)
     raw = None

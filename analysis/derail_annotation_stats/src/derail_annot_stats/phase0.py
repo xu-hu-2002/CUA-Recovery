@@ -1,17 +1,4 @@
-"""Phase 0: schema discovery over the raw DERAIL annotation exports.
-
-Deliberately assumption-free. It does not consult ``field_mapping.yaml`` (that
-file is the *output* of this phase) and it never renames, merges, or imputes
-anything. Everything it prints is a direct measurement of the files on disk.
-
-Outputs
--------
-stdout                        human-readable profile
-tables/phase0_columns.csv     per-store, per-column non-null rate and cardinality
-tables/phase0_value_counts.csv value frequencies for columns with <= 30 uniques
-tables/phase0_key_check.csv   primary-key uniqueness trials
-tables/phase0_field_mapping_guess.csv  proposed logical-field mapping + confidence
-"""
+"""Phase 0: schema discovery over the raw DERAIL annotation exports."""
 
 from __future__ import annotations
 
@@ -33,8 +20,6 @@ from .paths import Paths
 MAX_UNIQUE_TO_LIST = 30
 SEED = 42
 
-# Logical fields requested by the analysis spec. The third element is filled in
-# by ``guess_mapping`` after the actual data has been inspected.
 LOGICAL_FIELDS = [
     "task_id",
     "agent",
@@ -59,7 +44,6 @@ LOGICAL_FIELDS = [
 
 
 def _describe_value(v):
-    """Render a scalar for display; collections become a shape summary."""
     if isinstance(v, list):
         return f"<list len={len(v)}>"
     if isinstance(v, dict):
@@ -68,12 +52,6 @@ def _describe_value(v):
 
 
 def profile_store(records: list[dict], store: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return (column profile, value counts) for one label store.
-
-    Non-null rate is computed against the number of files in that store, so a
-    column absent from some files shows up as a coverage gap rather than being
-    quietly dropped.
-    """
     n = len(records)
     col_rows, val_rows = [], []
     all_cols: list[str] = []
@@ -109,12 +87,6 @@ def profile_store(records: list[dict], store: str) -> tuple[pd.DataFrame, pd.Dat
 
 
 def key_uniqueness(records: list[dict], store: str) -> list[dict]:
-    """Test candidate primary keys on one store and report duplicate counts.
-
-    Keys are built from the file name (``trajectory_id`` / ``annotator_id``)
-    because that is what the UI guarantees to be unique per submission; the
-    in-file ids are cross-checked separately.
-    """
     out = []
     trials = {
         "trajectory_id": lambda r: (r["_trajectory_id_from_filename"],),
@@ -146,15 +118,6 @@ def key_uniqueness(records: list[dict], store: str) -> list[dict]:
 def guess_mapping(
     stores: dict[str, list[dict]], canonical: list[dict]
 ) -> pd.DataFrame:
-    """Propose a logical-field -> physical-source mapping with a confidence label.
-
-    Confidence semantics:
-      high   -- a single column in one store carries the value directly.
-      medium -- the value must be derived from one column by a documented rule.
-      low    -- the value must be reconstructed from several sources, or the
-                mapping is an interpretation the annotator did not record.
-      ABSENT -- nothing in the data corresponds to this logical field.
-    """
     label_cols = {s: {k for r in recs for k in r} for s, recs in stores.items()}
     canon_cols = {k for r in canonical for k in r}
 
@@ -318,7 +281,6 @@ def guess_mapping(
 
 
 def run(paths: Paths) -> None:
-    """Execute Phase 0 end to end and write its tables."""
     paths.ensure_out()
 
     stores = {

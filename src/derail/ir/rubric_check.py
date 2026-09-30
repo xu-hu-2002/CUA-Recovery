@@ -1,15 +1,3 @@
-"""Rubric expectations and the automatic Task-IR check (execution doc v1.2 section 5.3).
-
-Seed rubrics are prose judged by an LLM; they contain literal values (dates, amounts,
-e-mail addresses, quoted names) and echo values of ``variables.json``.  ``extract_expectations``
-pulls those comparable values out of the rubric criteria and the instruction; ``check``
-looks for each expectation among the gold-lineage values the interpreter produced.  A task
-whose expectations are all found is ``auto_validated``; otherwise it is ``needs_review`` with
-``IR_RUBRIC_MISMATCH`` and the unmatched expectations listed for the fix loop.
-
-All thresholds and patterns come from ``configs/synthesis/rubric_check_v1.yaml``.
-"""
-
 from __future__ import annotations
 
 import re
@@ -100,8 +88,6 @@ _TODAY = re.compile(r"\$\{TODAY([+-]\d+)?\}")
 
 
 def expand_variables(variables: Mapping[str, Any], reference_time: str) -> Dict[str, Any]:
-    """Expand ``${TODAY+-k}`` templates relative to the reference date (D-008, D-018)."""
-
     today = datetime.strptime(str(reference_time)[:10], "%Y-%m-%d")
 
     def _sub(match: "re.Match[str]") -> str:
@@ -118,14 +104,6 @@ def expand_variables(variables: Mapping[str, Any], reference_time: str) -> Dict[
 def extract_expectations(
     task: Mapping[str, Any], variables: Mapping[str, Any], config: RubricCheckConfig
 ) -> List[Dict[str, Any]]:
-    """Comparable expectations from rubric criteria and ``variables.json``.
-
-    The instruction is excluded by default (``use_instruction``): its literal values are
-    givens, and matching them proves nothing (D-018).  Each expectation is
-    ``{"kind": date|amount|email|text|variable, "value", "source": rubric|instruction,
-    "rubric_index", "weight", "raw"}``; duplicates keep the highest weight.
-    """
-
     sources: List[Tuple[str, Optional[int], float, str]] = []
     if config.use_instruction:
         sources.append(("instruction", None, 1.0, str(task.get("instruction", ""))))
@@ -172,7 +150,7 @@ def extract_expectations(
             add("email", match.group(0).lower(), source, index, weight, match.group(0))
         for match in quoted_re.finditer(text):
             if template_re.search(match.group(1)):
-                continue  # "Dundies is on <date>" is a template the task fills in
+                continue
             add("text", match.group(1).strip(), source, index, weight, match.group(0))
         lowered = text.lower()
         for name, value in variable_items:
@@ -217,12 +195,6 @@ def gold_values(gold_lineage: Mapping[str, Any]) -> List[Any]:
 def context_values(
     task_ir: Mapping[str, Any], gold_lineage: Mapping[str, Any], connections: Mapping[str, Any]
 ) -> List[Any]:
-    """Cells of the rows the lineage *produced or wrote*: every ``writes`` target row and every
-    row a node resolved itself (a read whose entity_ref is ``derived:<same node>:<name>``).
-    Rows merely read by other nodes are excluded: with enough read rows any value can be
-    found and the check would pass spuriously (DECISIONS D-020, review R1).
-    """
-
     derived: Dict[Tuple[str, str], Any] = {
         (v["node_id"], v["name"]): v["value"] for v in gold_lineage.get("values", ())
     }
@@ -317,8 +289,6 @@ def lexical_check(
     values: Sequence[Any],
     config: RubricCheckConfig,
 ) -> Dict[str, Any]:
-    """Judge rubric criteria by wording against the gold text (D-018 R2)."""
-
     corpus_parts = [str(normalize_value(v)) for v in values if v is not None]
     if task_ir:
         for node in task_ir.get("nodes", ()):
@@ -362,9 +332,6 @@ def check(
     task: Optional[Mapping[str, Any]] = None,
     task_ir: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Compare gold values (plus ``extra_values``, see :func:`context_values`) with expectations;
-    returns the ``rubric-check/1.0`` record."""
-
     values = gold_values(gold_lineage) + list(extra_values)
     counted = [
         e

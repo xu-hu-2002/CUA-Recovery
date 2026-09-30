@@ -19,7 +19,6 @@ _PRIVATE_KEYS = frozenset(
 
 
 _THOUGHT_SECTION = re.compile(r"#+\s*Thought:.*?(?=\n#+\s|\Z)", re.DOTALL | re.IGNORECASE)
-# openai_cuabash appends reasoning summaries to the visible response as "[reasoning] ..." lines.
 _REASONING_SUMMARY_LINE = re.compile(r"(?m)^\[reasoning\] .*(?:\n|$)")
 
 
@@ -59,8 +58,6 @@ def sanitize_visible_response(value: Any) -> str:
     return _THOUGHT_SECTION.sub("", text).strip()
 
 
-# Backward-compatible private alias for callers/tests written before this became
-# the shared public sanitizer used by Judge evidence construction.
 _visible_response = sanitize_visible_response
 
 
@@ -100,12 +97,6 @@ def _source_location(value: str) -> tuple[Path, int]:
 def _claude_native_turn(
     messages_path: Path, source_line: int, allow_unbound: bool = False
 ) -> Mapping[str, Any] | None:
-    """Bind a traj row to its recorded Anthropic assistant/result turn.
-
-    ``allow_unbound`` 用于可能没有原生 assistant 消息的合成终止行；这类行返回
-    None，其余无法绑定的行仍然报错。
-    """
-
     payload = json.loads(messages_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         raise ValueError(f"Claude messages.json must contain an array: {messages_path}")
@@ -120,9 +111,6 @@ def _claude_native_turn(
             and block.get("type") == "tool_use"
             and block.get("name") == "computer"
         ]
-        # Bash/editor calls execute inside one predict() and produce one TOOL_CALL
-        # traj row. A batched computer response is expanded by the runner into one
-        # traj row per GUI action.
         row_count = max(1, len(computer_calls))
         group_end = row_cursor + row_count - 1
         if row_cursor <= source_line <= group_end:
@@ -133,8 +121,6 @@ def _claude_native_turn(
                     result = candidate
             return {
                 "initial_user": payload[0] if row_cursor == 1 else None,
-                # A repaired prefix may drop the first recorded turn; the task message
-                # still opens the injected conversation.
                 "task_user": payload[0],
                 "assistant": item,
                 "result_user": result,
@@ -149,13 +135,6 @@ def _claude_native_turn(
 
 
 def _claude_control_row(raw: Mapping[str, Any], step: CanonicalStep) -> bool:
-    """True for the synthetic end-of-run row a stalled rollout appends.
-
-    harness 在源运行 stall 结束时会补写一行 ``action="FAIL"``、``done=true`` 的
-    终止行（step_num 与前一行重复）；它没有 Anthropic assistant 消息，被 canonical
-    化为轨迹的 termination 事件。
-    """
-
     return raw.get("done") is True and getattr(step.action, "kind", "") == "terminate"
 
 
@@ -185,16 +164,7 @@ def read_source_row(step: CanonicalStep) -> tuple[Path, int, Mapping[str, Any]]:
 
 
 def load_trajectory_log(step: CanonicalStep, *, strip_reasoning: bool = True) -> str:
-    """Return the recorded source output that accompanies one injected history step.
-
-    The canonical action and replay result are represented separately as the
-    target agent's native assistant/tool messages.  This supplement carries
-    the remaining useful traj.jsonl fields, especially for tool-only turns and
-    rows whose original screenshot is missing.  Every target renderer reads
-    source text only through here, so ``strip_reasoning`` (paper history
-    H = (o_i, a_i)) removes private reasoning for all agents at once; ``False``
-    passes the row through as recorded.
-    """
+    """Return the recorded source output that accompanies one injected history step."""
 
     if not step.source_record_uri:
         return ""
@@ -226,8 +196,7 @@ def load_trajectory_log(step: CanonicalStep, *, strip_reasoning: bool = True) ->
         if turn is None:
             record["control_flow_row"] = True
         else:
-            # Opus 4.8 thinking blocks hold only a provider signature (empty text); they stay
-            # because the Messages API rejects a tool-use turn whose thinking block is gone.
+            # Signature-only thinking blocks must stay; the Messages API rejects tool-use turns without them.
             record["anthropic_native_turn"] = turn
     if metadata:
         record["agent_metadata"] = public(metadata)
@@ -236,5 +205,4 @@ def load_trajectory_log(step: CanonicalStep, *, strip_reasoning: bool = True) ->
     return json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-# Compatibility alias for callers outside this repository.
 load_public_trajectory_log = load_trajectory_log

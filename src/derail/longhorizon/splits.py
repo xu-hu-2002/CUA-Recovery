@@ -1,11 +1,3 @@
-"""Frozen source splits and the Phase 1 development sample (manual v0.2 sections 17, 18.3).
-
-Source tasks are split ``source-development / source-pilot / source-holdout`` by cluster, so a
-story or fixture family never straddles a split.  Until Task IR exists the cluster key is a
-configurable tuple of task fields (default: the sorted application set); the choice is recorded
-in the output so it can be revisited once semantic clusters are available.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -59,26 +51,18 @@ def _field_value(task: Mapping[str, Any], name: str) -> str:
 
 
 def cluster_key(task: Mapping[str, Any], fields: Sequence[str]) -> str:
-    """Stable cluster identifier from the configured task fields."""
-
     payload = json.dumps([_field_value(task, name) for name in fields], ensure_ascii=False)
     return "cluster_%s" % hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
 def assign_splits(tasks: Sequence[Mapping[str, Any]], config: SplitConfig) -> Dict[str, str]:
-    """Return ``task_id -> split`` with whole clusters assigned together.
-
-    Clusters are shuffled with the seed, then placed largest-first into the split that is
-    furthest below its target share, so big families cannot overflow one split.
-    """
-
     clusters: Dict[str, List[str]] = defaultdict(list)
     for task in tasks:
         clusters[cluster_key(task, config.cluster_fields)].append(str(task["id"]))
     rng = random.Random(config.seed)
     names = sorted(clusters)
     rng.shuffle(names)
-    names.sort(key=lambda name: -len(clusters[name]))  # stable among equal sizes
+    names.sort(key=lambda name: -len(clusters[name]))
     total = float(len(tasks))
     filled = {name: 0 for name in SPLIT_NAMES}
     assignment: Dict[str, str] = {}
@@ -100,8 +84,6 @@ def enrich_tasks(
     task_horizons: Mapping[str, str],
     failure_task_ids: Iterable[str],
 ) -> List[Dict[str, Any]]:
-    """Attach the stratification fields used by splits and the development sample."""
-
     failed = set(failure_task_ids)
     enriched = []
     for task in tasks:
@@ -118,12 +100,6 @@ def enrich_tasks(
 def select_dev_sample(
     tasks: Sequence[Mapping[str, Any]], assignment: Mapping[str, str], config: SplitConfig
 ) -> List[str]:
-    """Stratified development sample drawn only from ``source-development``.
-
-    Strata are visited round-robin in a seeded order, one task per visit, so rare combinations
-    are never skipped in favour of easy tasks.
-    """
-
     rng = random.Random(config.seed + 1)
     eligible = [task for task in tasks if assignment.get(str(task["id"])) == SPLIT_NAMES[0]]
     strata: Dict[Tuple[str, ...], List[str]] = defaultdict(list)

@@ -1,4 +1,4 @@
-"""Canonical action 与各 agent 原生历史格式之间的无损转换。"""
+"""Lossless conversion between canonical actions and native agent history formats."""
 
 from .base import ActionNotSupportedError, AgentCapabilities, HistoryStep
 from .claude import ClaudeNativeHistoryAdapter

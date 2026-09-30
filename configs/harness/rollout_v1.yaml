@@ -1,24 +1,17 @@
-# Rollout harness (execution doc v1.2 sections 4.4, 8.1-8.3).  One command, one config, one
-# result directory (brief section 5b): scripts/run_rollout_v1.py --config this-file.
 schema_version: rollout-config/1.0
 
-world_id: mypcbench_caf9c754_bake20260719   # must match the pinned image (doc section 6.3)
-image_digest_env: DERAIL_IMAGE_DIGEST       # sha256 of the qcow2 actually booted (checked at start)
-control_api_url_env: DERAIL_CONTROL_API_URL # e.g. http://127.0.0.1:5000 (set by the env factory)
-mypcbench_root_env: DERAIL_MYPCBENCH_ROOT   # third_party/MyPCBench checkout on the runner host
-output_dir_env: DERAIL_ROLLOUT_OUT          # result directory on the data disk
+world_id: mypcbench_caf9c754_bake20260719
+image_digest_env: DERAIL_IMAGE_DIGEST
+control_api_url_env: DERAIL_CONTROL_API_URL
+mypcbench_root_env: DERAIL_MYPCBENCH_ROOT
+output_dir_env: DERAIL_ROLLOUT_OUT
 
-# Step budget, wall-clock limit, repeats (seeds 0..repeats-1), task source and environment
-# hooks all come from the shared collection protocol (paper 02:12, 05:15: 150 steps,
-# 3,600 s, three runs, K=20), the same file scripts/01_collect_trajectories.sh reads.
 runtime_config: configs/collection/mypcbench_runtime.yaml
 pause_after_action_s: 2.0
 sampling_round: 1
 frame: [1280, 800]
 
-# Agents by DERAIL agent id (configs/agents/<id>.yaml); the official runner's agent_type.
 agents: []
-# Optional id filter over the task source (configs/collection/sources.yaml).
 task_ids: []
 
 preflight:

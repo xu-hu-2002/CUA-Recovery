@@ -53,8 +53,6 @@ def _review(review_id: str, reviewer_id: str, verdicts) -> HumanRubricReview:
 
 class RubricReviewTest(unittest.TestCase):
     def test_rubric_ids_follow_the_upstream_positional_convention(self) -> None:
-        # MyPCBench bundles carry no `id`; the judge synthesises R1..RN and the
-        # human review must attach to exactly the same criteria.
         specs = load_rubric_specs(BUNDLE)
         self.assertEqual([item.rubric_id for item in specs], ["R1", "R2", "R3"])
         self.assertEqual([item.weight for item in specs], [0.2, 0.5, 0.3])
@@ -113,8 +111,6 @@ class RubricReviewTest(unittest.TestCase):
                 disagreement_rubric_ids=disagreements,
             )
 
-        # Under-reporting disagreement would make the paper's agreement number
-        # unfalsifiable, so it is a hard error rather than a warning.
         with self.assertRaises(RubricReviewError):
             _adjudication(()).validate_inputs(reviews)
         _adjudication(("R2",)).validate_inputs(reviews)
@@ -153,7 +149,6 @@ class RubricReviewTest(unittest.TestCase):
         self.assertAlmostEqual(score["weighted_fraction"], 0.5)
         self.assertEqual(score["score"], 50)
         self.assertFalse(score["perfect"])
-        # The judge passed R2, the humans failed it: a false success.
         self.assertEqual(adjudication.judge_disagreement_rubric_ids(), ("R2",))
 
         payload = adjudication.to_dict()

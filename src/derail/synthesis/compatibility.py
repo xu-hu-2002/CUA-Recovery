@@ -194,13 +194,6 @@ def build_compatibility_edges(
     modules: Iterable[Mapping[str, Any]],
     type_system: TypeSystem,
 ) -> List[Dict[str, Any]]:
-    """Build pairwise compatibility candidates while preserving every binding.
-
-    Only ``direct`` edges are executable without fixture materialization.  The
-    other statuses remain useful audit records but are excluded by the
-    synthesis search.
-    """
-
     module_list = [dict(module) for module in modules]
     for module in module_list:
         validate_grounded_module(module)

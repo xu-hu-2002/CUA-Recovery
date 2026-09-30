@@ -21,8 +21,6 @@ class ClaudeNativeHistoryAdapter:
         action_kinds=Qwen38ScaffoldAdapter.capabilities.action_kinds,
         coordinate_protocol="anthropic_computer_1280x720",
         history_format="anthropic_recorded_messages",
-        # 合成终止行（源运行 stall 后 harness 补写的 FAIL 行）没有对应的
-        # Anthropic assistant 消息，因此 terminate 不能作为 history 截断边界。
         silent_action_kinds=frozenset({"terminate"}),
     )
 
@@ -84,8 +82,6 @@ class ClaudeNativeHistoryAdapter:
 
     @classmethod
     def _is_stripped_image(cls, block: Any) -> bool:
-        """True for an image block whose source was stripped to a bare string."""
-
         return (
             isinstance(block, Mapping)
             and block.get("type") == "image"
@@ -127,13 +123,6 @@ class ClaudeNativeHistoryAdapter:
     def _pending_action_result(
         cls, tool_ids: List[str], after_image: str
     ) -> Dict[str, Any]:
-        """Rebuild the result message of a predict whose outcome was never recorded.
-
-        源 rollout 在该 predict 后即结束（stall/终止），messages.json 里没有 result
-        消息。live harness 对悬空 computer tool_use 的处理是在下一次调用时补上动作已
-        执行的结果与动作后截图；这里复现同一契约，保证注入的历史是合法的一轮。
-        """
-
         blocks: List[Dict[str, Any]] = []
         for index, tool_id in enumerate(tool_ids):
             content: List[Dict[str, Any]] = [{"type": "text", "text": "Action executed."}]
@@ -150,8 +139,6 @@ class ClaudeNativeHistoryAdapter:
         return {"role": "user", "content": blocks}
 
     def _opening_user(self, turn: Mapping[str, Any]) -> Any:
-        """Task message for the first rendered turn, even when a repair removed turn 0."""
-
         if self._opened:
             return None
         self._opened = True
@@ -159,7 +146,6 @@ class ClaudeNativeHistoryAdapter:
 
     def render_step(self, step: HistoryStep) -> List[Dict[str, Any]]:
         if not self._initial_image:
-            # The first replayed step's pre-action screenshot is the task's initial state.
             self._initial_image = step.observation_image_url
         record = self._trajectory_record(step)
         if record.get("control_flow_row") is True:

@@ -1,22 +1,3 @@
-"""Grounding checks for ``task-ir/1.0`` beyond the schema (execution doc v1.2 section 5.1).
-
-Static validation (DAG, ports, bindings) lives in ``derail.ir.model``.  This module checks
-the IR against the *world* and the *instruction*:
-
-- tables and columns exist in the schema graph; row entities exist in the database copies;
-  SQL derivations and verifiers compile against the real schema (``EXPLAIN`` with null
-  parameters, nothing executed); derived references name existing nodes;
-- input literals appear in the instruction text (or are the signed-in persona's own
-  identity): a world fact smuggled in as a literal would make ``reads`` empty and the latent
-  horizon incomputable, so it is a hard error ``LITERAL_NOT_IN_INSTRUCTION`` (DECISIONS D-009);
-- ``unbound:`` inputs are errors: a fact not in any table must be grounded as a file fact,
-  never invented.
-
-Reachability of reads is fact-level (doc v1.1): a fact that exists in a database or file is
-readable by any modality, so entity existence *is* the reachability check (D-017).  Every
-issue is ``{"code", "severity": "error" | "warning" | "info", "node_id", "detail"}``.
-"""
-
 from __future__ import annotations
 
 import re
@@ -40,8 +21,6 @@ def _issue(code: str, severity: str, node_id: Optional[str], detail: str) -> Dic
 
 
 def compile_check(conn: sqlite3.Connection, query: str) -> Optional[str]:
-    """Return an error message when ``query`` does not compile against ``conn``, else None."""
-
     params = {name: None for name in _PARAM.findall(query)}
     try:
         conn.execute("EXPLAIN " + query, params)
@@ -65,8 +44,6 @@ def _open(
 
 
 def _spellings(value: Any) -> List[str]:
-    """Textual forms under which a literal may appear in the instruction."""
-
     if value is None or isinstance(value, bool):
         return [str(value).lower()]
     if isinstance(value, (int, float)):
@@ -98,9 +75,6 @@ def _spellings(value: Any) -> List[str]:
 
 
 def literal_allowed(value: Any, instruction: str, allowed_literals: Iterable[Any] = ()) -> bool:
-    """A literal is allowed when one of its spellings occurs in the instruction, or it is one
-    of the configured constants (the persona's own identity)."""
-
     haystack = _WS.sub(" ", str(instruction)).lower()
     normalized = normalize_value(value)
     for allowed in allowed_literals:

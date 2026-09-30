@@ -1,8 +1,4 @@
-"""Validator tests for the v1.0 schemas (execution doc v1.2 section 13, brief section 2).
-
-Every schema gets one minimal valid record and one record that must be rejected, so a field
-rename or an enum drift is caught before any module starts writing the record.
-"""
+"""Validator tests for the v1.0 schemas."""
 
 from __future__ import annotations
 
@@ -333,7 +329,6 @@ EXAMPLES = {
     },
 }
 
-# One mutation per schema that must make the record invalid.
 BREAKERS = {
     "task_ir.schema.json": lambda r: r["nodes"][0].__setitem__("op", "browse"),
     "gold_lineage.schema.json": lambda r: r.__setitem__("initial_state_sha256", "abc"),
@@ -393,7 +388,6 @@ class V1SchemaTests(unittest.TestCase):
         record.pop("measured_action_horizon")
         with self.assertRaises(jsonschema.ValidationError) as ctx:
             validate_schema(record, "derail_case.schema.json", REPOSITORY)
-        # The error names the dispatched branch and the missing field (D-002 review).
         self.assertIn("branch v1_0", str(ctx.exception))
         self.assertIn("measured_action_horizon", str(ctx.exception))
 

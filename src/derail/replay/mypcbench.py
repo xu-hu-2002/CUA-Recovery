@@ -1,10 +1,4 @@
-"""Real MyPCBench VM backend for canonical prefix replay.
-
-This adapter receives an already configured environment factory.  It verifies the pinned qcow2,
-resets a fresh VM from the task configuration, executes only typed canonical GUI actions, and
-fingerprints task-specific in-VM state probes.  Arbitrary shell text from a trajectory is never
-executed; probe commands come from the frozen benchmark build configuration.
-"""
+"""Real MyPCBench VM backend for canonical prefix replay."""
 
 from __future__ import annotations
 
@@ -34,8 +28,6 @@ from derail.replay.verification import ReplayVerificationError, StateFingerprint
 
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-# Runs inside the VM: per-database digest (same definition as derail.world.state) with the
-# configured volatile columns dropped, printed as one JSON object {database: sha256}.
 _SQLITE_DIGEST_PROGRAM = (
     "import glob, json, os, sys\n"
     "sys.path.insert(0, sys.argv[1])\n"
@@ -51,12 +43,7 @@ _SQLITE_DIGEST_PROGRAM = (
 def build_state_probe_commands(
     probes: Mapping[str, Mapping[str, Any]], repository: Path
 ) -> Dict[str, str]:
-    """Render configured state probes into in-VM shell commands.
-
-    The source rollout and the takeover replay must fingerprint with the same commands, so
-    both sides build them from the ``state_probes`` of the same environment config
-    (configs/environments/<env>.yaml, read by derail.rollout.state_probe.EnvironmentHooks).
-    """
+    """Render configured state probes into in-VM shell commands."""
 
     commands: Dict[str, str] = {}
     for name, spec in sorted(probes.items()):
@@ -94,11 +81,7 @@ def probe_state_fingerprint(
     screenshot_sha256: str = "",
     outputs: Optional[Dict[str, str]] = None,
 ) -> StateFingerprint:
-    """Run the probes in the VM; a JSON ``{key: sha256}`` output expands to ``probe/key``.
-
-    Used by both the source rollout (derail.rollout.state_probe) and the takeover replay.
-    ``outputs``, when given, receives each probe's raw output.
-    """
+    """Run the probes in the VM; a JSON ``{key: sha256}`` output expands to ``probe/key``."""
 
     components: Dict[str, str] = {}
     for name, command in sorted(commands.items()):
@@ -161,14 +144,6 @@ class MyPCBenchVMReplayBackend:
         return dict(self._initial_state_alignment)
 
     def _refresh_seeded_firefox_tabs(self, env: Any) -> None:
-        """Reload the three baked Firefox tabs after app services are ready.
-
-        The daily image launches Firefox before the Next.js services finish
-        booting. Firefox retains its connection-error document even after the
-        corresponding app becomes healthy, which would make an otherwise
-        correct replay diverge immediately from the source trajectory.
-        """
-
         execute_shell = getattr(env, "_execute_shell", None)
         execute_pyautogui = getattr(env, "_execute_pyautogui", None)
         if not callable(execute_shell) or not callable(execute_pyautogui):
@@ -199,14 +174,6 @@ class MyPCBenchVMReplayBackend:
 
     @staticmethod
     def _focus_seeded_firefox_window(execute_shell: Callable[[str], Any]) -> Any:
-        """Wait for the baked Firefox session to expose an activatable X11 window.
-
-        The guest image has used both GDM and per-user Xauthority locations.
-        Probe those locations rather than assuming one build-specific pathname;
-        this only selects the existing seeded Firefox window and never creates
-        a substitute browser profile.
-        """
-
         return execute_shell(
             "sh -lc '"
             "auths="
@@ -273,14 +240,7 @@ class MyPCBenchVMReplayBackend:
         *,
         hash_preverified: bool = False,
     ) -> None:
-        """Adopt the fresh task VM that the outer MyPCBench runner just reset.
-
-        Prefix takeover runs enter ``predict`` immediately after
-        ``run_single_example`` has reset the pinned image with the same task
-        config. Rebuilding that CoW overlay a second time adds a full boot but
-        does not improve isolation. These assertions make adoption explicit
-        and fail closed if the outer runner contract changes.
-        """
+        """Adopt the fresh task VM that the outer MyPCBench runner just reset."""
 
         path = Path(snapshot_uri).resolve()
         if not path.is_file():
@@ -385,8 +345,6 @@ class MyPCBenchVMReplayBackend:
                 )
                 continue
             if isinstance(primitive, TerminateAction):
-                # The source agent's completion signal is history evidence, not
-                # an instruction to terminate the target agent's fresh loop.
                 saw_control_flow = True
                 continue
             source = "WAIT" if isinstance(primitive, WaitAction) else compile_pyautogui(primitive)

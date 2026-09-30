@@ -104,14 +104,13 @@ class RecoveryTests(unittest.TestCase):
             [a.level for a in result.attempts],
             ["l1_step", "l1_step", "l2_evidence", "l2_evidence", "l3_state_diff"],
         )
-        # every attempt starts from H_c; the continuation extends it after c
         self.assertEqual(seen[0][1], CASE["input"]["history"])
         self.assertEqual(seen[-1][1][-1]["action_index"], 6)
         sample = recovery_sample(CASE, result, WEIGHTS)
         self.assertEqual(sample["input"]["history"], CASE["input"]["history"])
         self.assertEqual(sample["target"]["steps"][0]["action_index"], 6)
         self.assertEqual((sample["hint_level"], sample["teacher"]), ("l3_state_diff", "self"))
-        self.assertNotIn("compensate", str(sample["input"]))  # the hint is not in the input
+        self.assertNotIn("compensate", str(sample["input"]))
         self.assertEqual(sample_key(sample), sample_key(dict(sample, sample_id="other")))
 
     def test_teacher_is_last_resort(self):
@@ -150,7 +149,6 @@ class RecoveryTests(unittest.TestCase):
         ):
             self.assertTrue(hint_leaks(hint, [{"thought": leaky}], CASE, config), leaky)
         leaky = "As noted, step 5 was wrong. I will open the calendar."
-        # drop: no sample; resample: the schedule goes on; redact: the sentence goes
         base = RecoveryConfig(attempts_per_level=1, max_recovery_steps=2)
         self.assertIsNone(_run(replace(base, leak_policy="drop"), thought=leaky)[0].accepted)
         resampled, _ = _run(

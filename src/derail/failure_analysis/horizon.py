@@ -1,14 +1,3 @@
-"""Earliest identifiable point and horizons (execution doc v1.2 sections 2.3, 9.5).
-
-After the root cause at ``t_root`` the earliest identifiable action is the first ``t > t_root``
-whose observations show either (a) a gold-written cell with a value that diverges from the
-gold state, or (b) a correct source fact that contradicts the value the agent carried (the
-reads of the lineage that produced the mistyped gold value).  ``action_horizon`` is the step
-difference; ``semantic_horizon`` the dependency-path length between the root node and the
-node whose fact was observed; ``horizon_censored`` when nothing exposes the error before the
-trace ends.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Tuple
@@ -21,9 +10,6 @@ from derail.ir.model import dag_index
 def _lineage_source_facts(
     task_ir: Mapping[str, Any], gold: Mapping[str, Any], node_id: str
 ) -> List[Tuple[str, str, str, Any]]:
-    """``(table, column, entity, gold value)`` of the reads feeding ``node_id`` (itself and
-    its ancestors), with concrete entities from ``resolved_reads``."""
-
     dag = dag_index(task_ir)
     nodes = dag.ancestors(node_id) | {node_id}
     facts = []
@@ -39,8 +25,6 @@ def _lineage_source_facts(
 def earliest_identifiable(
     trace: Mapping[str, Any], gold: Mapping[str, Any], task_ir: Mapping[str, Any], root: Candidate
 ) -> Tuple[Optional[int], Optional[str], Optional[str]]:
-    """``(action_index, node_id of the exposing fact, source)`` or ``(None, None, None)``."""
-
     gold_cells = {
         (w["table"], w["entity"], w["column"]): w
         for w in gold.get("writes_gold", ())
@@ -70,8 +54,6 @@ def earliest_identifiable(
                     and not _same(fact.get("value"), gold_cell["value"])
                     and not (wrong_value is not None and _same(fact.get("value"), wrong_value))
                 ):
-                    # The agent seeing its own wrong value back is not identification (doc 2.3
-                    # example: the submitted order shows the wrong date, the calendar exposes it).
                     return t, gold_cell["node_id"], source
                 fact_key = (fact.get("table"), fact.get("column"), fact.get("entity"))
                 if (

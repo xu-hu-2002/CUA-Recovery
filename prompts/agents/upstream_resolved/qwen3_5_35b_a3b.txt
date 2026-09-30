@@ -1,4 +1,4 @@
-# 由 scripts/dump_upstream_prompts.py 自动生成，请勿手工编辑。
+# 由 scripts/collection/dump_upstream_prompts.py 自动生成，请勿手工编辑。
 # agent_id: qwen3_5_35b_a3b
 # 来源: vendored_paper_results/qwen35vl_agent.py 的 tools_def system prompt，外加 agents/qwen_cua.py:call_llm 注入的 build_mypcbench_context(has_bash=True) 和 _BASH_TOOL_DESCRIPTION
 # 渲染参数: CLIENT_PASSWORD='password' screen_size=(1280, 800) CURRENT_DATE='Monday, January 01, 2024'

@@ -25,20 +25,16 @@ class LatentStaticTests(unittest.TestCase):
     def test_mw002_horizons(self):
         task_ir = load_task_ir(MINIWORLD / "task_ir" / "mw-002.json", REPOSITORY)
         horizons = static_latent_horizons(task_ir)
-        # n1 resolves the event; n2 re-reads its start_at -> the very next step exposes an error.
         self.assertEqual(horizons["n1"].latent_horizon_static, 1)
         self.assertEqual(horizons["n1"].observability_class, "required_next")
         self.assertEqual(horizons["n1"].visible_node_id, "n2")
-        # n2's date only reaches the message: nothing downstream re-reads it, the verifier does.
         self.assertIsNone(horizons["n2"].latent_horizon_static)
         self.assertEqual(horizons["n2"].observability_class, "verifier_only")
-        # n4's dm id flows into the send node, which carries a sql verifier.
         self.assertEqual(horizons["n4"].observability_class, "verifier_only")
 
     def test_mw001_confirm_step_reads_the_written_cell(self):
         task_ir = load_task_ir(MINIWORLD / "task_ir" / "mw-001.json", REPOSITORY)
         horizons = static_latent_horizons(task_ir)
-        # n3 decides the new time; n4 writes it; n5 confirms by reading start_at back.
         self.assertEqual(horizons["n3"].visible_node_id, "n5")
         self.assertEqual(horizons["n3"].latent_horizon_static, 2)
         self.assertEqual(horizons["n3"].observability_class, "required_later")

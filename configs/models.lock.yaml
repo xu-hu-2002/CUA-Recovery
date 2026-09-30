@@ -1,4 +1,3 @@
-# 服务器 gate 在正式 collection 前冻结的不可变输入。
 generated_at: "2026-08-02"
 mypcbench:
   commit: caf9c754ffe0b41c7e629e17fff19299774af1cb
@@ -22,7 +21,6 @@ collection_ids:
   evocua_32b_formal_reserved: mypcbench_v1_evocua32b_20260802
   opencua_72b_formal_reserved: mypcbench_v1_opencua72b_20260802
   holo_3_1_35b_a3b_formal_reserved: mypcbench_v1_holo31_20260802
-# 2026-08-04 由用户明确授权开启正式采集。
 formal_collection_authorized: true
 
 collection_policy:
@@ -49,9 +47,6 @@ runtimes:
     python: 3.12.11
     torch: 2.8.0+cu128
     transformers: 4.57.0
-  # 这个 runtime 不在 registry 上，每台机器都要自己 build（serving/build_evocua_image.sh）。
-  # 身份由 base digest + Dockerfile 哈希确定；local_image_id 只是本机那次构建的产物记录，
-  # 换台机器按同一配方重建必然不同，不要拿它当校验条件。
   evocua_vllm_0_11_0:
     image: derail/evocua-vllm:0.11.0-transformers4.57.3
     base_amd64_digest: sha256:d8d39b59e909d2378ac4feeb191f7e7b6f1342477dc66b7c47cec89e9985ad8a

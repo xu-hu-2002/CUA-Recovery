@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# DERAIL ROCK 采集 — Nebula job entry（由 entry_derail_rock_nebula.py shim 调起）。
-#
-# job 内只做三件事（closed-model legacy 形态，不起 vLLM）：
-#   1. preflight：确保 rl-rock SDK 可深度 import（缺失则 pip 装，3 次重试）
-#   2. source 0600 mount-secret（OSS AK + routify key）并立即删除挂载文件
-#   3. exec scripts/rock/derail_rock_driver.py
-#
-# 运行参数全部来自代码包里的 .rock_run.env（mdl launcher 的 --entry 只能是
-# 裸文件路径，无法内联 env）。
-# =============================================================================
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +6,6 @@ REPO="$(cd "$HERE/../.." && pwd)"
 cd "$REPO"
 export PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}"
 
-# --- source 运行配置（submit_derail_rock_nebula.sh 生成） -----------------------
 if [[ -f "$REPO/.rock_run.env" ]]; then
   set -a; # shellcheck disable=SC1091
   source "$REPO/.rock_run.env"; set +a
@@ -41,15 +29,9 @@ if [[ "${DERAIL_WORKLOAD:-}" == "phase5" ]]; then
   echo "[derail-rock] restored frozen Phase 5 inputs"
 fi
 
-# Nebula jobs may share a host network namespace. Allocate a stable block from
-# the pod hostname and collection ID before importing the Python driver.
 # shellcheck disable=SC1091
 source "$HERE/allocate_proxy_ports.sh"
 
-# --- source 0600 mount-secret 并自删 -------------------------------------------
-# 平台注入容器的 OSS_ID/OSS_KEY 是平台级 AK（对个人 OSS bucket 会 "disabled"），
-# 只够 FUSE mount 本身用；真实用户 AK + routify key 由 submit 脚本预先
-# ossutil cp 到 bucket tmp 路径，经 FUSE mount 可读。source 后立即删除。
 if [[ -n "${DERAIL_SECRET_MOUNT:-}" && -f "${DERAIL_SECRET_MOUNT}" ]]; then
   set -a; # shellcheck disable=SC1090
   source "${DERAIL_SECRET_MOUNT}"; set +a
@@ -59,7 +41,6 @@ else
   echo "[derail-rock] ERROR: DERAIL_SECRET_MOUNT not found: ${DERAIL_SECRET_MOUNT:-<unset>}" >&2
   exit 2
 fi
-# 兼容平台注入命名，供 driver 读取。
 export OSS_ACCESS_ID="${OSS_ACCESS_ID:-${OSS_ID:-${OSS_ACCESS_KEY_ID:-}}}"
 export OSS_ACCESS_KEY="${OSS_ACCESS_KEY:-${OSS_KEY:-${OSS_ACCESS_KEY_SECRET:-}}}"
 [[ -n "$OSS_ACCESS_ID" && -n "$OSS_ACCESS_KEY" ]] || {
@@ -70,7 +51,6 @@ if [[ "${AGENT_ID:-}" != "dummy" ]]; then
     exit 2; }
 fi
 
-# --- python 解释器（platform image 上裸 pip 与 python 可能不属于同一解释器） -----
 PY="${DERAIL_ENTRY_PYTHON:-${PYTHONHOME:+$PYTHONHOME/bin/python}}"
 PY="${PY:-python3}"
 if ! command -v "$PY" >/dev/null 2>&1; then
@@ -82,9 +62,6 @@ if ! command -v "$PY" >/dev/null 2>&1; then
   done
 fi
 
-# --- 1. preflight: rl-rock SDK（深度 import 探针 + 3 次重试 + force-reinstall） --
-# 照 MCUA entry_rock_nebula.sh：内部镜像 index 间歇性半安装（顶层 import 过、
-# 子模块缺失），必须探 driver 实际用到的深路径，且重试时 --force-reinstall。
 ROCK_SDK_PROBE='from rock.sdk.sandbox.config import SandboxConfig; from rock.actions import CreateBashSessionRequest; from rock.sdk.sandbox.client import Sandbox'
 rock_sdk_ok() { "$PY" -c "$ROCK_SDK_PROBE" 2>/dev/null; }
 
@@ -93,7 +70,6 @@ if ! rock_sdk_ok; then
     echo "[derail-rock] ROCK SDK not importable -- install attempt ${attempt}/3 with $PY -m pip"
     extra=""
     [ "$attempt" -gt 1 ] && extra="--force-reinstall --no-cache-dir"
-    # 内网镜像源不入库：需要时用 PIP_INDEX_URL 环境变量指定。
     _pip_index=""; [ -n "${PIP_INDEX_URL:-}" ] && _pip_index="-i $PIP_INDEX_URL"
     "$PY" -m pip install -q $extra "rl-rock" $_pip_index \
       || "$PY" -m pip install -q $extra "rock-rl" $_pip_index \
@@ -114,16 +90,10 @@ if ! rock_sdk_ok; then
 fi
 echo "[derail-rock] ROCK SDK ready: $("$PY" -c 'import rock; print(getattr(rock,"__version__","?"))' 2>/dev/null || echo '?')"
 
-# ROCK may launch helper processes with a different Python executable than the
-# entry process.  Export the installed site-packages explicitly so those
-# helpers can import the same SDK instead of failing with ModuleNotFoundError.
 ROCK_SITE_PACKAGES="$($PY -c 'import site; print(":".join(site.getsitepackages()))')"
 export PYTHONPATH="${ROCK_SITE_PACKAGES}${PYTHONPATH:+:$PYTHONPATH}"
 "$PY" -c "$ROCK_SDK_PROBE"
 
-# --- 1b. preflight: derail 核心依赖探针（yaml/jsonschema，缺失则重装 -e .）-----
-# 2026-08-15 kimi_recol 假收官事故：job 落到缺 PyYAML 的镜像节点，driver 加载
-# agent config 时猝死，0 轨迹却报 SUCCESS。镜像依赖漂移不可控，入口必须探针。
 CORE_DEPS_PROBE='import yaml, jsonschema'
 deps_ok() { "$PY" -c "$CORE_DEPS_PROBE" 2>/dev/null; }
 if ! deps_ok; then
@@ -146,7 +116,6 @@ if [[ "${PHASE5_HAZARD_SMOKE:-0}" == "1" ]]; then
   PYTHONUNBUFFERED=1 exec "$PY" -u "$REPO/scripts/phase5/run_hazard_smoke.py"
 fi
 
-# --- 2. ROCK-Cloud 连通性探针（不阻塞，只记录） ----------------------------------
 ROCK_URL="${ROCK_BASE_URL:-http://<rock-endpoint>}"
 if command -v curl >/dev/null 2>&1; then
   auth_args=()
@@ -162,6 +131,5 @@ if command -v curl >/dev/null 2>&1; then
   fi
 fi
 
-# --- 3. exec driver -------------------------------------------------------------
 echo "[derail-rock] launching driver: AGENT_ID=${AGENT_ID} SHARD_FILE=${SHARD_FILE} FORMAL_COLLECTION=${FORMAL_COLLECTION:-0}"
 PYTHONUNBUFFERED=1 exec "$PY" -u "$REPO/scripts/rock/derail_rock_driver.py"

@@ -24,7 +24,7 @@ def _load_script(name: str, relative: str):
     return module
 
 
-ROLLOUT = _load_script("takeover_rollout_controls", "scripts/10_run_takeover_rollout.py")
+ROLLOUT = _load_script("takeover_rollout_controls", "scripts/takeover/run_rollout.py")
 
 
 class TakeoverResumeTests(unittest.TestCase):
@@ -148,7 +148,7 @@ class TakeoverDashboardTests(unittest.TestCase):
             }
         )
         completed = subprocess.run(
-            ["bash", str(REPOSITORY / "artifacts/takeover/watch_takeover.sh"), "--once"],
+            ["bash", str(REPOSITORY / "scripts/takeover/watch_takeover.sh"), "--once"],
             check=True,
             capture_output=True,
             text=True,
@@ -245,7 +245,7 @@ class TakeoverJudgeShellTests(unittest.TestCase):
             completed = subprocess.run(
                 [
                     "bash",
-                    str(REPOSITORY / "artifacts/takeover/run_takeover_judge.sh"),
+                    str(REPOSITORY / "scripts/judge/run_takeover_judge.sh"),
                     "--source-agent",
                     "source",
                     "--takeover-agent",
@@ -286,7 +286,7 @@ class TakeoverJudgeShellTests(unittest.TestCase):
             completed = subprocess.run(
                 [
                     "bash",
-                    str(REPOSITORY / "artifacts/takeover/run_takeover_judge.sh"),
+                    str(REPOSITORY / "scripts/judge/run_takeover_judge.sh"),
                     "--source-agent",
                     "source",
                     "--takeover-agent",
@@ -321,7 +321,7 @@ class TakeoverJudgeShellTests(unittest.TestCase):
                 (task / "rubric_bundle.json").write_text("{}\n", encoding="utf-8")
 
             completed = subprocess.run(
-                ["bash", str(REPOSITORY / "artifacts/takeover/run_takeover_judge.sh"),
+                ["bash", str(REPOSITORY / "scripts/judge/run_takeover_judge.sh"),
                  "--source-agent", "source", "--takeover-agent", "target",
                  "--depth", "0", "--condition", "unaware", "--prepare-only"],
                 check=True, capture_output=True, text=True,
@@ -349,7 +349,7 @@ class TakeoverJudgeShellTests(unittest.TestCase):
             completed = subprocess.run(
                 [
                     "bash",
-                    str(REPOSITORY / "artifacts/takeover/run_takeover_judge.sh"),
+                    str(REPOSITORY / "scripts/judge/run_takeover_judge.sh"),
                     "--source-agent",
                     "source",
                     "--takeover-agent",

@@ -1,10 +1,4 @@
-"""Human-annotation evidence used by the diagnosed takeover condition.
-
-The intervention is intentionally derived, not authored at rollout time.  A
-diagnosed run receives only the annotator's ``Error type evidence:`` block and
-the annotated global root-cause action index.  The rest of the rationale is not
-silently promoted into a new diagnosis.
-"""
+"""Human-annotation evidence used by the diagnosed takeover condition."""
 
 from __future__ import annotations
 

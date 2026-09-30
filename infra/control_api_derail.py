@@ -1,32 +1,3 @@
-"""DERAIL endpoints for the MyPCBench control API (execution doc v1.2 sections 4.1-4.4).
-
-Registered into the Flask app of ``/opt/desktop-seed/server/main.py`` by
-``control_api_patch.py`` (one import + one call).  Standard library plus Flask only; the pure
-functions are importable without Flask so the repository tests them offline.
-
-Endpoints
----------
-POST /derail/cursor         {"action_index": 12}
-    Write the cursor into every database's ``_cursor`` table (triggers read it) and into the
-    cursor file the tracers read.  Returns the databases updated.
-GET  /derail/changelog?since=<json {db: seq}>   (or ?since_all=<seq>)
-    ``changelog-row/1.0`` rows of every database after the given per-database sequence.
-GET  /derail/seq
-    Highest changelog seq per database (the harness records it as task_start_seq).
-GET  /derail/observations?action_index=<n>
-    Tracer lines (app JSONL files and the sqlite3 CLI log) for that action.
-GET  /derail/digest
-    Per-database state digest (same definition as changelog_replay.digest / derail.world.state).
-POST /derail/install
-    Run the trigger installer over the live databases (idempotent).
-GET  /derail/status
-    Installed triggers per database, cursor, trace files present.
-
-Configuration by environment: DERAIL_DB_DIR (default /data), DERAIL_TRACE_DIR
-(/data/_trace), DERAIL_CURSOR_FILE (/data/_derail/cursor.json), DERAIL_INFRA_DIR
-(/opt/derail, where install_triggers.py and changelog_replay.py live).
-"""
-
 from __future__ import annotations
 
 import glob
@@ -60,8 +31,6 @@ def _replayer():
 
 
 def live_databases(db_dir: str = DB_DIR) -> Dict[str, str]:
-    """``{app: path}`` for the real (non-symlink, non-empty) ``<db_dir>/*.sqlite`` files."""
-
     out: Dict[str, str] = {}
     for path in sorted(glob.glob(os.path.join(db_dir, "*.sqlite"))):
         if os.path.islink(path) or os.path.getsize(path) == 0:
@@ -116,8 +85,6 @@ def read_changelog(
 
 
 def latest_seq(db_dir: str = DB_DIR, triggers=None) -> Dict[str, int]:
-    """Highest ``_changelog.seq`` per database (0 for an empty or missing log)."""
-
     triggers = triggers or _triggers()
     out: Dict[str, int] = {}
     for app, path in live_databases(db_dir).items():
@@ -138,8 +105,6 @@ def latest_seq(db_dir: str = DB_DIR, triggers=None) -> Dict[str, int]:
 
 
 def read_observations(action_index: int, trace_dir: str = TRACE_DIR) -> List[Dict[str, Any]]:
-    """All tracer records for ``action_index`` (app JSONL files + cli.jsonl), in file order."""
-
     out: List[Dict[str, Any]] = []
     for path in sorted(glob.glob(os.path.join(trace_dir, "*.jsonl"))):
         source = "cli" if os.path.basename(path) == "cli.jsonl" else "api"
@@ -207,9 +172,7 @@ def status(
 
 
 def register(app) -> None:
-    """Attach the endpoints to a Flask ``app``."""
-
-    from flask import jsonify, request  # imported here so the pure functions stay Flask-free
+    from flask import jsonify, request
 
     @app.route("/derail/cursor", methods=["POST"])
     def derail_cursor():

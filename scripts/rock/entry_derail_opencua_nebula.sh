@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# DERAIL opencua_72b smoke — Nebula job entry（开源模型形态）。
-#
-# 与 closed-model entry 的区别：job 内起 vLLM（L1 推理），加载 OSS FUSE 挂载上
-# 的 xlangai/OpenCUA-72B 权重；ROCK 侧链路不变（derail_rock_driver.py），
-# 沙箱内 01 脚本经 OPENCUA_BASE_URLS=http://<JOB_IP>:<port>/v1 采样。
-# 该拓扑在 MCUA 项目同一 AMD MI308X 队列上对 opencua-72b 已有 OSWorld 出分实证。
-#
-# 关键移植点（全部来自 MCUA entry_rock_nebula.sh 的踩坑记录）：
-#   * 权重 shim：OSS 挂载目录名与模型别名不一致，用 symlink 映射，不拷 137G；
-#   * transformers 必须 4.x：OpenCUA remote code 用 4.x API（5.x 删了
-#     bytes_to_unicode / ProcessorMixin 改版，vLLM 启动即崩）；
-#   * vLLM 无该架构原生实现时加 --model-impl transformers（ROCm build 不动）；
-#   * ready 判定必须校验 served-model-name，防同 netns 别人端口的假阳性；
-#   * 退出清理要杀整个进程组：TP>1 的 worker 残留显存会让平台判 job 失败。
-#
-# SMOKE_PHASE：
-#   probe     只验证「OSS 权重能加载 + 采样能返回合法 GUI 动作」（默认）；
-#   full      探针过后 exec derail_rock_driver.py 走 ROCK 单任务 smoke。
-# =============================================================================
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +6,6 @@ REPO="$(cd "$HERE/../.." && pwd)"
 cd "$REPO"
 export PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}"
 
-# --- source 运行配置（submit_derail_opencua_smoke.sh 生成） ---------------------
 if [[ -f "$REPO/.opencua_run.env" ]]; then
   set -a; # shellcheck disable=SC1091
   source "$REPO/.opencua_run.env"; set +a
@@ -44,7 +23,6 @@ OPENCUA_WEIGHTS_OSS_DIR="${OPENCUA_WEIGHTS_OSS_DIR:-/data/oss_bucket_0/${OSS_PRE
 LOCAL_MODEL_CACHE_DIR="${LOCAL_MODEL_CACHE_DIR:-}"
 PROBE_EVIDENCE_DIR="${PROBE_EVIDENCE_DIR:-${OSS_SMOKE_EVIDENCE_DIR:-/data/oss_bucket_0/${OSS_PREFIX:-<oss-prefix>}/DERAIL/results/smoke/opencua72b}}"
 
-# --- source 0600 mount-secret 并自删（同 closed-model entry 通道） --------------
 if [[ -n "${DERAIL_SECRET_MOUNT:-}" && -f "${DERAIL_SECRET_MOUNT}" ]]; then
   set -a; # shellcheck disable=SC1090
   source "${DERAIL_SECRET_MOUNT}"; set +a
@@ -57,7 +35,6 @@ fi
 export OSS_ACCESS_ID="${OSS_ACCESS_ID:-${OSS_ID:-${OSS_ACCESS_KEY_ID:-}}}"
 export OSS_ACCESS_KEY="${OSS_ACCESS_KEY:-${OSS_KEY:-${OSS_ACCESS_KEY_SECRET:-}}}"
 
-# --- python 解释器 ---------------------------------------------------------------
 PY="${DERAIL_ENTRY_PYTHON:-python3}"
 if ! command -v "$PY" >/dev/null 2>&1; then
   for _p in python python3.12 python3.11 python3.10; do
@@ -70,9 +47,6 @@ JOB_IP="$(hostname -i 2>/dev/null | awk '{print $1}')"
 [[ -z "$JOB_IP" ]] && JOB_IP="127.0.0.1"
 echo "[opencua-smoke] job_ip=${JOB_IP} phase=${SMOKE_PHASE}"
 
-# --- 0b. 前置 fail-fast：rl-rock SDK（深度 import 探针 + 3 次重试） -------------------
-# 必须在 75min 权重加载之前探：SDK 装不上的话 full 阶段必死，早探早重提，不烧权重加载。
-# 镜像内 SDK 可能半安装/缺失（full 首跑即撞 ModuleNotFoundError: No module named 'rock'）。
 if [[ "$SMOKE_PHASE" == "full" || "${SANDBOX_REACH_PROBE:-1}" == "1" ]]; then
   ROCK_SDK_PROBE='from rock.sdk.sandbox.config import SandboxConfig; from rock.actions import CreateBashSessionRequest; from rock.sdk.sandbox.client import Sandbox'
   rock_sdk_ok() { "$PY" -c "$ROCK_SDK_PROBE" 2>/dev/null; }
@@ -82,8 +56,6 @@ if [[ "$SMOKE_PHASE" == "full" || "${SANDBOX_REACH_PROBE:-1}" == "1" ]]; then
       extra=""
       [ "$attempt" -gt 1 ] && extra="--force-reinstall --no-cache-dir"
       _pip_index=""; [ -n "${PIP_INDEX_URL:-}" ] && _pip_index="-i $PIP_INDEX_URL"
-      # Install only the SDK wheel; never let its dependency resolver mutate the
-      # vLLM/transformers/protobuf runtime that was baked into the production image.
       "$PY" -m pip install -q --no-deps $extra "rl-rock" $_pip_index \
         || "$PY" -m pip install -q --no-deps $extra "rock-rl" $_pip_index \
         || "$PY" -m pip install -q --no-deps $extra "rl-rock" \
@@ -104,7 +76,6 @@ if [[ "$SMOKE_PHASE" == "full" || "${SANDBOX_REACH_PROBE:-1}" == "1" ]]; then
   rock_sdk_ok && echo "[opencua-smoke] ROCK SDK ready: $("$PY" -c 'import rock; print(getattr(rock,"__version__","?"))' 2>/dev/null || echo '?')"
 fi
 
-# --- 1. 权重 shim：OSS 挂载路径 -> vLLM 模型路径 ----------------------------------
 [[ -d "$OPENCUA_WEIGHTS_OSS_DIR" ]] || {
   echo "[opencua-smoke] ERROR: weights dir missing on OSS mount: $OPENCUA_WEIGHTS_OSS_DIR" >&2
   exit 2; }
@@ -115,8 +86,6 @@ if [[ -n "$LOCAL_MODEL_CACHE_DIR" ]]; then
   mkdir -p "$LOCAL_MODEL_CACHE_DIR"
   if [[ ! -f "$LOCAL_MODEL_CACHE_DIR/.derail_model_ready" ]]; then
     echo "[opencua-smoke] warming model to local cache: $LOCAL_MODEL_CACHE_DIR"
-    # Read independent safetensors shards concurrently from OSS/FUSE.  The
-    # marker is written only after every shard and metadata file are present.
     warm_workers="${MODEL_WARM_WORKERS:-4}"
     [[ "$warm_workers" =~ ^[1-9][0-9]*$ ]] || {
       echo "[opencua-smoke] invalid MODEL_WARM_WORKERS: $warm_workers" >&2
@@ -152,7 +121,6 @@ ln -sfn "$OPENCUA_WEIGHTS_OSS_DIR" "${LINK_ROOT}/${MODEL_LINK_NAME}"
 MODEL_PATH="${LINK_ROOT}/${MODEL_LINK_NAME}"
 echo "[opencua-smoke] weights shim: ${MODEL_PATH} -> ${OPENCUA_WEIGHTS_OSS_DIR}"
 
-# --- 2. opencua transformers pin（4.x；vLLM 0.17 要求 <5） ------------------------
 _tf_cur="$("$PY" -c 'import transformers; print(transformers.__version__)' 2>/dev/null || echo unknown)"
 if [[ "${AGENT_ID:-opencua_72b}" == "opencua_72b" ]]; then
   case "${_tf_cur}" in
@@ -168,7 +136,6 @@ fi
 echo "[opencua-smoke] runtime: vllm=$("$PY" -c 'import vllm; print(vllm.__version__)' 2>/dev/null || echo '?') \
 transformers=$("$PY" -c 'import transformers; print(transformers.__version__)' 2>/dev/null || echo '?')"
 
-# --- 3. 架构守卫：vLLM 无原生实现 -> --model-impl transformers ---------------------
 VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
 if [[ -z "$VLLM_EXTRA_ARGS" ]]; then
   _impl="$("$PY" - <<PYEOF 2>&1
@@ -196,7 +163,6 @@ PYEOF
   fi
 fi
 
-# --- 4. GPU 数与 TP ---------------------------------------------------------------
 GPU_COUNT="$(DERAIL_GPU_COUNT="${DERAIL_GPU_COUNT:-}" "$PY" - <<'PYEOF' 2>/dev/null || echo 0
 import os
 override = os.environ.get('DERAIL_GPU_COUNT', '').strip()
@@ -218,14 +184,12 @@ PYEOF
 [[ "$GPU_COUNT" =~ ^[1-9][0-9]*$ ]] || GPU_COUNT=8
 echo "[opencua-smoke] GPU_COUNT=${GPU_COUNT} (TP=${GPU_COUNT})"
 
-# --- 5. 端口防碰撞（同 netns 可能有别人的 vLLM） ------------------------------------
 if curl -s --max-time 3 "http://127.0.0.1:${SERVE_PORT}/v1/models" 2>/dev/null | grep -q '"data"'; then
   _busy="$SERVE_PORT"
   SERVE_PORT="$("$PY" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()' 2>/dev/null || echo 8123)"
   echo "[opencua-smoke] WARNING: port ${_busy} busy in this netns -> switching to ${SERVE_PORT}"
 fi
 
-# --- 6. 起 vLLM（bind 0.0.0.0：沙箱内 runner 要经 JOB_IP 访问） --------------------
 VLLM_LOG=/tmp/derail_opencua_vllm.log
 "$PY" -m vllm.entrypoints.openai.api_server \
   --model "$MODEL_PATH" \
@@ -236,7 +200,6 @@ VLLM_LOG=/tmp/derail_opencua_vllm.log
   $VLLM_EXTRA_ARGS \
   >"$VLLM_LOG" 2>&1 &
 VLLM_PID=$!
-# TP>1 会 fork worker 且持续占显存；平台对“显存未释放”判 job 失败，必须杀进程组。
 _vllm_cleanup() {
   kill -TERM -"$VLLM_PID" 2>/dev/null || kill -TERM "$VLLM_PID" 2>/dev/null || true
   for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -271,7 +234,6 @@ until curl -s "http://127.0.0.1:${SERVE_PORT}/v1/models" 2>/dev/null | grep -q "
 done
 echo "[opencua-smoke] vLLM ready: served=${OPENCUA_MODEL} port=${SERVE_PORT} job_ip=${JOB_IP}"
 
-# --- 7. 采样探针：文本 + 图片各一条，证据落 OSS -------------------------------------
 mkdir -p "$PROBE_EVIDENCE_DIR"
 OPENCUA_BASE_URL="http://127.0.0.1:${SERVE_PORT}/v1" \
 OPENCUA_PROBE_MODEL="$OPENCUA_MODEL" \
@@ -303,7 +265,6 @@ def post(payload, timeout=600):
     return body, time.time() - t0
 
 def tiny_png(rgb):
-    # 32x32 纯色 PNG：只依赖标准库，避免探针引入第三方依赖。
     def chunk(tag, data):
         block = tag + data
         return struct.pack(">I", len(data)) + block + struct.pack(">I", zlib.crc32(block))
@@ -422,8 +383,6 @@ for p in record["probes"]:
     )
 PYEOF
 
-# --- 8. 可选：沙箱 -> job vLLM 可达性探针（legacy 拓扑遗留；proxy 拓扑下
-#         vLLM 走 localhost，探针无意义，默认关） ------------------------------
 if [[ "${SANDBOX_REACH_PROBE:-0}" == "1" ]]; then
   echo "[opencua-smoke] sandbox reachability probe: creating minimal ROCK sandbox"
   OPENCUA_PROBE_URL="http://${JOB_IP}:${SERVE_PORT}/v1/models" \
@@ -464,15 +423,11 @@ asyncio.run(main())
 PYEOF
 fi
 
-# --- 9. 分流 -----------------------------------------------------------------------
 if [[ "$SMOKE_PHASE" == "probe" ]]; then
   echo "[opencua-smoke] SMOKE_PHASE=probe complete（vLLM ready + 采样探针完成）"
   exit 0
 fi
 
-# full 阶段：ROCK proxy 拓扑（仿 MCUA OSWorld）——沙箱回连 Nebula pod IP 不可达
-#（2026-08-15 full 首撞实证），改为 agent loop 上 Nebula：模型调用走 localhost
-# vLLM，截图/动作经 driver 内 bridge 打进沙箱（见 derail_rock_driver.py 头注）。
 export DERAIL_ROCK_TOPOLOGY="proxy"
 export OPENCUA_BASE_URLS="http://127.0.0.1:${SERVE_PORT}/v1"
 export QWEN38_BASE_URLS="$OPENCUA_BASE_URLS"
@@ -482,8 +437,6 @@ export QWEN38_MODEL="$OPENCUA_MODEL"
 export QWEN35_MODEL="$OPENCUA_MODEL"
 export EVOCUA_MODEL="$OPENCUA_MODEL"
 export TAKEOVER_TOKENIZE_BASE_URL="${TAKEOVER_TOKENIZE_BASE_URL:-$OPENCUA_BASE_URLS}"
-# Open-model jobs share the same ROCK proxy driver and need the same per-job
-# localhost isolation as hosted-model jobs.
 # shellcheck disable=SC1091
 source "$HERE/allocate_proxy_ports.sh"
 echo "[opencua-smoke] SMOKE_PHASE=full topology=proxy -> OPENCUA_BASE_URLS=${OPENCUA_BASE_URLS}"

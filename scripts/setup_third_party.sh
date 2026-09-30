@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# 把 third_party/ 下的三个上游仓库建起来：clone 到 pin 住的 commit，并给
-# MyPCBench 打上 DERAIL 的 adapter / judge patch。
-#
-# 为什么需要这个脚本：`third_party/` 被 .gitignore 屏蔽，clone 本仓库拿不到它们。
-# 这是刻意的——三个上游各自带 .git，收录进来只会记成 gitlink（别人 clone 到手依旧
-# 是空目录），而 MyPCBench 的 qcow2 镜像有 16.5G，不该进 git 历史。
-# 获取逻辑本来只藏在 01_collect_trajectories.sh 里，等于"想拿到代码得先跑一遍采集"。
-#
-# 用法：
-#   bash scripts/setup_third_party.sh              # MyPCBench（采集与判官都需要）
-#   bash scripts/setup_third_party.sh --all        # 再加 EvoCUA 和 OpenCUA-OSWorld
-#   bash scripts/setup_third_party.sh evocua       # 只补某一个
-#
-# 只依赖 git，不需要 conda env 或 GPU。可重复执行：已存在的 checkout 不会被覆盖，
-# 只校验 commit；已打过的 patch 会被跳过。
 
 set -Eeuo pipefail
 
@@ -45,7 +30,6 @@ for arg in "$@"; do
     *) die "未知参数：${arg}（可用：mypcbench / evocua / opencua / --all）" ;;
   esac
 done
-# 不给参数时只建 MyPCBench：它是唯一无条件需要的，另外两个只有跑对应 agent 才用得上。
 (( ${#TARGETS[@]} )) || TARGETS=(mypcbench)
 
 command -v git >/dev/null 2>&1 || die "找不到 git"
@@ -63,7 +47,6 @@ done
 
 info "third_party 就绪：$(printf '%s ' "${TARGETS[@]}")"
 
-# VM 镜像单独提示而不自动下载：16.5G，且只有真正要跑 rollout 的人才需要。
 if [[ " ${TARGETS[*]} " == *" mypcbench "* && ! -f "${MYPCBENCH_ROOT}/mypcbench-vm/mypcbench.qcow2" ]]; then
   cat <<EOF
 

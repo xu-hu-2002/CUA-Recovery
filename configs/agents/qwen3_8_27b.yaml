@@ -1,5 +1,3 @@
-# Qwen3.8-27B uses DERAIL's OpenAI-compatible hybrid GUI/shell scaffold.
-# It is not claimed to be an official native Qwen computer-use protocol.
 agent_id: qwen3_8_27b
 family: qwen38
 scaffold: derail_tool_agent
@@ -10,38 +8,22 @@ output_format: openai_compatible_function_calling
 scaffold_origin: derail_general_vlm
 live_adapter: derail.mypcbench.factory.create_mypcbench_agent
 tensor_parallel_size: 2
-# live
 coordinate_protocol: absolute_pixels
-# live -- hybrid prompt paired with the GUI and bash schemas below.
 system_prompt_file: qwen3_8_27b_mypcbench_system.txt
-# live -- shell results are observable trajectory evidence, not inferred from screenshots.
 enable_shell: true
-# live
 temperature: 0.0
-# live
 max_tokens: 2048
-# live
 max_images_in_context: 20
-# live
 history_turns: 100
-# live
 image_fold_size: 10
-# live
 previous_action_log: true
-# live
 tool_choice: auto
-# live
 schema_repair_attempts: 2
-# live
 multi_tool_policy: one_interaction_plus_collapsed_waits
-# live
 alternating_action_repeat_limit: 0
-# live
 stalled_state_step_limit: 0
-# live —— GUI-only，无 bash 工具面。
 enable_bash: false
 
-# 尚无本机实测，先借用同尺寸 qwen3_6_27b 的预估值；不影响采集行为。
 eta_step_seconds: 13.3
 eta_step_seconds_source: 借用 qwen3_6_27b 预估，Qwen3.8 本机 smoke 后更新
 status: smoke_pending

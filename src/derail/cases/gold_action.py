@@ -1,13 +1,3 @@
-"""Programme-derived correct action at a takeover point (D-046).
-
-Every case gets a ground-truth action even when no verified recovery trajectory exists yet:
-the failure analysis names the root-cause node and detector, the gold lineage holds the
-correct produced values and the correct written cells, and the node order gives the gold
-path to continue on.  The action is expressed at node level (app, op, parameters, cells),
-the granularity of the canonical action space; a verified recovery trajectory (base model
-under hints, or the teacher) is its realisation in concrete GUI/CLI actions.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional
@@ -26,8 +16,6 @@ def gold_action(
     gold: Mapping[str, Any],
     task_ir: Optional[Mapping[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """``gold-action/1.0`` for the root cause of ``analysis``; None without a root node."""
-
     node_id = analysis.get("root_cause_node_id")
     if not node_id:
         return None

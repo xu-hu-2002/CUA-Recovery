@@ -1,4 +1,4 @@
-"""创建可被 MyPCBench 官方 runner 调用的 DERAIL agents。"""
+"""DERAIL agents callable by the MyPCBench runner."""
 
 from __future__ import annotations
 
@@ -30,14 +30,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _mypcbench_shared_block() -> str:
-    """MyPCBench 共享块（完成纪律 + 环境描述），与 derail_tool_agent 读同一个文件。
-
-    环境描述与模型无关，因此必须逐字节一致；动作协议块才是各家自己的。这两件事
-    在 upstream_official 的 scaffold 里是粘在一起的，所以只能追加、不能替换：
-    把 MyPCBench 的 system prompt 整份换给 EvoCUA，它的 _parse_response_s2()
-    读不到 <tool_call> XML，一个动作都解析不出来 —— 而 runner 对空动作零容忍
-    （run_mypcbench.py 的 abort_no_actions），整条 episode 会当场中止。
-    """
     path = REPO_ROOT / "prompts" / "agents" / MYPCBENCH_SHARED_BLOCK_FILE
     if not path.is_file():
         raise RuntimeError(f"找不到 MyPCBench 共享块：{path}")
@@ -52,17 +44,6 @@ def _positive_int(name: str, default: int) -> int:
 
 
 def _upstream_step_budget(config: AgentConfig) -> int:
-    """Place an upstream guard one turn beyond the runner-owned hard limit.
-
-    MyPCBench already executes at most ``DERAIL_AGENT_MAX_STEPS`` predictions.
-    EvoCUA and OpenCUA independently replace the Nth valid action with ``FAIL``
-    when their internal guard is also N.  N+1 prevents that boundary override
-    without allowing the runner to execute an extra action.
-
-    The runner stays authoritative: ``upstream_max_steps_fallback`` from the
-    yaml only applies when the collection script did not export the limit.
-    """
-
     runner_max_steps = _positive_int(
         "DERAIL_AGENT_MAX_STEPS", config["upstream_max_steps_fallback"]
     )
@@ -89,8 +70,6 @@ def _external_root(env_name: str, default_relative: str, required_file: str) -> 
 
 
 class _OfficialMyPCBenchAdapter:
-    """收窄官方 agent 的返回 contract，并在执行前验证生成代码。"""
-
     def __init__(self, inner: Any, *, reset_accepts_vm_ip: bool, returns_cot: bool):
         self.inner = inner
         self.reset_accepts_vm_ip = reset_accepts_vm_ip
@@ -125,8 +104,6 @@ def _history_image_bytes(value: str) -> bytes:
 
 
 class _OpenCUAMyPCBenchAdapter(_OfficialMyPCBenchAdapter):
-    """Expose exact state restoration for upstream OpenCUA action-history mode."""
-
     def __init__(self, inner: Any):
         super().__init__(inner, reset_accepts_vm_ip=False, returns_cot=True)
         self._takeover_prompt = ""
@@ -199,8 +176,6 @@ class _OpenCUAMyPCBenchAdapter(_OfficialMyPCBenchAdapter):
         return super().predict(prompt, obs)
 
 class _EvoCUATakeoverAdapter(_OfficialMyPCBenchAdapter):
-    """Restore the exact EvoCUA S2 self-takeover state."""
-
     def __init__(self, inner: Any, *, reset_accepts_vm_ip: bool, returns_cot: bool):
         super().__init__(
             inner, reset_accepts_vm_ip=reset_accepts_vm_ip, returns_cot=returns_cot
@@ -318,8 +293,6 @@ def _create_evocua(
     config: AgentConfig, model: str, screen_size: tuple[int, int], password: str
 ) -> Any:
     module = load_evocua_upstream()
-    # 只影响当前 agent child；MyPCBench 在此之前已经把真正的 OPENAI_API_KEY
-    # 注入 VM 内的应用服务，所以模型 endpoint 可以使用独立 key。
     if os.environ.get("EVOCUA_API_KEY"):
         os.environ["OPENAI_API_KEY"] = os.environ["EVOCUA_API_KEY"]
     inner = module.EvoCUAAgent(
@@ -347,7 +320,7 @@ def _create_opencua(
         "mm_agents/opencua/opencua_agent.py",
     )
     module = importlib.import_module("mm_agents.opencua.opencua_agent")
-    # 上游当前 reset() 使用 logging 却未 import；只补模块依赖，不改变 agent 行为。
+    # Upstream reset() uses logging without importing it.
     module.logging = logging
     max_tokens = int(os.environ.get("OPENCUA_MAX_TOKENS_OVERRIDE") or config["max_tokens"])
     if not 1 <= max_tokens <= int(config["max_tokens"]):
@@ -357,8 +330,6 @@ def _create_opencua(
         history_type=config["history_type"],
         max_steps=_upstream_step_budget(config),
         max_image_history_length=config["max_image_history_length"],
-        # platform / action_space / observation_type 是 MyPCBench 这套 harness 的
-        # 固有属性，不是 agent 的可选项，所以不进 yaml。
         platform="ubuntu",
         max_tokens=max_tokens,
         top_p=config["top_p"],
@@ -371,15 +342,13 @@ def _create_opencua(
         use_old_sys_prompt=config["use_old_sys_prompt"],
         password=password,
     )
-    # OpenCUA 把 system prompt 挂在实例属性上（opencua_agent.py:287-295），
-    # 所以不用像 EvoCUA 那样 patch 模块常量，也不经过 .format()，无需转义。
     inner.system_prompt = inner.system_prompt.rstrip() + "\n\n" + _mypcbench_shared_block()
 
     def local_call_llm(self: Any, payload: Any, ignored_model: str) -> str:
         del ignored_model
         try:
             from openai import OpenAI
-        except ImportError as exc:  # pragma: no cover - collection 环境触发
+        except ImportError as exc:  # pragma: no cover
             raise RuntimeError("缺少 openai；请安装 `pip install -e '.[collection]'`") from exc
         base_url = os.environ.get("OPENAI_BASE_URL")
         if not base_url:
@@ -404,14 +373,7 @@ def create_mypcbench_agent(
     client_password: str,
     **kwargs: Any,
 ) -> Any:
-    """DERAIL plugin factory；参数形状与 MyPCBench ``get_agent`` 一致。
-
-    行为参数一律来自 ``configs/agents/<agent_id>.yaml``。官方 runner 只传
-    ``agent_type``，所以先经 :func:`agent_id_for_type` 翻回 agent_id 再加载。
-    ``kwargs`` 里的 ``env``（VM 控制句柄，run_mypcbench.py:911 注入）由需要直接
-    执行 VM shell 的变体使用：cuabash 的 bash 分流、qwen38 的 shell/takeover
-    路径。GUI-only agent 收到也不触碰。
-    """
+    """DERAIL plugin factory with the same signature as MyPCBench ``get_agent``."""
 
     env = kwargs.get("env")
     agent_id = agent_id_for_type(agent_type)
@@ -446,8 +408,6 @@ def create_mypcbench_agent(
             api_key=os.environ.get("HOLO31_API_KEY"),
         )
     if agent_type == "derail_kimi_k3":
-        # routify 网关直连（OPENAI_BASE_URL/OPENAI_API_KEY 由 tool_agent 默认读取），
-        # 无本地 serving；KIMI_K3_API_KEY 预留显式覆盖。
         return NativeToolComputerAgent(
             model,
             screen_size,
@@ -455,9 +415,6 @@ def create_mypcbench_agent(
             api_key=os.environ.get("KIMI_K3_API_KEY"),
         )
     if agent_type == "derail_kimi_k3_cuabash":
-        # kimi_k3 的 GUI+bash 对照组：装配路径与 GUI-only 版逐项相同，仅
-        # enable_bash=true（工具 schema + prompt/共享块变体由 protocol 驱动）。
-        # env 由官方 runner 注入，bash 分流经它执行 VM shell。
         return NativeToolComputerAgent(
             model,
             screen_size,
@@ -469,6 +426,4 @@ def create_mypcbench_agent(
         return _create_evocua(configured(), model, screen_size, client_password)
     if agent_type == "derail_opencua":
         return _create_opencua(configured(), model, screen_size, client_password)
-    # agent_id_for_type 已经挡下未知 agent_type；走到这里说明 AGENT_ID_BY_TYPE
-    # 加了新条目却忘了在上面接线。
     raise ValueError(f"agent_type {agent_type!r} 已注册 agent_id 但没有构造分支")

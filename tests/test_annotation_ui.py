@@ -7,9 +7,6 @@ import unittest
 from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-# The UI derives the audited prefix from the deepest depth in DEPTH_GRID that still fits the
-# trajectory, so the fixture has to be long enough for a non-degenerate window.  With the root
-# cause at action 1 and the grid's shallowest non-zero point at 5, that needs at least 7 actions.
 _FIXTURE_ACTIONS = 8
 TRAJ_SHA = "c" * 64
 AFTER_SHA = "d" * 64
@@ -17,9 +14,7 @@ BUNDLE_SHA = "e" * 64
 
 
 def _load_service_module():
-    """The UI server is an unnumbered dev script, so import it by path rather than by package."""
-
-    path = REPOSITORY / "scripts" / "serve_annotation_ui.py"
+    path = REPOSITORY / "scripts" / "benchmark" / "serve_annotation_ui.py"
     spec = importlib.util.spec_from_file_location("derail_serve_annotation_ui", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -167,7 +162,6 @@ class AnnotationUIServiceTest(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        # Root cause at 1 plus the deepest grid point that fits the 8-action fixture (5).
         self.assertEqual(proposal["audit_end_action_index"], 6)
         self.assertEqual(proposal["audited_action_indices"], [0, 1, 2, 3, 4, 5, 6])
         self.assertEqual(proposal["drop_candidates"], [])
@@ -359,8 +353,6 @@ class AnnotationUIServiceTest(unittest.TestCase):
         self.assertEqual(set(other.values()), {None})
 
     def test_reading_a_submission_never_touches_the_label_tree(self) -> None:
-        """Reading back a submission must leave every annotator's file byte-identical."""
-
         self.service.submit_review(
             self._payload(rubric_scores={"R1": 0}, task_success=False),
             allow_resubmit=False,
@@ -884,7 +876,6 @@ class AnnotationUIServiceTest(unittest.TestCase):
             config["trajectories"][0]["task_instruction"],
             "Find the requested document.",
         )
-        # No readable snapshot pinned, so the grouped view must degrade to the flat seed list.
         self.assertEqual(list(config["taxonomy"]["groups"]), ["seed_labels"])
 
     def test_open_coded_label_registry_is_shared_and_categorized(self) -> None:
@@ -914,8 +905,6 @@ class AnnotationUIServiceTest(unittest.TestCase):
             "遗漏了任务明确要求进行的比较或对照分析。",
         )
 
-        # A newly constructed service represents another annotator/browser and reads the same
-        # out-dir registry rather than relying on local browser state.
         other_service = UI.AnnotationService(self.build_dir, self.out_dir, REPOSITORY)
         config = other_service.config()
         self.assertIn(

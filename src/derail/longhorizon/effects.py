@@ -1,16 +1,3 @@
-"""Side-effect records and reversibility metrics (manual v0.2 sections 2.1, 5.1, 11.3).
-
-A side effect is a structured object on a fragment node::
-
-    {"effect_id": "fx1", "effect_type": "send_message", "target_ref": "sandbox_mail:thread:42",
-     "reversibility_class": "R3", "commit_scope": "external_sandbox",
-     "compensation_available": false, "compensating_effect_type": null,
-     "checkpoint_required": true, "checkpoint_id": "...", "restore_verifier_id": "..."}
-
-Nodes carry their own ``reversibility_class`` which must equal the most consequential class
-among their effects, or the read-only class when they have none.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -40,8 +27,6 @@ _REQUIRED_EFFECT_FIELDS = (
 
 
 def validate_side_effect(effect: Mapping[str, Any], ontology: Ontology) -> None:
-    """Validate one structured side effect against the ontology vocabulary."""
-
     for field in _REQUIRED_EFFECT_FIELDS:
         if field not in effect:
             raise EffectError("INVALID_GROUNDING", "side effect lacks %s" % field)
@@ -73,15 +58,11 @@ def validate_side_effect(effect: Mapping[str, Any], ontology: Ontology) -> None:
 
 
 def node_reversibility_class(node: Mapping[str, Any], ontology: Ontology) -> str:
-    """Derive the node class from its effects (read-only class when there are none)."""
-
     classes = tuple(str(effect["reversibility_class"]) for effect in node.get("side_effects", ()))
     return ontology.max_class(classes)
 
 
 def validate_node_reversibility(node: Mapping[str, Any], ontology: Ontology) -> None:
-    """Check every effect on ``node`` and the consistency of its declared class."""
-
     effects = node.get("side_effects", ())
     for effect in effects:
         validate_side_effect(effect, ontology)
@@ -109,12 +90,6 @@ def validate_fragment_effects(fragment: Mapping[str, Any], ontology: Ontology) -
 
 
 def effect_safety_violations(node: Mapping[str, Any], ontology: Ontology) -> List[Dict[str, str]]:
-    """Return the section 11.3 fixture-safety violations for one node's effects.
-
-    Each violation is ``{"effect_id", "reason"}``.  The gate layer maps a non-empty list to
-    the ``EFFECT_SAFETY_UNSAT`` rejection code.
-    """
-
     violations: List[Dict[str, str]] = []
     for effect in node.get("side_effects", ()):
         effect_id = str(effect.get("effect_id", ""))
@@ -143,8 +118,6 @@ def effect_safety_violations(node: Mapping[str, Any], ontology: Ontology) -> Lis
 
 
 def reversibility_profile(fragment: Mapping[str, Any], ontology: Ontology) -> Dict[str, int]:
-    """Count nodes per reversibility class, with every class present (possibly zero)."""
-
     profile = {reversibility: 0 for reversibility in ontology.reversibility_classes}
     for node in fragment["nodes"]:
         profile[node_reversibility_class(node, ontology)] += 1
@@ -163,8 +136,6 @@ def _nodes_with_classes(
 
 
 def irreversible_action_depth(dag: DagIndex, ontology: Ontology) -> Optional[int]:
-    """Shortest source-to-node path (in nodes) to the earliest strictly irreversible node."""
-
     candidates = _nodes_with_classes(dag, ontology, tuple(ontology.irreversible_classes))
     if not candidates:
         return None
@@ -173,12 +144,6 @@ def irreversible_action_depth(dag: DagIndex, ontology: Ontology) -> Optional[int
 
 
 def high_consequence_prerequisite_depth(dag: DagIndex, ontology: Ontology) -> Optional[int]:
-    """Longest necessary upstream path (in nodes) of the earliest high-consequence node.
-
-    "Earliest" is the node with the smallest shortest-path depth; ties resolve by node id so the
-    value is deterministic.  Reported separately from ``irreversible_action_depth``.
-    """
-
     candidates = _nodes_with_classes(dag, ontology, tuple(ontology.high_consequence_classes))
     if not candidates:
         return None

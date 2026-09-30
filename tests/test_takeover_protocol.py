@@ -129,8 +129,6 @@ class ReplayStateTests(unittest.TestCase):
             traj = Path(directory) / "traj.jsonl"
             first = StateFingerprint(components={"app_databases/a.sqlite": A}).to_dict()
             second = StateFingerprint(components={"app_databases/a.sqlite": B}).to_dict()
-            # Rows 2 and 3 are two actions of one model turn (same step_num, one row each);
-            # canonical steps 2 and 3 split the third row.
             traj.write_text(
                 "".join(json.dumps({"step_num": n}) + "\n" for n in (1, 2, 2)), encoding="utf-8"
             )
@@ -144,7 +142,7 @@ class ReplayStateTests(unittest.TestCase):
             (Path(directory) / probe_file).write_text("".join(json.dumps(r) + "\n" for r in (
                 {"kind": "reset", "traj_index": -1, "state_fingerprint": second},
                 {"kind": "step", "traj_index": 0, "state_fingerprint": second},
-                {"kind": "step", "traj_index": 0, "state_fingerprint": first},  # last one wins
+                {"kind": "step", "traj_index": 0, "state_fingerprint": first},
                 {"kind": "step", "traj_index": 1, "state_fingerprint": second},
             )), encoding="utf-8")
             expected, reason = recorded_state_fingerprint(steps, 0, probe_file)
@@ -274,8 +272,6 @@ class ReplayStateTests(unittest.TestCase):
 
 
 class StateProbeRoundTripTests(unittest.TestCase):
-    """One per-step state record, written by collection, read by takeover and judge."""
-
     def test_collected_probes_feed_the_replay_gate_and_the_judge_final_state(self):
         import importlib.util
 
@@ -308,9 +304,9 @@ class StateProbeRoundTripTests(unittest.TestCase):
             env.reset(task_config={"id": "task"})
             task = Path(root) / "task"
             traj = task / "traj.jsonl"
-            for step_num in (1, 2, 2):  # the last two rows are one two-action turn
+            for step_num in (1, 2, 2):
                 env.step("pyautogui.click(1, 1)")
-                with traj.open("a") as handle:  # the runner writes the row after env.step
+                with traj.open("a") as handle:
                     handle.write(json.dumps({"step_num": step_num}) + "\n")
             records = [json.loads(line) for line in (task / hooks.probe_file).open()]
             steps = [
@@ -326,7 +322,7 @@ class StateProbeRoundTripTests(unittest.TestCase):
 
             spec = importlib.util.spec_from_file_location(
                 "bundle_prefix_roundtrip",
-                Path(__file__).resolve().parents[1] / "scripts/14_takeover_bundle_prefix.py",
+                Path(__file__).resolve().parents[1] / "scripts/takeover/bundle_prefix.py",
             )
             bundle = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(bundle)

@@ -1,15 +1,8 @@
-# Train/test split of the composed workflows (paper section 3 and appendix B, Table
-# "Statistics of CUA-Recovery": 377 train / 100 test tasks).  Frozen by
-# scripts/freeze_source_splits.py; looked up with derail.gen.splits.split_of.
 schema_version: workflow-splits-config/1.0
 seed: 20260902
-# Number of test workflows; set test_size to null to use test_fraction instead.
 test_size: 100
 test_fraction: null
-# The paper does not require it: true also keeps the test workflows' source tasks out of
-# training (workflows that would share one are marked excluded).
 source_disjoint: false
-# Workflows = selected candidates of these origins in the bundle's candidates.jsonl.
 origins: [composed]
 bundle: data/synthesis/generation/final_v1
 output: data/synthesis/workflow_splits.json

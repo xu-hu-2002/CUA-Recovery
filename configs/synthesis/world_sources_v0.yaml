@@ -1,15 +1,8 @@
-# How the frozen MyPCBench seed (persona file + ground-truth variables) maps onto world-graph/0.1
-# entities, relations and observation surfaces (manual v0.2 sections 3.1, 6.1).
-#
-# The persona is the seed of the VM image, so every entity here is reproducible from the public
-# release.  Stable IDs are derived from the listed identifying fields.  Whether the in-VM app
-# store exposes the same identifier still needs a per-app check; ``id_confidence`` records it.
 schema_version: world-sources/0.1
 environment_id: mypcbench-michael-scott
 snapshot_id: mypcbench-base-v1
 world_schema_version: mypcbench-world/0.1
 
-# Canonical application id -> every spelling seen in tasks (``apps_involved``) or in the persona.
 app_aliases:
   hoolimail: [HooliMail, mail, email, email_w2_pdf]
   gringotts: [Gringotts, vaultbank]
@@ -37,11 +30,8 @@ persona:
     path: identity
     entity_type: Person
     id_fields: [name]
-    # The signed-in persona is observable in every application.
     surfaces: all
     mutable: false
-  # ``id_fields`` are tried in order; the first present field(s) form the stable id.
-  # ``surfaces_field`` names a per-element list of app spellings; ``surfaces`` is a static list.
   sections:
     - path: contacts
       entity_type: Person
@@ -86,8 +76,6 @@ persona:
       entity_type: Trip
       id_fields: [destination, dates]
       surfaces: [hoolicalendar, hoolimail, gringotts]
-      # The ``generates`` block says which apps carry traces of the trip (charges, confirmation
-      # mail, calendar block, chat mention, airport ride, shop order); keep it and derive surfaces.
       nested_attributes: [generates]
       surfaces_from_keys:
         path: generates
@@ -171,13 +159,10 @@ persona:
     - path: planted_dependencies
       entity_type: PlantedDependency
       id_fields: [id]
-      # ``affected`` lists the cascade (app, item, consequence); it is the whole point of the entity.
       nested_attributes: [affected]
       surfaces_field: affected.app
       mutable: false
 
-# Ground-truth reference values (tasks/final/variables.json).  Keys are matched by prefix to
-# the application where the value can be observed.
 variables:
   entity_type: ReferenceValue
   prefix_surfaces:

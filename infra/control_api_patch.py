@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Patch the MyPCBench control API to serve the DERAIL endpoints (brief section 1).
-
-Inserts, right after ``app = Flask(__name__)`` in ``/opt/desktop-seed/server/main.py``:
-
-    import sys as _derail_sys; _derail_sys.path.insert(0, "/opt/derail")
-    from control_api_derail import register as _derail_register; _derail_register(app)
-
-Idempotent (a second run is a no-op), keeps a ``main.py.derail.bak`` backup, and verifies
-the result still parses.  ``--check`` reports whether the patch is present without writing.
-
-    python3 control_api_patch.py --main /opt/desktop-seed/server/main.py --infra-dir /opt/derail
-"""
+"""Patch the MyPCBench control API to serve the DERAIL endpoints."""
 
 from __future__ import annotations
 
@@ -59,7 +48,7 @@ def main(argv=None) -> int:
     if new_text == text:
         print("already patched", file=sys.stderr)
         return 0
-    ast.parse(new_text)  # refuse to write a file that no longer parses
+    ast.parse(new_text)
     shutil.copyfile(args.main, args.main + ".derail.bak")
     with open(args.main, "w", encoding="utf-8") as handle:
         handle.write(new_text)

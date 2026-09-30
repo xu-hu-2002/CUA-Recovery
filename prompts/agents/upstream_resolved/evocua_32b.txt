@@ -1,4 +1,4 @@
-# 由 scripts/dump_upstream_prompts.py 自动生成，请勿手工编辑。
+# 由 scripts/collection/dump_upstream_prompts.py 自动生成，请勿手工编辑。
 # agent_id: evocua_32b
 # 来源: mm_agents/evocua/prompts.py:S2_SYSTEM_PROMPT，tools_xml 由 build_s2_tools_def(S2_DESCRIPTION_PROMPT_TEMPLATE) 生成；coordinate_type='relative' 固定 resolution 为 1000x1000；尾部由 factory._create_evocua 追加 prompts/agents/mypcbench_shared_block.txt
 # 渲染参数: CLIENT_PASSWORD='password' screen_size=(1280, 800) CURRENT_DATE='Monday, January 01, 2024'

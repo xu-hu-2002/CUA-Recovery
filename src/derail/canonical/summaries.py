@@ -1,4 +1,4 @@
-"""从 canonical action 确定性生成公开 action summary。"""
+"""Deterministic public action summaries from canonical actions."""
 
 from __future__ import annotations
 
@@ -22,11 +22,7 @@ from .actions import (
 
 
 def summarize_action(action: Action, language: str = "en") -> str:
-    """返回可审计摘要。
-
-    摘要不包含模型的 hidden reasoning，也不声称是原 agent 的原始思维。它只陈述
-    已执行动作的公开语义，因此 repaired step 可以安全重新生成。
-    """
+    """Return an auditable summary of an executed action."""
 
     if language not in {"en", "zh"}:
         raise ValueError("language 必须是 en 或 zh")

@@ -1,34 +1,14 @@
-# Phase 0 pre-check of post-error continuation on the existing MyPCBench failure corpus
-# (manual v0.2 section 17, Phase 0 and section 19 item A).  Paths are repository-relative.
 schema_version: precheck-config/0.2
 labels_csv: analysis/derail_error_taxonomy/results/trajectory_labels.csv
 human_labels_dir: artifacts/derail_builds/human_labels
 taxonomy_config: configs/synthesis/failure_taxonomy_v0.1.yaml
 output_dir: data/synthesis/phase0_precheck
-# Depth grid is a hyper-parameter.  It must match ``depths`` in configs/benchmark/derail_v1.yaml
-# and ``derail.derived.layout.DEPTH_GRID``; a test guards all three against drift.
-#
-# Decision 2026-09-06 (supersedes the 2026-09-03 grid 0/5/10/15/22): 0/5/10/15 sit inside the
-# agents' image window, 20 sits on its boundary and 25 sits outside it.  Every evaluated scaffold
-# keeps at most 20 screenshots, and the injected history holds the root-cause frame plus one frame
-# per post-error step, so from a takeover point of 20 steps on the root-cause frame has fallen out
-# of context.  Four in-window points pin the decay trend; 20 probes the eviction boundary itself
-# and 25 is outside under any +/-1 reading of the frame accounting, so the pair tests whether
-# recovery departs from the in-window extrapolation.
 depth_grid: [0, 5, 10, 15, 20, 25]
-# Optional extra grids reported side by side for comparison only.
 comparison_depth_grids:
   manual_v0_2: [0, 2, 8, 20]
   ladder_2026_08_13: [0, 2, 5, 10, 15]
 loop_detection:
-  # An action signature repeated at least this many times inside the post-error suffix counts
-  # as a loop.  Signatures are kind + non-coordinate parameters + a coarse click cell.
   min_repeats: 3
   click_cell_px: 40
-  # Only consider the suffix after the root cause; the root action itself is excluded.
-# A failure whose root cause is within this many steps of the trajectory end is "early stop"
-# regardless of the terminate kind.
 early_stop_window_steps: 5
-# Optional: per-bucket MyPCBench rubric files carry the task ``horizon`` (H1-H4) that the flat
-# task file omits; used to fill ``task_horizon_bucket`` on case candidates.
 task_horizon_dir: third_party/MyPCBench/tasks/final

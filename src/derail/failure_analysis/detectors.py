@@ -1,11 +1,3 @@
-"""Root-cause detectors over the three ledgers (execution doc v1.2 sections 2.3, 9.2).
-
-Each detector returns candidates ``{action_index, node_id, evidence_pattern, evidence[],
-confidence, detail}``; ``pick_root_cause`` takes the earliest high-confidence candidate with
-state > parameter > omission on ties.  All comparisons are on facts and values, never on
-action sequences (section 6.4).
-"""
-
 from __future__ import annotations
 
 import json
@@ -38,7 +30,6 @@ class Candidate:
         }
 
 
-# ------------------------------------------------------------------------------ helpers
 def _same(a: Any, b: Any) -> bool:
     na, nb = normalize_value(a), normalize_value(b)
     if na == nb:
@@ -66,8 +57,6 @@ def edit_distance(a: str, b: str, limit: int = 3) -> int:
 def gold_write_index(
     gold: Mapping[str, Any], volatile: Optional[VolatileColumns]
 ) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
-    """``(table, entity) -> [gold write cells]`` with volatile cells dropped."""
-
     out: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     for write in gold.get("writes_gold", ()):
         if write.get("volatile") or (
@@ -79,8 +68,6 @@ def gold_write_index(
 
 
 def gold_scalar_values(gold: Mapping[str, Any]) -> List[Tuple[str, str, Any]]:
-    """``(node_id, name, value)`` for scalar gold values (strings, numbers) worth matching."""
-
     out = []
     for entry in gold.get("values", ()):
         value = entry.get("value")
@@ -137,12 +124,9 @@ def _row_cells(row: Mapping[str, Any]) -> Dict[str, Any]:
         return {}
 
 
-# ------------------------------------------------------------------------ state detector
 def state_candidates(
     trace: Mapping[str, Any], gold: Mapping[str, Any], volatile: Optional[VolatileColumns] = None
 ) -> List[Candidate]:
-    """Writes outside ``Writes_gold``: wrong entity, wrong value, extra write, duplicate."""
-
     index = gold_write_index(gold, volatile)
     by_table_col_value: Dict[Tuple[str, str, str], List[Tuple[str, Dict[str, Any]]]] = {}
     for (table, entity), cells in index.items():
@@ -165,7 +149,6 @@ def state_candidates(
                 cells = {"*": None}
             gold_cells = index.get((table, entity))
             if gold_cells is None:
-                # Not a gold entity: a created row matching a gold row template counts as gold.
                 template_hit = None
                 for (g_table, g_entity), g_cells in index.items():
                     if g_table != table or not all(c.get("old_value") is None for c in g_cells):
@@ -205,7 +188,6 @@ def state_candidates(
                         (table, column, json.dumps(normalize_value(value), sort_keys=True))
                     )
                     if not hits and row["op"] == "UPDATE":
-                        # same table and column as a gold write on another row, other value
                         hits = [
                             (g_entity, c)
                             for (g_table, g_entity), g_cells in index.items()
@@ -324,7 +306,6 @@ def state_candidates(
     return out
 
 
-# -------------------------------------------------------------------- parameter detector
 def _param_texts(step: Mapping[str, Any]) -> List[str]:
     out = []
     for param in step.get("params", ()):
@@ -339,9 +320,6 @@ def _param_texts(step: Mapping[str, Any]) -> List[str]:
 
 
 def parameter_candidates(trace: Mapping[str, Any], gold: Mapping[str, Any]) -> List[Candidate]:
-    """Typed values that disagree with a gold slot: transcription (edit distance <= 2), a
-    seen-but-wrong value (stale / wrong pick), or a value never observed (hallucinated)."""
-
     golds = gold_scalar_values(gold)
     gold_strings = [(n, name, str(v)) for n, name, v in golds]
     out: List[Candidate] = []
@@ -351,7 +329,6 @@ def parameter_candidates(trace: Mapping[str, Any], gold: Mapping[str, Any]) -> L
         for text in _param_texts(step):
             if any(_same(text, v) for _, _, v in golds):
                 continue
-            # date / number tokens inside free text: compare token-wise against gold dates
             best = None
             for node_id, name, gold_text in gold_strings:
                 if len(gold_text) < 4:
@@ -384,7 +361,6 @@ def parameter_candidates(trace: Mapping[str, Any], gold: Mapping[str, Any]) -> L
                     )
                 )
                 continue
-            # tokens that look like dates: the gold has a date slot with another date
             typed_date = None
             for token in text.replace(",", " ").split():
                 if date_part(token):
@@ -421,20 +397,16 @@ def parameter_candidates(trace: Mapping[str, Any], gold: Mapping[str, Any]) -> L
     return out
 
 
-# --------------------------------------------------------------------- omission detector
 def omission_candidates(
     trace: Mapping[str, Any], gold: Mapping[str, Any], task_ir: Mapping[str, Any]
 ) -> List[Candidate]:
-    """A required read (resolved to concrete rows) never observed before a downstream write
-    of its node's lineage happened."""
-
     from derail.ir.model import dag_index
 
     dag = dag_index(task_ir)
     required: Dict[str, List[Tuple[str, str, str]]] = {}
     for read in gold.get("resolved_reads", ()):
         if not read.get("entity_set") or read["column"] in (read.get("filter_columns") or []):
-            continue  # a filter column is consumed by the lookup, it is not a value to be seen
+            continue
         table = read["table"]
         short = table.split(".", 1)[1]
         for entity in read["entity_set"]:

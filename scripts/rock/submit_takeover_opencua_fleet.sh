@@ -43,8 +43,6 @@ done
 echo "[opencua-fleet] depth=$DEPTH condition=$CONDITION workers=${#indices[@]} shards=$SHARD_COUNT"
 echo "[opencua-fleet] production cap=$MAX_FLEET_WORKERS; at least $((40 - MAX_FLEET_WORKERS)) of 40 ROCK slots remain"
 
-# Only the first submission may perform the pre-flight stale-sandbox sweep. Every
-# subsequent submission must leave already-started siblings untouched.
 first=1
 for index in "${indices[@]}"; do
   if (( first )); then

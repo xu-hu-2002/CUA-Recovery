@@ -227,7 +227,7 @@ class RebindTests(unittest.TestCase):
         )
         out, used = rebind_predicate(predicate, bindings)
         self.assertIn("dm_id = :b_n4__dm_id", out)
-        self.assertIn("id = 1 ", out)  # a column not named like a produce keeps its literal
+        self.assertIn("id = 1 ", out)
         self.assertIn("content = :b_n3__message", out)
         self.assertIn("'%' || substr(:b_n2__start_at, 1, 10) || '%'", out)
         self.assertIn("sender = 'x@y'", out)
@@ -258,8 +258,8 @@ class RebindTests(unittest.TestCase):
         self.assertEqual(len(final["parts"]), 2)
         self.assertIn(":b_n3__dundies_date", final["parts"][1]["predicate"])
         note = composed["provenance"]["composition"]["verifier_rebinding"]
-        self.assertIn("b_v-n1", note["refrozen_node_verifiers"])  # expected 545 no longer holds
-        self.assertEqual(note["dropped_alternatives"], 1)  # '%July 2%' would accept stale text
+        self.assertIn("b_v-n1", note["refrozen_node_verifiers"])
+        self.assertEqual(note["dropped_alternatives"], 1)
         b_n1 = next(n for n in composed["nodes"] if n["node_id"] == "b_n1")
         self.assertEqual(b_n1["verifier"]["expected_ref"], "b_n1__event_id")
         from derail.gen.graft import freeze_verifiers
@@ -410,13 +410,13 @@ class SeedFreezeTests(unittest.TestCase):
         }
         frozen = freeze_verifiers(ir, gold)
         final = frozen["final_verifier"]["predicate"]
-        self.assertIn("'2026-07-02T18:00:00'", final)  # upstream fact frozen
-        self.assertIn('V["n5"]["message_id"]', final)  # sink output stays live
+        self.assertIn("'2026-07-02T18:00:00'", final)
+        self.assertIn('V["n5"]["message_id"]', final)
         self.assertNotIn('V["n2"]', final)
         n5 = frozen["nodes"][4]["verifier"]["predicate"]
-        self.assertIn("dm_id = 1", n5)  # upstream parameter frozen
+        self.assertIn("dm_id = 1", n5)
         self.assertIn("content = 'Dundies is on 2026-07-02T18:00:00'", n5)
-        self.assertIn(":message_id", n5)  # the verified node's own value stays live
+        self.assertIn(":message_id", n5)
         self.assertEqual(frozen["provenance"]["verifier_freeze"]["sink_nodes"], ["n5"])
 
 

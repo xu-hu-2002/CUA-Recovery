@@ -1,9 +1,3 @@
-"""基础 episode-level 指标。
-
-``aggregate_metrics`` 是 v1.2 episode 记录的 micro average；论文口径的 ρ / V /
-Pass@k 见文件下半部分（``rubric_verdict``、``pass_at_k``），改动必须同步论文与 tests。
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -38,12 +32,6 @@ class AggregateMetrics:
 
 
 def aggregate_metrics(results: Iterable[EpisodeResult]) -> AggregateMetrics:
-    """对 valid episodes 做 micro average。
-
-    无效 episode 不进入分母，但调用者必须在论文中另行报告 invalid rate；这里不允许
-    把空集合悄悄当成 0 分。
-    """
-
     all_results: Tuple[EpisodeResult, ...] = tuple(results)
     valid: Tuple[EpisodeResult, ...] = tuple(result for result in all_results if result.valid)
     if not valid:
@@ -58,18 +46,7 @@ def aggregate_metrics(results: Iterable[EpisodeResult]) -> AggregateMetrics:
     )
 
 
-# ---------------------------------------------------------------------------
-# Rubric Score、V 与 Pass@k（论文 02_formulation「Rollouts and Evaluation」）
-# ---------------------------------------------------------------------------
-
-
 def rubric_verdict(rubric_results: Sequence[Mapping[str, Any]]) -> Tuple[float, bool]:
-    """(ρ, V)：ρ = Σ w_j c_j / Σ w_j；V = 1 当且仅当每条 criterion 都满足。
-
-    V 按逐条 criterion 重算，不用上游 judge 的 ``round(ρ*100) >= 100``（取整会让
-    极小权重的失败条目被吞掉）。
-    """
-
     if not rubric_results:
         raise ValueError("没有 rubric 结果，不能计算 ρ 与 V")
     weights = [float(r["weight"]) for r in rubric_results]
@@ -83,12 +60,12 @@ def rubric_verdict(rubric_results: Sequence[Mapping[str, Any]]) -> Tuple[float, 
 @dataclass(frozen=True)
 class PassAtK:
     repeats: int
-    unit_count: int          # 进入分母的任务 / state 数
-    missing_count: int       # 没有任何有效判分的单元（n/a、infra 失败、缺 run）
+    unit_count: int
+    missing_count: int
     solved_count: int
     pass_at_k: float
-    rubric_score: float      # 各单元 "那次 rollout" 的 ρ 的均值
-    incomplete_count: int = 0  # 有效 run 少于 repeats 的单元（缺的 run 按失败计）
+    rubric_score: float
+    incomplete_count: int = 0
 
 
 def pass_at_k(
@@ -97,14 +74,6 @@ def pass_at_k(
     repeats: int,
     missing_counts_as_failure: bool = True,
 ) -> PassAtK:
-    """每个单元（任务或 state）最多 ``repeats`` 次 rollout，任一次 V=1 即 solved。
-
-    ``runs[unit]`` 是各次 rollout 的 (ρ, V)，判分缺失的那次记 None。Rubric Score 取
-    "那次 rollout" 的 ρ：有成功的 run 取成功那次（按定义 ρ=1）；全部失败时取最高 ρ。
-    分母是 ``units`` 全体；没有任何有效判分的单元在 ``missing_counts_as_failure``
-    时按失败（ρ=0）留在分母，否则排除并在 ``missing_count`` 里单独报数。
-    """
-
     if repeats < 1:
         raise ValueError("repeats 必须 >= 1")
     units = tuple(dict.fromkeys(units))

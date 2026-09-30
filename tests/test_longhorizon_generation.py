@@ -51,8 +51,6 @@ def _port(port_id, grounding, source="upstream"):
 
 
 def _fragment():
-    """r1 -> f2 -> w3 with an R3 send on w3."""
-
     return {
         "schema_version": "task-fragment/0.1",
         "fragment_id": "tf_test",
@@ -290,7 +288,7 @@ class WorldTests(unittest.TestCase):
             {"Person", "Flight", "BankProfile", "ReferenceValue", "PlantedDependency"},
         )
         profile = next(e for e in world["entities"] if e["entity_type"] == "BankProfile")
-        self.assertEqual(profile["attributes"], {"checking_balance": 3210})  # nested list dropped
+        self.assertEqual(profile["attributes"], {"checking_balance": 3210})
         cascade = next(e for e in world["entities"] if e["entity_type"] == "PlantedDependency")
         self.assertEqual(cascade["observation_surfaces"], ["gringotts", "hoolimail"])
         self.assertEqual(len(cascade["attributes"]["affected"]), 2)
@@ -311,7 +309,7 @@ class RubricTests(unittest.TestCase):
         self.assertEqual(rubric["milestones"][2]["weight"], 2.0)
         score = score_milestones(rubric, {"m1": True, "m2": False, "m3": True})
         self.assertAlmostEqual(score.milestone_completion, 3 / 4)
-        self.assertAlmostEqual(score.dependency_consistent_completion, 1 / 4)  # m3 credit denied
+        self.assertAlmostEqual(score.dependency_consistent_completion, 1 / 4)
         self.assertEqual(score.first_failed_dependency, "m2")
         self.assertEqual(score.critical_error_count, 1)
         self.assertEqual(score.completion_curve, (0.25, 0.25, 0.25))

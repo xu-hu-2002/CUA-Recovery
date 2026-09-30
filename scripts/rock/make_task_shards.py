@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-"""从 MyPCBench 184 任务全集切分 shard 文件，供 ROCK 分片采集。
-
-输出到 configs/mypcbench_task_shards/：
-  - shard_<i>_of_<N>.json  — round-robin 切分，保证 app/category 分布均匀
-  - smoke_one.json         — 全集第一个任务，供 dummy / 单任务 smoke
-
-shard 文件的 resolve 路径与 tasks/final/all_tasks_with_grading.json 不同，
-因此不会触发 01_collect_trajectories.sh 的 IS_FULL_TASK_SET 正式门；
-正式性由提交侧的 FORMAL_COLLECTION 显式控制（语义不隐瞒）。
-
-用法：
-  python scripts/rock/make_task_shards.py            # 默认 4 片
-  python scripts/rock/make_task_shards.py --shards 4
-"""
+"""Split the MyPCBench task set into shard files for ROCK collection."""
 from __future__ import annotations
 
 import argparse
@@ -40,7 +27,6 @@ def main() -> int:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    # round-robin：全集按 app 聚类排列，简单切片会把同一 app 堆进一片。
     shards: list[list[dict]] = [[] for _ in range(args.shards)]
     for index, task in enumerate(tasks):
         shards[index % args.shards].append(task)

@@ -1,12 +1,3 @@
-"""Composable hard filters with stable rejection codes (manual v0.2 section 16.1).
-
-Every gate is a pure function ``(fragment, metrics, config, ontology) -> Optional[GateFailure]``.
-``run_hard_gates`` evaluates all of them and returns the failures in a fixed order so a
-rejection log is reproducible.  Codes come from the manual's list plus ``EFFECT_SAFETY_UNSAT``
-for the section 11.3 checkpoint/compensation rules, which the manual requires to hard-reject but
-does not name.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -46,7 +37,7 @@ class GateFailure:
 
 @dataclass(frozen=True)
 class GateConfig:
-    """Pre-registered structural targets.  Values come from the frozen synthesis config."""
+    """Pre-registered structural targets."""
 
     dependency_depth: Tuple[int, int]
     cross_app_dependencies: Tuple[int, int]
@@ -83,8 +74,6 @@ Gate = Callable[[Mapping[str, Any], Mapping[str, Any], GateConfig, Ontology], Op
 
 
 def verifier_coverage(fragment: Mapping[str, Any]) -> float:
-    """Weight share of critical nodes whose verifier is automatically checkable (section 13.3)."""
-
     total = 0.0
     covered = 0.0
     for node in fragment["nodes"]:
@@ -189,8 +178,6 @@ def run_hard_gates(
     ontology: Ontology,
     gates: Sequence[Gate] = HARD_GATES,
 ) -> List[GateFailure]:
-    """Evaluate every gate and return all failures (empty list means the candidate passes)."""
-
     failures: List[GateFailure] = []
     for gate in gates:
         failure = gate(fragment, metrics, config, ontology)

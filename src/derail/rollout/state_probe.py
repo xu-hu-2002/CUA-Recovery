@@ -1,20 +1,4 @@
-"""源 rollout 的环境初始化与每步状态指纹（论文 02:6、03:25）。
-
-- reset 之后：在 guest 里跑 ``disabled_nondeterminism_sources`` 的命令（关自动更新、
-  通知守护），失败按 ``determinism_on_error`` 报错或告警。
-- 每次 step 之后：跑 ``state_probes``（经 ``build_state_probe_commands`` 渲染成 guest
-  命令；sqlite 走 infra/snapshot/changelog_replay.py 的 digest，剔除易变列），由
-  ``probe_state_fingerprint`` 组成 :class:`StateFingerprint`，追加到任务目录的
-  ``state_probe_file``。接管回放（derail.mypcbench.takeover_agent）读同一份 environment
-  config、用同一对函数，按 ``traj_index`` 对齐比对。每行的
-  ``traj_index`` 是该动作在 traj.jsonl 里的 0-based 行号（runner 在 step 返回后才写
-  那一行，所以就是当时文件的行数）；reset 行为 -1。bash 工具轮不经过 env.step，
-  其状态体现在下一次 step 的指纹里。
-
-命令与开关都在 configs/environments/<env>.yaml。官方 runner 不改：
-``site_hook/sitecustomize.py`` 在 run_mypcbench.py 进程启动时调 :func:`install_for_runner`，
-把 :func:`install` 包到 ``MyPCBenchEnv.reset/step`` 上。
-"""
+"""Source-rollout environment setup and per-step state fingerprints."""
 
 from __future__ import annotations
 
@@ -74,7 +58,7 @@ class EnvironmentHooks:
 def fingerprint(
     execute_shell: Callable[[str], Any], commands: Mapping[str, str]
 ) -> tuple[StateFingerprint, Dict[str, str]]:
-    """与接管回放同一规则（``probe_state_fingerprint``），另返回各探针原始输出。"""
+    """Fingerprint state with the replay rules and return raw probe outputs."""
 
     outputs: Dict[str, str] = {}
     return probe_state_fingerprint(execute_shell, commands, outputs=outputs), outputs
@@ -133,8 +117,7 @@ def _record(env: Any, hooks: EnvironmentHooks, kind: str, action: Any, extra: Ma
 
 
 def install(env_cls: type, hooks: EnvironmentHooks, result_root: Optional[Path] = None) -> None:
-    """包装 ``env_cls.reset/step``。探针文件放在 ``env.derail_probe_dir``（调用方可预先设），
-    否则放在 ``result_root/<task id>``（官方 runner 的任务目录布局）。"""
+    """Wrap ``env_cls.reset/step`` with state probes."""
 
     if getattr(env_cls, "_derail_hooks_installed", False):
         return
@@ -173,13 +156,13 @@ def _argv_value(flag: str) -> Optional[str]:
 
 
 def install_for_runner() -> None:
-    """在官方 run_mypcbench.py 进程里装钩子（由 site_hook/sitecustomize.py 调用）。"""
+    """Install the hook inside the official run_mypcbench.py process."""
 
     hooks = EnvironmentHooks.from_config(Path(os.environ[ENV_CONFIG_VAR]))
     harness_dir = str(Path(sys.argv[0]).resolve().parent)
     if harness_dir not in sys.path:
         sys.path.insert(0, harness_dir)
-    import env as mypcbench_env  # type: ignore  # 官方 agent-harness/env.py
+    import env as mypcbench_env  # type: ignore
 
     result_dir = _argv_value("--result_dir")
     install(mypcbench_env.MyPCBenchEnv, hooks, Path(result_dir) if result_dir else None)

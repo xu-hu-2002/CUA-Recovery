@@ -148,7 +148,7 @@ class FixtureTests(unittest.TestCase):
             validate_schema(_trace(name), "rollout_trace.schema.json", REPOSITORY)
         state = _trace("mw001_state_failure")
         delta_entities = {(r["tbl"], r["rowid"]) for s in state["steps"] for r in s["delta"]}
-        self.assertEqual(delta_entities, {("events", 531)})  # gold writes events:530
+        self.assertEqual(delta_entities, {("events", 531)})
         self.assertEqual(state["provenance"]["ground_truth"]["root_cause_action_index"], 3)
         param = _trace("mw002_param_failure")
         typed = [p["value"] for s in param["steps"] for p in s["params"] if s["action_index"] == 5][

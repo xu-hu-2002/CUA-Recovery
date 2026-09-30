@@ -1,5 +1,3 @@
-"""指标分母和 invalid episode 行为必须明确。"""
-
 import unittest
 
 from derail.evaluation.metrics import EpisodeResult, aggregate_metrics, pass_at_k, rubric_verdict
@@ -29,7 +27,7 @@ class RubricPassAtKTests(unittest.TestCase):
             {"success": False, "weight": 0.001},
         ])
         self.assertAlmostEqual(rho, 0.999)
-        self.assertFalse(passed)  # the judge's round(100*rho) >= 100 would call this a pass
+        self.assertFalse(passed)
 
     def test_pass_at_3_uses_the_solving_run_else_the_best_score(self) -> None:
         runs = {

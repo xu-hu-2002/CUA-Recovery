@@ -1,17 +1,3 @@
-"""Lineage analysis and the DECORATIVE_CARRY hard filter (manual v0.2 section 8.4).
-
-A value edge ``p -> c`` with information-carry distance at or above the threshold is
-*decorative* unless the consumer ``c`` also receives an input from a node ``q`` that
-
-* is neither an ancestor nor a descendant of ``p`` (a genuinely different lineage), and
-* has lineage depth at least two (a derived value, not a raw retrieval).
-
-That is the only natural form of long carry distance: an early value waits for a late derived
-value.  Padding the path between producer and consumer with nodes that neither consume the value
-nor feed the consumer is the same failure the paper rejects when unrelated clicks stand in for
-horizon.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -20,8 +6,6 @@ from derail.longhorizon.dag import DagIndex
 
 
 def carry_distances(dag: DagIndex) -> Dict[str, int]:
-    """Longest-path distance in edges for every value edge, keyed by ``edge_id``."""
-
     cache: Dict[str, Dict[str, int]] = {}
     result: Dict[str, int] = {}
     for edge in dag.value_edges():
@@ -35,8 +19,6 @@ def carry_distances(dag: DagIndex) -> Dict[str, int]:
 def decorative_carry_violations(
     dag: DagIndex, *, threshold: int = 3, min_lineage_depth: int = 2
 ) -> List[Dict[str, Any]]:
-    """Return one record per value edge whose long carry distance lacks a second lineage."""
-
     if threshold < 1 or min_lineage_depth < 1:
         raise ValueError("threshold and min_lineage_depth must be positive")
     depth = dag.longest_depth()

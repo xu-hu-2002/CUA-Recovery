@@ -1,11 +1,10 @@
-"""原始 rollout 的最小可追溯记录。"""
+"""Minimal traceable records of raw rollouts."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 
-# 与 configs/collection/sources.yaml 的 source_benchmark 一致。
 SOURCE_BENCHMARKS = frozenset({"mypcbench", "rerail_workflows"})
 
 
@@ -22,7 +21,6 @@ class RolloutRecord:
     step_count: int
 
     def __post_init__(self) -> None:
-        # 显式记录 source，避免后续导入或扩展数据时依赖路径猜测 provenance。
         if self.source_benchmark not in SOURCE_BENCHMARKS:
             raise ValueError("source_benchmark 必须是 %s 之一" % sorted(SOURCE_BENCHMARKS))
         if self.step_count < 0:

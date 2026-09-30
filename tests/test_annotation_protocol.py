@@ -11,7 +11,7 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 def _load(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module  # dataclasses resolve their module through sys.modules
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -59,7 +59,7 @@ class CleanStartPassTests(unittest.TestCase):
 
 try:
     import pandas  # noqa: F401
-except ImportError:  # the analysis package runs in its own environment
+except ImportError:
     pandas = None
 
 

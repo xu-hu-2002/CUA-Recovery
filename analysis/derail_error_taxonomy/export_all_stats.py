@@ -1,30 +1,5 @@
 #!/usr/bin/env python3
-"""Export every dataset statistic, along every dimension, into one zip.
-
-All numbers are recomputed from the label table written by ``analyze.py``
-(``trajectory_labels.csv``) together with the human annotations and canonical
-trajectories each row points to. Error categories come from the failure-taxonomy
-config, the depth grid from the benchmark config, and the loop-detection parameters
-from the pre-check config, so nothing here is tied to one snapshot.
-
-Zip layout::
-
-    README.md                 table index, denominators, caveats, input digests
-    ALL_STATS_long.csv        every number in one long table
-    tables/Txx_*.csv          one table per dimension
-    source/                   the analyze.py outputs the tables were computed from
-    stale_snapshots/<label>/  older files passed with --stale, copied verbatim
-
-Example::
-
-    python3 analysis/derail_error_taxonomy/export_all_stats.py \\
-        --repo . --labels analysis/derail_error_taxonomy/results/trajectory_labels.csv \\
-        --source-dir analysis/derail_error_taxonomy/results \\
-        --taxonomy configs/synthesis/failure_taxonomy_v0.1.yaml \\
-        --benchmark-config configs/benchmark/derail_v1.yaml \\
-        --precheck-config configs/synthesis/precheck_v0.2.yaml \\
-        --exclude-type wrong_target --stale figures=path/to/old.csv --out export/stats.zip
-"""
+"""Export every dataset statistic, along every dimension, into one zip."""
 
 from __future__ import annotations
 
@@ -45,8 +20,6 @@ from pathlib import Path
 
 import yaml
 
-# Formats of the annotation rationale ("- scope_error [Action #12, #13]: ...") and of the
-# trajectory ids ("...-aggregation-f008"); these are file-format constants, not settings.
 ROOT_ENTRY_RE = re.compile(r"^-\s+([a-z][a-z0-9_]+)\s+\[([^\]]+)\]\s*:", re.MULTILINE)
 ACTION_REF_RE = re.compile(r"#(\d+)")
 TASK_CATEGORY_RE = re.compile(r"-([a-z_]+)-f\d+$")
@@ -55,7 +28,6 @@ SCORE_BINS = [(i / 10, (i + 1) / 10) for i in range(10)]
 OUTCOMES = ("false_completion", "budget_exhausted", "fail_to_terminate", "other_stop")
 
 
-# ------------------------------------------------------------------------------ helpers
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -86,8 +58,6 @@ def load_continuation(repo: Path):
 
 
 class Tables:
-    """Ordered collection of tables; each knows which of its columns are keys."""
-
     def __init__(self) -> None:
         self.items: list[tuple[str, str, list[str], list[dict]]] = []
 
@@ -95,7 +65,6 @@ class Tables:
         self.items.append((name, description, keys, rows))
 
 
-# ------------------------------------------------------------------------------ main
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", type=Path, required=True)
@@ -126,7 +95,6 @@ def main() -> int:
     loop_cfg = cont.LoopConfig(**(precheck.get("loop_detection") or {}))
     early_window = int(precheck["early_stop_window_steps"])
 
-    # ---------------------------------------------------------------- load rows
     rows = list(csv.DictReader(args.labels.open(encoding="utf-8")))
     models = sorted({r["model"] for r in rows})
     groups_all = ["overall", "open", "closed", *models]
@@ -157,7 +125,6 @@ def main() -> int:
             if ident is not None and ann.get("error_horizon_actions") not in (None, rec["horizon"]):
                 audit["horizon_field_disagrees_with_indices"] += 1
             rec["reversibility"] = ann.get("reversibility") or "unrecorded"
-            # root-cause types: labels whose evidence cites the root action
             suppressed = {"premature_completion"} if "hit_budget_limit" in rec["labels"] else set()
             entries = []
             for raw_type, refs in ROOT_ENTRY_RE.findall(ann.get("rationale", "")):
@@ -193,7 +160,6 @@ def main() -> int:
 
     T = Tables()
 
-    # T01 corpus
     na_reasons = sorted({x["n_a_reason"] for x in records if x["state"] == "n/a"})
     out = []
     for g in groups_all:
@@ -218,7 +184,6 @@ def main() -> int:
     T.add("T01_corpus_by_group", "Corpus size, states, success rate, rubric score, label totals",
           ["group"], out)
 
-    # T02 error type
     out = []
     for g in groups_all:
         eff_n = sum(x["state"] in ("failure", "perfect_pass") for x in members(g))
@@ -234,7 +199,6 @@ def main() -> int:
     T.add("T02_error_type_by_group", "Label incidence per error type (a failure counts once per type)",
           ["group", "category", "error_type"], out)
 
-    # T03 error category
     out = []
     for g in groups_all:
         fail = members(g, "failure")
@@ -249,8 +213,6 @@ def main() -> int:
                         "share_of_labels": ratio(n_lab, tot), "share_of_labels_excluding_dropped": ratio(n_kept, tot_kept)})
     T.add("T03_error_category_by_group", "Label incidence per error category", ["group", "category"], out)
 
-    # T03b primary root cause: one type per failure (paper "% of root causes"; analyze.py
-    # picks it with the taxonomy's primary_selection.category_priority)
     out = []
     for g in groups_all:
         fail = members(g, "failure")
@@ -265,7 +227,6 @@ def main() -> int:
     T.add("T03b_primary_root_cause_by_group", "One primary type per failure (default paper basis)",
           ["group", "category", "error_type"], out)
 
-    # T04 labels per failure
     out, out_s = [], []
     for g in groups_all:
         fail = members(g, "failure")
@@ -276,7 +237,6 @@ def main() -> int:
     T.add("T04_labels_per_failure", "How many error types each failure carries", ["group", "n_labels"], out)
     T.add("T04b_labels_per_failure_summary", "Summary of labels per failure", ["group"], out_s)
 
-    # T05 co-occurrence
     out = []
     for g in groups_all:
         fail = members(g, "failure")
@@ -290,7 +250,6 @@ def main() -> int:
     T.add("T05_type_cooccurrence", "Pairs of error types on the same failure (nonzero pairs only)",
           ["group", "type_a", "type_b"], out)
 
-    # T06 root cause
     out, out_c, out_r = [], [], []
     for g in groups_all:
         fail = members(g, "failure")
@@ -324,7 +283,6 @@ def main() -> int:
     T.add("T06c_root_cause_resolution_by_group", "How root-cause types were resolved from the rationale",
           ["group"], out_r)
 
-    # T07 root -> co-occurring type
     out = []
     for g in groups_all:
         trans = Counter()
@@ -337,7 +295,6 @@ def main() -> int:
     T.add("T07_root_type_to_cooccurring_type", "Root-cause type followed by the other labels on the same failure",
           ["group", "root_type", "cooccurring_type"], out)
 
-    # T08 outcome
     out, out_o = [], []
     for g in groups_all:
         fail = members(g, "failure")
@@ -359,7 +316,6 @@ def main() -> int:
     T.add("T08_root_category_to_outcome", "Root-cause category x terminal outcome", ["group", "root_category", "outcome"], out)
     T.add("T08b_outcome_by_group", "Terminal outcome of failures, with loop rate", ["group", "outcome"], out_o)
 
-    # T09 / T10 error horizon
     def horizon_bin(h: int) -> str:
         return "5+" if h >= 5 else str(max(h, 0))
 
@@ -391,7 +347,6 @@ def main() -> int:
           ["group", "category", "error_type"], out_t)
     T.add("T10b_error_horizon_by_root_category", "Error horizon by root-cause category", ["group", "root_category"], out_c)
 
-    # T11 / T12 post-error continuation
     def cont_row(sub: list[dict]) -> dict:
         ok = [x["cont"] for x in sub if x["cont"]]
         loops = [c for c in ok if c.loop_detected]
@@ -428,7 +383,6 @@ def main() -> int:
     T.add("T12b_loop_action_kind", "Action kind of the repeated signature in detected loops",
           ["group", "loop_action_kind"], out_k)
 
-    # T13 depth candidate pool
     out = []
     for g in groups_all:
         fail = [x for x in members(g, "failure") if x["cont"]]
@@ -444,7 +398,6 @@ def main() -> int:
     T.add("T13_depth_candidate_pool", "Failures with at least d post-error steps, and what the takeover point shows",
           ["group", "depth"], out)
 
-    # T14 / T15 task category
     task_cats = sorted({x["task_category"] for x in records})
     out, out_t = [], []
     for g in groups_all:
@@ -466,7 +419,6 @@ def main() -> int:
     T.add("T15_error_type_by_task_category", "Error types within each task category",
           ["group", "task_category", "category", "error_type"], out_t)
 
-    # T16 reversibility
     out, out_t = [], []
     for g in groups_all:
         fail = members(g, "failure")
@@ -483,7 +435,6 @@ def main() -> int:
     T.add("T16b_reversibility_by_label_type", "Reversibility per error type",
           ["group", "category", "error_type", "reversibility"], out_t)
 
-    # T17 weighted rubric score
     out, out_s = [], []
     for g in groups_all:
         for scope in ("effective", "failure", "perfect_pass"):
@@ -499,7 +450,6 @@ def main() -> int:
     T.add("T17_weighted_rubric_score_bins", "Weighted rubric score distribution", ["group", "state_scope", "score_bin"], out)
     T.add("T17b_weighted_rubric_score_summary", "Weighted rubric score summary", ["group", "state_scope"], out_s)
 
-    # T18 / T19 audit
     out, out_a = [], []
     for mdl in models:
         mem = members(mdl)
@@ -512,7 +462,6 @@ def main() -> int:
     T.add("T18_label_normalization_audit", "Labels removed during normalization", ["model", "dropped_label"], out)
     T.add("T19_annotators", "Primary annotator per model", ["model", "annotator"], out_a)
 
-    # ---------------------------------------------------------------- write
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     build = args.out.with_suffix("")
     if build.exists():

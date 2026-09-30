@@ -1,5 +1,3 @@
-"""Root cause、error horizon、taxonomy、reversibility 与 rubric 复核标注契约。"""
-
 from .labels import FailureAnnotation, Reversibility
 from .records import Adjudication, AnnotationError, HumanAnnotation
 from .rubric_review import (

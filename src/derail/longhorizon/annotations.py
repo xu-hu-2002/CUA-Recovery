@@ -1,10 +1,3 @@
-"""Enriched ``failure-annotation/0.1`` records (manual v0.2 section 14A.1).
-
-Combines a human root-cause label, the deterministic continuation statistics and the taxonomy
-mapping into the record every later stage (prefix repair, replay, case build) keys on.  Fields
-that are not annotated yet stay ``None``; they are never filled by a model.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -33,8 +26,6 @@ def build_failure_annotation(
     root_cause_in_lineage_hint: Optional[bool] = None,
     provenance: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Return a schema-shaped record; ``group`` is derived from the primary ``paper_type``."""
-
     labels, dropped = taxonomy.normalize(raw_error_types)
     primary = taxonomy.primary_paper_type(labels)
     if primary is None:

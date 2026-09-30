@@ -1,23 +1,4 @@
-"""Annotation protocol of paper App. E: the double-annotation sample, human-human agreement
-and Human-LLM agreement, reported separately.
-
-* ``double_annotation_plan``  per configured agent, ``fraction`` of its trajectories sampled
-  with a fixed seed, stratified by task category (largest-remainder allocation).  The plan is
-  written for the annotation UI with ``--write-plan`` (normally
-  ``<human_labels>/protocol/double_annotation_plan.json``), which flags those trajectories.
-* ``human_human_agreement``  trajectories reviewed by two annotators: first vs. second review
-  of ``task_success`` (the full-completion judgment), with how many disagreements a third
-  annotator adjudicated (``human_labels/adjudications/``).
-* ``human_llm_agreement``  the LLM judge's ``passed`` (``osworld_full_traj_result.json`` next to
-  the source ``traj.jsonl``) against the human ``task_success`` -- the adjudicated verdict when
-  one exists, else the first review.  Unit ``task`` aggregates repeats as Pass@k.
-
-Agreement, Cohen's kappa, precision, recall and F1 take "task passes" as the positive class;
-for Human-LLM the human verdict is the reference.
-
-    DERAIL_ANALYSIS_ENTRY=agreement analysis/derail_annotation_stats/run.sh "$DERAIL_ROOT" \
-        [--write-plan PATH]
-"""
+"""Double-annotation sample, human-human agreement and human-LLM agreement."""
 
 from __future__ import annotations
 
@@ -39,7 +20,6 @@ PLAN_SCHEMA_VERSION = "double-annotation-plan/0.1"
 
 
 def binary_agreement(reference: Sequence[bool], prediction: Sequence[bool]) -> dict:
-    """Agreement, Cohen's kappa, precision, recall and F1 of two binary label lists."""
     n = len(reference)
     if n == 0:
         return {"n": 0}
@@ -60,7 +40,6 @@ def binary_agreement(reference: Sequence[bool], prediction: Sequence[bool]) -> d
 
 
 def _allocate(sizes: dict[str, int], total: int) -> dict[str, int]:
-    """Largest-remainder split of ``total`` over strata proportional to ``sizes``."""
     population = sum(sizes.values())
     exact = {k: total * v / population for k, v in sizes.items()} if population else {}
     alloc = {k: int(x) for k, x in exact.items()}
@@ -70,7 +49,6 @@ def _allocate(sizes: dict[str, int], total: int) -> dict[str, int]:
 
 
 def double_annotation_plan(trajectories: Iterable[dict], cfg: dict) -> list[dict]:
-    """Stratified per-agent sample of trajectories for a second, independent annotation."""
     stratum_key = cfg.get("stratify_by", "task_category")
     fraction, seed = float(cfg["fraction"]), int(cfg["seed"])
     chosen = []
@@ -94,7 +72,7 @@ def _trajectories(paths: Paths) -> dict[str, dict]:
     out = {}
     for d in discover_canonical_dirs(paths.builds_dir):
         if any(part.startswith("_") for part in d.relative_to(paths.builds_dir).parts):
-            continue  # _backups and other superseded trees
+            continue
         rec = load_canonical_record(d)
         agents = rec.get("source_agents") or []
         if len(agents) != 1:
@@ -108,8 +86,6 @@ def _trajectories(paths: Paths) -> dict[str, dict]:
 
 
 def _reviews(paths: Paths, trajectories: dict[str, dict]) -> dict[str, list[dict]]:
-    """Hash-bound human rubric reviews per trajectory, earliest submission first, excluding
-    trajectories flagged as wrong rollouts."""
     flagged = {r["_trajectory_id_from_filename"]
                for r in load_label_store(paths.rollout_flags, "rollout_flags")
                if r.get("rollout_status") == "needs_rerun"}

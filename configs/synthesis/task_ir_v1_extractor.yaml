@@ -1,7 +1,3 @@
-# Task IR v1 extraction (execution doc v1.2 section 5.1): the model proposes a task-ir/1.0
-# with concrete reads / writes / SQL derivations against the real application schemas; the
-# gold interpreter and the rubric check decide (section 5.3).  Same invocation policy as
-# configs/judges and the v0 extractor: credentials alone are not consent.
 extractor_id: task_ir_extractor_v1
 provider: openai
 model: gpt-5.6-sol
@@ -11,13 +7,10 @@ base_url_default: https://api.openai.com/v1
 send_temperature: false
 temperature: 1.0
 reasoning_effort: medium
-# gpt-5.6 reasoning can consume the whole budget and return no content (seen twice on the dev
-# sample at 24000); the budget must leave room for the answer after the reasoning.
 max_completion_tokens: 64000
 timeout_s: 900
 prompt_system: prompts/synthesis/task_ir_v1_system.txt
 prompt_user: prompts/synthesis/task_ir_v1_user.txt
-# Reused from v0: app spelling aliases, operation / effect vocabulary, port type names.
 world_sources_config: configs/synthesis/world_sources_v0.yaml
 ontology_config: configs/synthesis/ontology_v0.2.yaml
 value_types_config: configs/synthesis/value_types_v0.yaml
@@ -31,24 +24,14 @@ api_invocation_policy:
 
 v1:
   schema_graph: data/synthesis/world/schema_graph.json
-  # Directory holding <database>.sqlite copies (data disk, outside the repository).
   database_dir_env: DERAIL_VM_DB_DIR
-  # World identity of those copies (image digest / bake day; doc section 6 decision 3).
   world_id: mypcbench_caf9c754_bake20260719
-  # reference_time = bake_reference_time of the pinned image (D-008 R1).  The value below must
-  # equal <database_dir>/_seed_meta.json; scripts/check_reference_time.py verifies it and the
-  # ${TODAY+-k} variables against the databases.
   reference_time: "2026-07-19T05:00:01Z"
   reference_time_source: _seed_meta.json#bake_reference_time
-  # Literal input ports may only carry constants that appear in the instruction, plus the
-  # signed-in persona's own identity read from these persona fields (D-009 R1).
   persona_file: third_party/MyPCBench/personas/michael_scott.json
   persona_literal_fields: [identity.name, identity.email]
   volatile_columns_config: configs/synthesis/volatile_columns_v1.yaml
-  # Files under the persona's home as world entities (file-inventory/1.0, D-028).
   file_inventory: data/synthesis/world/file_inventory.json
-  # Canonical app id (world_sources_v0 aliases) -> database file stem; null = no database
-  # (filesystem / office / browser apps are observed through files, not tables).
   app_databases:
     hoolimail: mail
     gringotts: vaultbank
@@ -74,10 +57,8 @@ v1:
     sample_rows_per_table: 2
     max_columns_per_table: 40
     max_cell_chars: 60
-    # Tables never worth showing (bookkeeping, caches); the schema graph already drops them.
     hide_tables: [sqlite_sequence, _seed_meta, _meta, _changelog, _cursor]
 fix_loop:
-  # Section 5.3: re-extract failing tasks with the programme's findings, at most three rounds.
   max_rounds: 4
   feedback_prompt: prompts/synthesis/task_ir_v1_fix_user.txt
 status: configured_but_not_invoked

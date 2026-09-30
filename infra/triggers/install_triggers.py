@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""Install the change log on SQLite databases (execution doc v1.2 section 4.1).
-
-Self-contained (standard library only): this file is copied into the VM and run there, and
-the repository imports the same file for offline tests, so the two never drift.
-
-For every user table ``T`` of a database it creates
-
-    _changelog(seq, ts, tbl, rowid, op, old_json, new_json, action_index)
-    _cursor(id=1, action_index)                 -- the harness writes the current action here
-    trg_derail_T_{insert,update,delete}         -- AFTER triggers appending one row each
-
-``old_json`` / ``new_json`` are ``json_object(...)`` over every column, so a changelog row is
-self-describing and ``changelog-row/1.0`` can be emitted without re-reading the table.
-Installation is idempotent (``CREATE ... IF NOT EXISTS``, triggers dropped and recreated) and
-skips bookkeeping tables and the log itself.
-
-    python3 install_triggers.py /data/hoolicalendar.sqlite /data/workbuzz.sqlite
-    python3 install_triggers.py --glob '/data/*.sqlite' --glob '/data/worlds/*/*.sqlite'
-    python3 install_triggers.py --uninstall /data/hoolicalendar.sqlite
-"""
+"""Install the change log on SQLite databases."""
 
 from __future__ import annotations
 
@@ -34,8 +15,6 @@ CHANGELOG_TABLE = "_changelog"
 CURSOR_TABLE = "_cursor"
 TRIGGER_PREFIX = "trg_derail_"
 DEFAULT_SKIP = ("sqlite_sequence", "sqlite_stat1", CHANGELOG_TABLE, CURSOR_TABLE)
-# The cursor before any action has been announced; changes made by setup/reset are attributed
-# to this value and excluded from every rollout analysis.
 CURSOR_UNSET = -1
 
 CHANGELOG_DDL = """
@@ -68,7 +47,7 @@ def user_tables(conn: sqlite3.Connection, skip: Sequence[str] = DEFAULT_SKIP) ->
     try:
         table_types = {str(row[1]): str(row[2]) for row in conn.execute("PRAGMA table_list")}
     except sqlite3.OperationalError:
-        pass  # SQLite before 3.37; CREATE VIRTUAL TABLE detection below still applies
+        pass
     rows = conn.execute(
         "SELECT name, sql FROM sqlite_master WHERE type = 'table' ORDER BY name"
     ).fetchall()
@@ -80,13 +59,13 @@ def user_tables(conn: sqlite3.Connection, skip: Sequence[str] = DEFAULT_SKIP) ->
         if name in skip or name.startswith("sqlite_"):
             continue
         if table_types.get(str(name), "table") != "table":
-            continue  # virtual and shadow tables are not ordinary replayable rowid tables
+            continue
         if any(str(name).startswith(v + "_") for v in virtual):
-            continue  # shadow table (SQLite < 3.37 has no table_list to say so)
+            continue
         if sql and sql.lstrip().upper().startswith("CREATE VIRTUAL TABLE"):
-            continue  # SQLite forbids application triggers on virtual tables
+            continue
         if sql and "WITHOUT ROWID" in sql.upper():
-            continue  # no rowid to attribute; none of the application tables use it
+            continue
         out.append(str(name))
     return out
 
@@ -103,8 +82,6 @@ def _json_object(alias: str, columns: Iterable[str]) -> str:
 
 
 def trigger_statements(table: str, columns: Sequence[str]) -> Dict[str, str]:
-    """The three trigger DDL statements for ``table`` (keys: insert, update, delete)."""
-
     cursor_expr = "COALESCE((SELECT action_index FROM %s WHERE id = 1), %d)" % (
         CURSOR_TABLE,
         CURSOR_UNSET,
@@ -168,8 +145,6 @@ def installed_triggers(conn: sqlite3.Connection) -> List[str]:
 
 
 def install(conn: sqlite3.Connection, skip: Sequence[str] = DEFAULT_SKIP) -> Dict[str, int]:
-    """Install log, cursor and triggers; returns ``{"tables": n, "triggers": m}``."""
-
     conn.execute(CHANGELOG_DDL.format(log=CHANGELOG_TABLE))
     conn.execute(CURSOR_DDL.format(cursor=CURSOR_TABLE))
     conn.execute(
@@ -201,8 +176,6 @@ def uninstall(conn: sqlite3.Connection, drop_log: bool = False) -> int:
 
 
 def set_cursor(conn: sqlite3.Connection, action_index: int) -> None:
-    """Announce the action every following change belongs to (harness, before each action)."""
-
     conn.execute(
         "INSERT INTO %s (id, action_index, updated_at) VALUES (1, ?, "
         "(julianday('now') - 2440587.5) * 86400.0) ON CONFLICT(id) DO UPDATE SET "
@@ -215,8 +188,6 @@ def set_cursor(conn: sqlite3.Connection, action_index: int) -> None:
 def read_changelog(
     conn: sqlite3.Connection, since_seq: int = 0, db: str = ""
 ) -> List[Dict[str, object]]:
-    """Rows after ``since_seq`` as ``changelog-row/1.0`` dictionaries."""
-
     rows = conn.execute(
         "SELECT seq, ts, tbl, rowid, op, old_json, new_json, action_index FROM %s "
         "WHERE seq > ? ORDER BY seq" % CHANGELOG_TABLE,

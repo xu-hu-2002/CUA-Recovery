@@ -1,16 +1,4 @@
-"""Human review of the per-rubric verdicts produced by the LLM judge.
-
-MyPCBench grades a trajectory with an LLM judge that answers one binary
-success/failure question per rubric.  Those verdicts decide whether a
-trajectory counts as failed at all, so a DERAIL case built on top of a wrong
-verdict is not a derailment case.  This module is the human check on that:
-two reviewers independently re-judge EVERY rubric of the bundle, and a third
-person adjudicates the rubrics they disagreed on.
-
-Deliberately mirrors `derail.annotation.records`: immutable per-reviewer
-records, a separate adjudication that must cite at least two of them, and no
-path that lets a single person's opinion become the recorded truth.
-"""
+"""Human review of the per-rubric verdicts produced by the LLM judge."""
 
 from __future__ import annotations
 
@@ -38,14 +26,6 @@ class RubricSpec:
 
 
 def load_rubric_specs(bundle: Mapping[str, Any]) -> Tuple[RubricSpec, ...]:
-    """Extract rubric ids/weights from a MyPCBench `rubric_bundle.json`.
-
-    The id derivation MUST stay byte-compatible with the upstream judge
-    (`osworld_full_traj_judge.py:_extract_rubrics`): MyPCBench bundles carry no
-    `id` field at all, so both sides synthesise positional `R1..RN` ids. If the
-    two ever drift, human verdicts silently attach to the wrong criterion.
-    """
-
     grading = bundle.get("grading_manifest")
     rubrics = grading.get("rubrics") if isinstance(grading, Mapping) else None
     if not isinstance(rubrics, (list, tuple)) or not rubrics:
@@ -150,8 +130,6 @@ class HumanRubricReview:
             raise RubricReviewError("rubric review 含重复 rubric_id")
 
     def validate_against_bundle(self, specs: Sequence[RubricSpec]) -> None:
-        """Every rubric reviewed, nothing invented. Partial review is not a review."""
-
         _validate_coverage(self.judgments, specs, "rubric review %s" % self.review_id)
 
     def verdicts(self) -> Dict[str, RubricVerdict]:
@@ -238,9 +216,6 @@ class RubricReviewAdjudication:
             item.source_trajectory_sha256 != self.source_trajectory_sha256 for item in selected
         ):
             raise RubricReviewError("rubric adjudication 输入 trajectory hash 不一致")
-        # The recorded disagreement set must be what the reviews actually say --
-        # otherwise "0 disagreements" becomes a claim nobody checked, and the
-        # inter-reviewer agreement number in the paper is unfalsifiable.
         actual = disagreement_rubric_ids(selected)
         if tuple(sorted(self.disagreement_rubric_ids)) != actual:
             raise RubricReviewError(
@@ -261,14 +236,6 @@ class RubricReviewAdjudication:
         return {item.rubric_id: item.verdict for item in self.judgments}
 
     def weighted_score(self, specs: Sequence[RubricSpec]) -> Dict[str, Any]:
-        """Human counterpart of the LLM judge's score, same formula.
-
-        Mirrors `osworld_full_traj_judge.py`: weighted fraction of satisfied
-        rubrics, scaled to 0-100, and `perfect` only when every weighted
-        criterion passed. Kept identical so human and judge numbers are
-        directly comparable.
-        """
-
         self.validate_against_bundle(specs)
         verdicts = self.verdicts()
         total_weight = sum(item.weight for item in specs) or 1.0
@@ -288,8 +255,6 @@ class RubricReviewAdjudication:
         }
 
     def judge_disagreement_rubric_ids(self) -> Tuple[str, ...]:
-        """Rubrics where the adjudicated human verdict contradicts the LLM judge."""
-
         if self.judge_verdicts is None:
             return ()
         final = self.verdicts()
@@ -349,8 +314,6 @@ class RubricReviewAdjudication:
 
 
 def disagreement_rubric_ids(reviews: Sequence[HumanRubricReview]) -> Tuple[str, ...]:
-    """Rubric ids where the reviewers did not all return the same verdict."""
-
     if len(reviews) < 2:
         raise RubricReviewError("计算分歧至少需要两份 review")
     tables = [item.verdicts() for item in reviews]
@@ -371,14 +334,6 @@ def summarize_rubric_agreement(
     review_groups: Sequence[Sequence[HumanRubricReview]],
     adjudications: Sequence[RubricReviewAdjudication] = (),
 ) -> Dict[str, Any]:
-    """Descriptive agreement statistics for the paper's judge-validation table.
-
-    `review_groups` is one list of independent reviews per trajectory. Reports
-    raw inter-reviewer agreement over rubric items, and -- where the
-    adjudication recorded the LLM judge's verdicts -- how often the judge
-    disagreed with the adjudicated human answer, split by direction.
-    """
-
     item_total = 0
     item_agreed = 0
     trajectory_total = 0
@@ -395,8 +350,8 @@ def summarize_rubric_agreement(
 
     judge_item_total = 0
     judge_item_agreed = 0
-    judge_false_failure = 0  # judge said failure, humans said success
-    judge_false_success = 0  # judge said success, humans said failure
+    judge_false_failure = 0
+    judge_false_success = 0
     for adjudication in adjudications:
         if adjudication.judge_verdicts is None:
             continue

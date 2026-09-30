@@ -1,5 +1,3 @@
-"""DERAIL evaluation metrics 与结果数据结构。"""
-
 from .metrics import AggregateMetrics, EpisodeResult, PassAtK, aggregate_metrics, pass_at_k, rubric_verdict
 from .records import (
     PESR_SUCCESS_THRESHOLD,

@@ -1,21 +1,3 @@
-"""Phase 1: assemble one tidy row per analysed rollout, and derive fields.
-
-Analysis set
-------------
-A rollout enters ``build_clean_table`` iff **all** of the following hold:
-
-1. its ``source_agent`` is one of the agents listed under
-   ``analysis_set.agent_annotator_whitelist`` in the field mapping;
-2. it carries a human rubric review (``rubric_scores`` export) written by
-   *that agent's whitelisted annotator* -- reviews of the same agent by any
-   other annotator are dropped as noise, per the user's instruction;
-3. it is not flagged Wrong Rollout in ``rollout_flags``.
-
-Everything excluded is recorded with a reason in the exclusion log, never
-silently dropped. Nothing is imputed: a missing value stays missing and is
-counted separately.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,8 +19,6 @@ UNMAPPED = "UNMAPPED"
 
 
 def load_mapping(config_path: Path) -> dict:
-    """Read the confirmed field mapping. Every column name used downstream
-    originates here, so the pipeline never hard-codes a physical column."""
     with config_path.open(encoding="utf-8") as fh:
         mapping = yaml.safe_load(fh)
     for required in ("fields", "analysis_set", "error_categories", "meta"):
@@ -48,7 +28,6 @@ def load_mapping(config_path: Path) -> dict:
 
 
 def _col(mapping: dict, logical: str, store: str | None = None) -> str:
-    """Resolve a logical field name to its physical column for a given store."""
     spec = mapping["fields"][logical]
     col = spec.get("column")
     if isinstance(col, dict):
@@ -61,16 +40,10 @@ def _col(mapping: dict, logical: str, store: str | None = None) -> str:
 
 
 def _snake(label: str) -> str:
-    """Normalise a taxonomy label to snake_case without inventing characters."""
     return "_".join(str(label).strip().lower().replace("-", " ").replace("/", " ").split())
 
 
 def build_category_lookup(mapping: dict) -> dict[str, str]:
-    """Invert the configured error_type -> category grouping into label -> category.
-
-    The grouping actually used is selected by ``error_category_source``. Labels
-    absent from it are NOT guessed; they surface later as ``UNMAPPED``.
-    """
     source = mapping.get("error_category_source", "spec")
     groups = mapping["error_categories"][source]
     lookup: dict[str, str] = {}
@@ -84,7 +57,6 @@ def build_category_lookup(mapping: dict) -> dict[str, str]:
 
 
 def _agent_of(canon_rec: dict) -> str | None:
-    """Return the single source agent of a trajectory, or None if ambiguous/absent."""
     agents = canon_rec.get("source_agents") or []
     return agents[0] if len(agents) == 1 else None
 
@@ -92,12 +64,6 @@ def _agent_of(canon_rec: dict) -> str | None:
 def build_clean_table(
     paths: Paths, mapping: dict
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
-    """Return ``(clean, exclusions, diagnostics)``.
-
-    ``clean`` is one row per analysed rollout, keyed by ``trajectory_id``.
-    ``exclusions`` lists every rollout considered and rejected, with a reason.
-    ``diagnostics`` holds cross-checks that the report and sanity pass consume.
-    """
     aset = mapping["analysis_set"]
     whitelist: dict[str, str] = aset["agent_annotator_whitelist"]
     low_n = int(aset.get("low_n_threshold", 10))
@@ -164,7 +130,6 @@ def build_clean_table(
         rev = fa[c_rev] if fa else None
 
         traj_len = cr[c_len]
-        # 0-based indexing: the last observable action index is traj_len - 1.
         base = int(mapping["meta"].get("step_index_base", 0))
         last_index = traj_len - 1 + base
 
@@ -202,7 +167,6 @@ def build_clean_table(
     if clean.empty:
         raise SystemExit("analysis set is empty; check the whitelist in field_mapping.yaml")
 
-    # --- primary key -------------------------------------------------------
     assert clean["trajectory_id"].is_unique, (
         "trajectory_id is not unique after whitelist filtering; the whitelist was "
         "supposed to leave exactly one annotator per agent"
@@ -210,7 +174,6 @@ def build_clean_table(
     for agent, grp in clean.groupby("agent"):
         assert grp["annotator"].nunique() == 1, f"{agent} still has >1 annotator"
 
-    # --- rubric derivations ------------------------------------------------
     assert (clean["n_rubrics_scored"] == clean["n_rubrics_defined"]).all(), (
         "a rubric_scores export disagrees with its task_config rubric count"
     )
@@ -226,7 +189,6 @@ def build_clean_table(
         _weighted(s, w) for s, w in zip(clean["rubric_scores_json"], clean["rubric_weights"])
     ]
 
-    # --- error types -------------------------------------------------------
     lookup = build_category_lookup(mapping)
     norm = mapping.get("label_normalization") or {}
     renames: dict = {_snake(k): _snake(v) for k, v in (norm.get("rename") or {}).items()}
@@ -258,9 +220,6 @@ def build_clean_table(
         normalized.append(sorted(kept))
 
     clean["error_types"] = normalized
-    # A rollout whose labels were all dropped has no analysable root cause left.
-    # It is NOT given an empty-set interpretation and NOT counted as a zero; it
-    # is flagged so the error-type analysis can exclude it and report it.
     clean["error_types_emptied_by_normalization"] = [
         bool(isinstance(raw, list) and raw and not new)
         for raw, new in zip(clean["error_types_raw"], clean["error_types"])
@@ -276,7 +235,6 @@ def build_clean_table(
         norm_log, columns=["trajectory_id", "agent", "action",
                            "original_label", "new_label"])
 
-    # --- depth -------------------------------------------------------------
     clean = _derive_depth(clean, mapping)
 
     diagnostics = {
@@ -294,11 +252,6 @@ def build_clean_table(
 
 
 def _weighted(scores: dict, weights: list | None) -> float:
-    """Weighted rubric score = sum(score_i * weight_i) / sum(weight_i).
-
-    Returns NaN when weights are absent or sum to zero; never substitutes an
-    unweighted score, because that would silently change the metric.
-    """
     if not weights or len(weights) != len(scores):
         return float("nan")
     if any(w is None for w in weights):
@@ -311,19 +264,6 @@ def _weighted(scores: dict, weights: list | None) -> float:
 
 
 def _derive_depth(clean: pd.DataFrame, mapping: dict) -> pd.DataFrame:
-    """Derive failure depth and its censoring status.
-
-    Computed only for rows with ``task_score == 0`` and a non-missing
-    ``root_cause_step``; every other row gets NaN and a status explaining why.
-
-    Statuses
-    --------
-    observed          clear_failure_step present -> depth = clear - root
-    right_censored    clear_failure_step is null ("failure never becomes clear")
-                      -> censor_time = last_action_index - root_cause_step
-    not_applicable    task_score == 1 (no failure to locate)
-    missing_root      task_score == 0 but no root cause recorded
-    """
     depth, status, censor = [], [], []
     for _, r in clean.iterrows():
         if r["task_score"] == 1:
@@ -344,7 +284,6 @@ def _derive_depth(clean: pd.DataFrame, mapping: dict) -> pd.DataFrame:
     clean["depth_status"] = status
     clean["censor_time"] = censor
 
-    # lifelines needs a single time column plus an event indicator.
     clean["depth_time"] = clean["failure_depth"].where(
         clean["depth_status"] == "observed", clean["censor_time"]
     )
@@ -363,13 +302,6 @@ def _derive_depth(clean: pd.DataFrame, mapping: dict) -> pd.DataFrame:
 
 
 def _bin_depth(depth, status, censor, edges: list[int], labels: list[str]):
-    """Assign an ordinal depth bin, resolving censored rows only when the
-    censoring time already forces the answer.
-
-    A row censored at time c is known to have depth >= c. If c falls in the top
-    bin, the bin is determined; otherwise the bin is genuinely unknown and is
-    labelled ``CENSORED_UNRESOLVED`` rather than being guessed.
-    """
     if status == "observed":
         idx = int(np.searchsorted(edges, depth, side="right")) - 1
         return labels[min(max(idx, 0), len(labels) - 1)]
@@ -381,16 +313,6 @@ def _bin_depth(depth, status, censor, edges: list[int], labels: list[str]):
 
 
 def explode_error_types(clean: pd.DataFrame, mapping: dict) -> pd.DataFrame:
-    """Long-format label table: one row per (rollout, error_type).
-
-    Analysis set: rows with ``task_score == 0`` that carry a failure annotation
-    **and still have at least one label after normalisation**. Rollouts whose
-    every label was dropped are excluded here and reported separately as
-    label-missing, rather than being counted as a rollout with zero errors.
-
-    Multi-label by construction, so rollout-normalised rates across labels sum
-    to more than 1 and that is correct.
-    """
     lookup = build_category_lookup(mapping)
     sub = clean[(clean["task_score"] == 0) & clean["has_failure_annotation"]
                 & ~clean["error_types_emptied_by_normalization"]]
@@ -416,7 +338,6 @@ def explode_error_types(clean: pd.DataFrame, mapping: dict) -> pd.DataFrame:
 
 
 def consistency_checks(clean: pd.DataFrame) -> pd.DataFrame:
-    """Collect every internal contradiction as one tidy table; fix nothing."""
     issues = []
 
     m = clean["task_score"] != clean["recomputed_task_score"]
@@ -461,16 +382,6 @@ def consistency_checks(clean: pd.DataFrame) -> pd.DataFrame:
 
 
 def annotation_coverage(paths: Paths, mapping: dict, clean: pd.DataFrame) -> pd.DataFrame:
-    """Compare annotated vs un-annotated rollouts per agent (selection-bias probe).
-
-    Human labelling covered only part of each agent's canonical build. If the
-    labelled subset differs systematically from the unlabelled remainder, every
-    rate computed on it is a property of the labelling process as much as of the
-    agent. This table quantifies that gap using the agent's own terminate status
-    -- the one outcome-adjacent signal available for *unlabelled* rollouts.
-
-    It imputes nothing about the unlabelled rows; it only describes them.
-    """
     whitelist = mapping["analysis_set"]["agent_annotator_whitelist"]
     canon = {d.name: load_canonical_record(d) for d in discover_canonical_dirs(paths.builds_dir)}
     labelled = set(clean["trajectory_id"])

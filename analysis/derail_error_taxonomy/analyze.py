@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Reproduce the current DERAIL error-taxonomy counts from non-backup artifacts.
-
-Error-type distributions have two bases.  ``root_cause`` (default; paper §3 "Errors beyond
-individual actions": "account for X% of root causes") counts each typed failure once, under its
-primary type chosen by ``primary_selection.category_priority`` of the failure-taxonomy config.
-``label_share`` counts every multi-label assignment.  ``--distribution`` picks which one
-``error_category_distribution.csv`` (the figure / table input) and the report headline use;
-``root_cause_distribution.csv`` and ``error_type_counts*.csv`` are always written.
-"""
 
 from __future__ import annotations
 
@@ -37,10 +28,6 @@ class Build:
 BUILDS = (
     Build("claudeopus48_xuhu_traj", "claude_opus_4_8", "closed", "xuhu"),
     Build("evocua32b_jinxin_traj", "evocua_32b", "open", "Jinxin"),
-    # GPT-5.5 is the one model whose 184-task shard spans several builds: the
-    # original failure-90 was recollected in three batches after the first pass,
-    # and their canonical dirs live beside the 94 that were kept. The task keys
-    # are disjoint, so the four builds still sum to ROLLOUTS_PER_MODEL.
     Build("gpt5_5_haoming_traj", "gpt_5_5", "closed", "Haoming"),
     Build("gpt5_5_recollected_haoming_traj", "gpt_5_5", "closed", "Haoming"),
     Build("gpt5_5_recollected_retry38_haoming_traj", "gpt_5_5", "closed", "Haoming"),
@@ -58,17 +45,8 @@ INCLUDED_MODELS = (
     "qwen3_5_35b_a3b",
 )
 EXCLUDED_INCOMPLETE_MODELS: tuple[str, ...] = ()
-# The retrospective pilot reconstructs how the codebook was frozen, so it stays
-# on the five models whose open-coding submissions existed at freeze time.
-# Claude-Opus-4.8 was annotated afterwards against the already-frozen codebook
-# (its raw labels need no rename and hit no drop), so folding it in would
-# rewrite history and change nothing about the codebook it did not shape.
 PILOT_MODELS = tuple(model for model in INCLUDED_MODELS if model != "claude_opus_4_8")
-# Canonical rollouts per model; every model contributes the same 184-task shard,
-# though a model may spread that shard over more than one build.
 ROLLOUTS_PER_MODEL = 184
-# The pilot stays a fixed-size codebook check; its per-model share is whatever
-# an even round-robin over the included models yields.
 PILOT_SIZE = 100
 AGENT_DISPLAY_NAMES = {
     "evocua_32b": "EvoCUA-32B",
@@ -79,18 +57,12 @@ AGENT_DISPLAY_NAMES = {
     "qwen3_5_35b_a3b": "Qwen3.5-35B-A3B",
 }
 
-# Retrospective consolidation of labels produced while the UI was in open-coding mode.
-# A rename never splits a label: categories that need a split require actual recoding.
 RENAMES = {
     "wrong_subgoal": "misunderstand_task_objective",
     "hallucinated_data": "fabricate_data",
     "constraint_loss": "scope_error",
     "section_content_misplacement": "wrong_target",
 }
-# These retired labels can occur in an annotation export but are not members of
-# the frozen error taxonomy. ``hit_budget_limit`` is intentionally *not* in
-# this set: it is the new termination error type that replaces
-# ``exceed_bash_budget``.
 DROP_AS_FAILURE = {"gui_workflow_bypass", "exceed_bash_budget"}
 CODEBOOK = {
     "planning": {
@@ -122,8 +94,6 @@ CATEGORY_OF = {label: category for category, labels in CODEBOOK.items() for labe
 
 
 def load_category_priority(taxonomy_path: Path) -> tuple[str, ...]:
-    """Primary-type category order from the failure-taxonomy config (whose categories must be
-    this codebook's)."""
     import yaml
 
     raw = yaml.safe_load(taxonomy_path.read_text(encoding="utf-8"))
@@ -134,8 +104,6 @@ def load_category_priority(taxonomy_path: Path) -> tuple[str, ...]:
 
 
 def primary_label(raw: list[str], final: list[str], priority: tuple[str, ...]) -> str:
-    """One primary type per failure: first category in ``priority`` present among the kept
-    labels; inside it, the annotator's listing order (FailureTaxonomy.primary_paper_type)."""
     ordered = [RENAMES.get(str(x).strip(), str(x).strip()) for x in raw]
     ordered = [x for x in dict.fromkeys(ordered) if x in final]
     for category in priority:
@@ -146,7 +114,6 @@ def primary_label(raw: list[str], final: list[str], priority: tuple[str, ...]) -
 
 
 def distribution_rows(rows: list[dict], group: str, basis: str) -> list[dict]:
-    """Category and type shares of the typed failures in ``rows``."""
     failures = [row for row in rows if row["state"] == "failure"]
     if basis == "root_cause":
         units = [row["primary_error_type"] for row in failures]
@@ -196,7 +163,6 @@ MODEL_INSIGHTS = {
     ),
 }
 
-# Curated, action-grounded examples. Paths are repository-relative and checked on generation.
 EXAMPLES = {
     "claude_opus_4_8": (
         ("aggregation-f020", "claudeopus48-r1-vm1-aggregation-f020", 1,
@@ -381,10 +347,6 @@ def normalize_labels(raw: list[str]) -> tuple[list[str], list[str], list[str]]:
             unknown.append(value)
             continue
         final.add(value)
-    # ``premature_completion`` must mean the agent stopped on its own while
-    # requirements were unmet.  When the run also exhausted its action budget
-    # the stop was imposed by the harness, not chosen by the agent, so the
-    # co-label is suppressed and only ``hit_budget_limit`` survives.
     if {"premature_completion", "hit_budget_limit"} <= final:
         final.discard("premature_completion")
         dropped.append("premature_completion_under_budget_limit")
@@ -392,8 +354,6 @@ def normalize_labels(raw: list[str]) -> tuple[list[str], list[str], list[str]]:
 
 
 def human_rubric_verdict(rubric: dict | None, task_config_path: Path) -> tuple[float, bool] | None:
-    """(ρ, V) of the human rubric review: derail.evaluation.metrics.rubric_verdict over the
-    task config's weights (UI-compatible: an invalid weight counts as 1)."""
     if not rubric:
         return None
     scores = rubric.get("scores")
@@ -418,10 +378,6 @@ def human_rubric_verdict(rubric: dict | None, task_config_path: Path) -> tuple[f
 
 
 def clean_start_pass(rows: list[dict], aggregation: dict, exclude_na: bool = False) -> PassAtK:
-    """Clean-start success (paper 02:12) as Pass@k over tasks, via
-    derail.evaluation.metrics.pass_at_k.  Every task is in the denominator; an ``n/a`` rollout
-    has no valid verdict and counts as a failure when ``aggregation.missing_counts_as_failure``
-    (configs/judges/default.yaml).  ``exclude_na`` keeps the former perfect_pass / (n − n/a)."""
     runs: dict[tuple[str, str], list] = {}
     for row in rows:
         verdict = None if row["state"] == "n/a" else (
@@ -542,8 +498,6 @@ def success_cell(summary: PassAtK) -> str:
 def write_report(path: Path, repo: Path, rows: list[dict], counts: dict[str, tuple[Counter, int, int]], pilot: list[dict], audit: dict, passes: dict[str, PassAtK]) -> None:
     overall, open_models, closed_models = counts["overall"], counts["open"], counts["closed"]
     success_rule = audit["success_policy"]["rule"]
-    # Names and inventory sizes quoted in the prose above the tables, derived so
-    # they cannot drift from INCLUDED_MODELS the way the hand-written ones did.
     included_names = "、".join(AGENT_DISPLAY_NAMES.get(m, m) for m in INCLUDED_MODELS)
     excluded_names = "、".join(
         AGENT_DISPLAY_NAMES.get(m, m) for m in EXCLUDED_INCOMPLETE_MODELS
@@ -635,9 +589,6 @@ def write_report(path: Path, repo: Path, rows: list[dict], counts: dict[str, tup
             )
         model_detail.append(detail + "\n")
     agent_body = []
-    # Keyed by model, not by build: GPT-5.5's shard spans four builds, and one
-    # row per build would report four partial denominators as if they were
-    # four agents.
     for model in INCLUDED_MODELS:
         subset = [row for row in rows if row["model"] == model]
         states = Counter(row["state"] for row in subset)
@@ -659,8 +610,6 @@ def write_report(path: Path, repo: Path, rows: list[dict], counts: dict[str, tup
     for row in pilot:
         pilot_raw.update(row["raw_error_types"].split("|") if row["raw_error_types"] else [])
         pilot_final.update(row["error_types"].split("|") if row["error_types"] else ["n/a"])
-    # Which codebook types the pilot window actually exhibits. Reported rather
-    # than assumed: a rare type can sit entirely outside the sampled window.
     pilot_final_labels = sorted(label for label in pilot_final if label in set(FINAL_LABELS))
     pilot_unobserved = sorted(set(FINAL_LABELS) - set(pilot_final_labels))
     pilot_unobserved_note = (
@@ -821,8 +770,6 @@ def main() -> None:
     pilot = balanced_pilot(
         [row for row in rows if row["model"] in PILOT_MODELS], size=PILOT_SIZE
     )
-    # Asserted per model rather than per build: a model's 184-task shard may be
-    # split over several builds (GPT-5.5 has four).
     assert len({spec.model for spec in BUILDS}) == 6 and len(catalog) == 1104, (
         len(BUILDS), len(catalog)
     )
@@ -853,11 +800,6 @@ def main() -> None:
     assert Counter(row["model"] for row in pilot) == Counter(
         {model: PILOT_SIZE // len(PILOT_MODELS) for model in PILOT_MODELS}
     )
-    # The pilot must not contain a label outside the frozen codebook. Whether it
-    # happens to exhibit all of them is an empirical outcome, not an invariant:
-    # a rare type can live entirely outside the first PILOT_SIZE//n window. It is
-    # reported below rather than asserted, so that pruning a type's labels does
-    # not silently break the run.
     assert set(pilot_final_labels) <= set(FINAL_LABELS), (
         sorted(set(pilot_final_labels) - set(FINAL_LABELS))
     )
@@ -889,11 +831,6 @@ def main() -> None:
             row[f"{group}_n1_filtered_n_a"] = n1
             row[f"{group}_denominator"] = denominator
             row[f"{group}_rate"] = f"{counter[label] / denominator:.6f}"
-            # Share of the typed-failure population. Only a trajectory with at
-            # least one typed failure can carry an error-type label, so this is
-            # the denominator for "composition of the failures"; the `_rate`
-            # above answers the different question "share of all eligible
-            # rollouts" and is diluted by the perfect-pass ones.
             row[f"{group}_rate_of_typed_failure"] = (
                 f"{counter[label] / failures:.6f}" if failures else ""
             )

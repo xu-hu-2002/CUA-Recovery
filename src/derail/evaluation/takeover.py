@@ -79,8 +79,6 @@ def run_takeover_episode(
     depth: int,
     repeat_id: int,
 ) -> TakeoverRunTrace:
-    """Run takeover; judge EAR on the first output before executing its actions."""
-
     if not replay_verification.accepted_for_release or replay_verification.execution_mode != "vm":
         raise TakeoverRunError("takeover evaluation 需要 accepted real-VM replay")
     if (
@@ -123,7 +121,6 @@ def run_takeover_episode(
         turn = agent.predict(observation)
         outputs.append(turn.public_output)
         if first_turn:
-            # This call occurs before any takeover action is sent to the environment.
             ear = ear_judge.judge(turn.public_output, takeover_observation)
             output_sha256 = hashlib.sha256(turn.public_output.encode("utf-8")).hexdigest()
             if ear.takeover_output_sha256 != output_sha256:

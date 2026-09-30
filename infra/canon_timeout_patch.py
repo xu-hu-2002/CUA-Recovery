@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Make the MyPCBench per-canon-patcher timeout configurable and deterministic."""
 
 from __future__ import annotations
 

@@ -1,11 +1,4 @@
-"""Lossless normalization of MyPCBench ``traj.jsonl`` executed actions.
-
-The source runner records one row per executed action, while ``step_num`` counts model turns and
-can repeat.  This module therefore assigns a separate contiguous global action index.  PyAutoGUI
-strings are parsed with :mod:`ast`; trajectory text is never passed to ``eval`` or ``exec``.
-Captured shell-only rows are normalized from public tool calls/results; unknown tool-only rows are
-reported and make the trajectory ineligible for benchmark cases.
-"""
+"""Lossless normalization of MyPCBench ``traj.jsonl`` executed actions."""
 
 from __future__ import annotations
 
@@ -112,14 +105,6 @@ _QWEN_BASE64_TYPING_TEMPLATE_AST = ast.dump(
 
 
 def _parse_qwen_base64_typing_macro(source: str) -> Optional[Action]:
-    """Decode the exact Qwen runner typing macro without executing source code.
-
-    The full Qwen 3.5 collection contains one stable helper that base64-encodes text, then types
-    tab/newline-delimited cells with ``typewrite``/``press``.  Comparing the complete AST against
-    a frozen template makes the accepted language exactly that helper; arbitrary imports, loops,
-    calls, or expressions remain rejected.
-    """
-
     if "base64.b64decode" not in source:
         return None
     try:
@@ -168,8 +153,6 @@ def _parse_qwen_base64_typing_macro(source: str) -> Optional[Action]:
 
 
 def _parse_time_sleep_program(source: str) -> Optional[WaitAction]:
-    """Accept only the exact two-statement ``import time; time.sleep(literal)`` helper."""
-
     if "time.sleep" not in source:
         return None
     try:
@@ -242,21 +225,9 @@ class PyAutoGUINormalizer:
         self.frame_width = frame_width
         self.frame_height = frame_height
         self.cursor: Optional[Tuple[int, int]] = None
-        # Every clamp applied while normalizing the most recent source row, as
-        # ``(original, clamped)`` pairs.  ``normalize_task_directory`` drains this after each
-        # row so the repair is recorded in the normalization report instead of happening
-        # silently; the caller resets it, never this class's own recursion.
         self.clamps: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
 
     def _clamp_point(self, x_px: int, y_px: int) -> Tuple[int, int]:
-        """Pull an out-of-frame coordinate onto the nearest real pixel.
-
-        Agents routinely emit ``x == width`` because they read the screenshot width as an
-        inclusive upper bound, and occasionally overshoot the edge by more.  Canonical actions
-        keep the strict ``[0, extent)`` invariant, so the adaptation belongs here, in the
-        agent-facing normalizer, and is reported rather than hidden.
-        """
-
         clamped = (
             min(max(x_px, 0), self.frame_width - 1),
             min(max(y_px, 0), self.frame_height - 1),
@@ -294,17 +265,10 @@ class PyAutoGUINormalizer:
             primitives = tuple(
                 self.normalize(statement, wait_seconds=wait_seconds) for statement in statements
             )
-            # Canonical ScrollAction already means move-to(x,y) then scroll, so this pair can be
-            # represented as one primitive without changing the source runner action count.
             if len(primitives) == 2 and isinstance(primitives[0], MoveAction) and isinstance(
                 primitives[1], ScrollAction
             ):
                 return primitives[1]
-            # A single statement can already expand to a sequence — ``press(key, presses=N)``,
-            # ``press([...])`` and ``tripleClick()`` all do.  ``SequenceAction`` forbids
-            # nesting, so splice those in rather than rejecting the row: the source row still
-            # ran as one ``env.step``, so it stays one global action either way, and the
-            # primitive order is identical to executing the statements in sequence.
             flattened: List[Action] = []
             for primitive in primitives:
                 if isinstance(primitive, SequenceAction):
@@ -328,9 +292,6 @@ class PyAutoGUINormalizer:
         if sentinel in {"PREDICT_CRASH", "PROTOCOL_ERROR", "INFRASTRUCTURE_ERROR"}:
             return TerminateAction(kind="terminate", status="failure", answer=sentinel)
         if sentinel == "TOOL_CALL":
-            # The adapter already executed this bash/editor call. It counts as one source step
-            # for annotation, but it is not a desktop control-flow termination and cannot be
-            # replayed by the GUI-only canonical executor.
             return NoOpAction(kind="no_op", reason="non-desktop tool call")
 
         method, args, kwargs = _parse_call(source)
@@ -399,10 +360,6 @@ class PyAutoGUINormalizer:
                 frame_width=self.frame_width,
                 frame_height=self.frame_height,
             )
-            # Canonical ClickAction intentionally has only click and double-click.  A source
-            # triple-click is still lossless as three primitives inside one SequenceAction:
-            # MyPCBench executed the whole source row in one env.step, so it must remain one
-            # global action for depth and horizon accounting.
             return (
                 SequenceAction(kind="sequence", actions=(click, click, click))
                 if clicks == 3
@@ -635,8 +592,6 @@ def _openai_tool_messages(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _xml_shell_tool_messages(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Parse the exact command syntax executed by the vendored Qwen 3.5 agent."""
-
     response = raw.get("response")
     if not isinstance(response, str):
         return []
@@ -661,8 +616,6 @@ def _xml_shell_tool_messages(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _is_assistant_only_tool_call(raw: Dict[str, Any], source_agent: str) -> bool:
-    """Recognize Qwen rows where the runner sentinel carried no executable call."""
-
     response = raw.get("response")
     if source_agent != "qwen3_5_35b_a3b" or not isinstance(response, str):
         return False
@@ -706,8 +659,6 @@ def _task_tool_results(task_dir: Path) -> Dict[str, str]:
 
 
 def _anthropic_tool_messages(task_dir: Path, source_line: int) -> List[Dict[str, Any]]:
-    """Return the recorded Anthropic tool call/result blocks bound to one traj row."""
-
     path = task_dir / "messages.json"
     if not path.is_file():
         return []
@@ -739,8 +690,6 @@ def _anthropic_tool_messages(task_dir: Path, source_line: int) -> List[Dict[str,
 def _normalize_shell_tool_row(
     raw: Dict[str, Any], external_results: Optional[Mapping[str, str]] = None
 ) -> Tuple[Action, str]:
-    """Convert captured provider shell calls/results without consulting screenshots."""
-
     messages = (
         _public_tool_messages(raw)
         or _openai_tool_messages(raw)
@@ -834,8 +783,6 @@ def _b64_text(value: str) -> str:
 
 
 def _editor_replay_command(payload: Dict[str, Any]) -> str:
-    """Translate a recorded Anthropic editor call into an exact guest operation."""
-
     operation = payload.get("command")
     path = payload.get("path")
     if not isinstance(path, str) or not path.startswith("/"):
@@ -1008,9 +955,6 @@ def normalize_task_directory(
                     continue
 
             if parser.clamps:
-                # Keep the pre-clamp value and the per-axis distance in the report: a 1px
-                # edge overshoot and a real off-screen miss are both repaired here, and only
-                # the recorded delta lets a downstream consumer tell them apart.
                 issues.append(
                     NormalizationIssue(
                         source_line,
@@ -1087,8 +1031,6 @@ def normalize_task_directory(
                     and all(isinstance(item, ShellAction) for item in action.actions)
                 )
                 if isinstance(action, (NoOpAction, TerminateAction)) or shell_only:
-                    # These control-flow rows do not touch the desktop.  Carrying the previous
-                    # observation forward is exact, and avoids inventing a missing screenshot.
                     observation_after_sha = previous_observation_sha
                     observation_after_uri = previous_observation_uri
                 else:
@@ -1103,9 +1045,6 @@ def normalize_task_directory(
                             "source row 没有可用的 post-action screenshot",
                         )
                     )
-            # Preserve the executed-action position even when another source row is unsupported.
-            # Such a trajectory is ineligible, but its surviving records must not silently renumber
-            # later actions and corrupt human root/depth references.
             action_index = source_records - 1
             steps.append(
                 CanonicalStep(
@@ -1137,9 +1076,6 @@ def normalize_task_directory(
     output_dir.mkdir(parents=True, exist_ok=True)
     canonical_path = output_dir / "trajectory.jsonl"
     atomic_write_jsonl(canonical_path, (step.to_dict() for step in steps))
-    # ``case_eligible`` below stays strict: a clamped coordinate is replayable but no longer
-    # byte-faithful to the source, so it may be labelled but not promoted into a case without
-    # a human looking at the recorded delta first.
     annotation_complete = len(steps) == source_records and all(
         issue.code in {"missing_screenshot", "non_desktop_tool_call", "coordinate_clamped"}
         for issue in issues

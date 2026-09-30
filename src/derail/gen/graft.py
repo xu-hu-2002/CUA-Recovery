@@ -1,24 +1,3 @@
-"""Task-side grafting and the latent-horizon-targeted beam search (doc v1.2 section 7.2).
-
-One mechanism, five named operators (v0.2 section 8.4): a *graft* replaces a literal input
-port of task B by an output port of task A over a typed-compatible edge (``gen.compat``),
-producing one IR whose goal is B's.  The operator label is decided by where the edge lands:
-
-- ``typed_grafting``         any compatible edge;
-- ``motif_repetition``       retrieve/resolve -> retrieve/resolve/filter (the second lookup
-                              consumes the first);
-- ``fan_in_extension``       edge into a compare / aggregate / decide node;
-- ``delayed_reuse``          the consumer is deep in B and also has an input from another
-                              lineage of depth >= 2 (the v0.2 hard constraint, else it is
-                              decorative and rejected);
-- ``conditionalization``     a control edge from a boolean-valued decide node of A gating
-                              B's first state-changing node.
-
-The beam search scores candidates by the static profile against the sampling targets and
-keeps only those that pass the structural gates (dependency depth range, independent
-component ratio, decorative carry) and, when a checker is supplied, gold execution.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -48,10 +27,7 @@ FINAL_VERIFIER_MODES = ("all_of", "receiver")
 _V_REF = re.compile(r'V\[\s*["\']([A-Za-z0-9_-]+)["\']\s*\]')
 
 
-# ------------------------------------------------------------------------------ rename
 def rename_ir(task_ir: Mapping[str, Any], prefix: str) -> Dict[str, Any]:
-    """Copy with every node id prefixed (edges, entity refs, value refs, V[...] references)."""
-
     ir = copy.deepcopy(dict(task_ir))
     ids = {str(n["node_id"]) for n in ir["nodes"]}
 
@@ -77,7 +53,6 @@ def rename_ir(task_ir: Mapping[str, Any], prefix: str) -> Dict[str, Any]:
         )
 
     def fix_final(verifier: Any) -> None:
-        # A composed IR's final verifier is ``all_of`` over its parents' (recurse into parts).
         if not verifier:
             return
         if verifier.get("kind") == "all_of":
@@ -117,7 +92,6 @@ def rename_ir(task_ir: Mapping[str, Any], prefix: str) -> Dict[str, Any]:
     return ir
 
 
-# ------------------------------------------------------------------------------- graft
 def operator_label(a: Mapping[str, Any], b: Mapping[str, Any], edge: Mapping[str, Any]) -> str:
     src = next(n for n in a["nodes"] if n["node_id"] == edge["from"]["node_id"])
     dst = next(n for n in b["nodes"] if n["node_id"] == edge["to"]["node_id"])
@@ -132,7 +106,6 @@ def operator_label(a: Mapping[str, Any], b: Mapping[str, Any], edge: Mapping[str
     return "typed_grafting"
 
 
-# ------------------------------------------------------------------ verifier rebinding
 _QUOTED = re.compile(r"'((?:[^']|'')*)'")
 _MIN_LITERAL_CHARS = 3
 
@@ -142,13 +115,6 @@ def _param_name(node_id: str, name: str) -> str:
 
 
 def rebind_predicate(predicate: str, bindings: Sequence[Tuple[str, Any]]) -> Tuple[str, List[str]]:
-    """Replace literals of ``predicate`` that spell a parent gold value with the qualified
-    named parameter of that value (bound by the interpreter as ``:<node_id>__<name>``).
-    Quoted literals must match exactly or as a ``%...%`` LIKE pattern (a date-only pattern
-    matching a date-time value becomes ``substr(:param, 1, 10)``); unquoted numbers are
-    rebound only when compared to a column named like the produce.  Returns the rewritten
-    predicate and the parameters it now uses."""
-
     used: List[str] = []
 
     def quoted(match: "re.Match[str]") -> str:
@@ -156,14 +122,14 @@ def rebind_predicate(predicate: str, bindings: Sequence[Tuple[str, Any]]) -> Tup
         core = inner.strip("%")
         like = inner.startswith("%") and inner.endswith("%") and core
         texts = [(p, str(v)) for p, v in bindings if len(str(v)) >= _MIN_LITERAL_CHARS]
-        for param, text in texts:  # exact matches first
+        for param, text in texts:
             if inner == text:
                 used.append(param)
                 return ":" + param
             if like and core == text:
                 used.append(param)
                 return "'%' || :" + param + " || '%'"
-        for param, text in texts:  # then a date-only pattern against a date-time value
+        for param, text in texts:
             if like and len(core) == 10 and "T" in text and text.startswith(core):
                 used.append(param)
                 return "'%' || substr(:" + param + ", 1, 10) || '%'"
@@ -182,9 +148,6 @@ def rebind_predicate(predicate: str, bindings: Sequence[Tuple[str, Any]]) -> Tup
 
 
 def _changed_nodes(b: Mapping[str, Any], dst_node_raw: str, prefix: str) -> Set[str]:
-    """Renamed ids of b's nodes at or below the graft target (computed on the un-grafted b,
-    whose ports are all still bound)."""
-
     dag = dag_index(b)
     return {prefix + n for n in {dst_node_raw} | set(dag.descendants(dst_node_raw))}
 
@@ -192,9 +155,6 @@ def _changed_nodes(b: Mapping[str, Any], dst_node_raw: str, prefix: str) -> Set[
 def _downstream_bindings(
     gold_b: Mapping[str, Any], prefix: str, changed: Set[str]
 ) -> List[Tuple[str, Any]]:
-    """``(param, gold value)`` for every produce of b's nodes at or below the graft target:
-    those values may change once the input is fed from a."""
-
     bindings: List[Tuple[str, Any]] = []
     for entry in gold_b.get("values", ()):
         node_id = prefix + str(entry["node_id"])
@@ -206,10 +166,6 @@ def _downstream_bindings(
 def rebind_verifier(
     verifier: Mapping[str, Any], bindings: Sequence[Tuple[str, Any]]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Rebind a final verifier and its equivalent states.  An alternative that still carries
-    parent literals after the main predicate needed rebinding is dropped (it would accept a
-    stale outcome)."""
-
     out = dict(verifier)
     predicate, used = rebind_predicate(str(verifier.get("predicate", "")), bindings)
     out["predicate"] = predicate
@@ -232,10 +188,6 @@ def compose_final_verifier(
     task_id: str,
     mode: str = "all_of",
 ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
-    """a's final verifier (its values are unchanged) and b's rebound one, as ``all_of``
-    (paper appendix B: the two source tasks' final validators are concatenated).
-    ``mode="receiver"`` keeps b's only."""
-
     if mode not in FINAL_VERIFIER_MODES:
         raise ValueError("unknown final verifier mode %r" % mode)
     parts: List[Dict[str, Any]] = []
@@ -267,11 +219,6 @@ _PARAM = re.compile(r":([A-Za-z_][A-Za-z0-9_]*__[A-Za-z_][A-Za-z0-9_]*)\b")
 def _mark_stale_node_verifiers(
     renamed_b: Mapping[str, Any], changed: Set[str], bindings: Sequence[Tuple[str, Any]]
 ) -> Dict[str, List[str]]:
-    """Node verifiers at or below the graft target compare against parent-gold constants.
-    ``derived`` ones with a literal ``expected`` get an ``expected_ref`` naming the produce
-    they check (re-frozen from the composed gold by ``freeze_verifiers``); SQL ones are
-    rebound in place.  A derived verifier whose produce cannot be named is dropped."""
-
     marked: List[str] = []
     dropped: List[str] = []
     for node in renamed_b["nodes"]:
@@ -309,8 +256,6 @@ _V_INDEX = re.compile(r"""V\[\s*(['"])([A-Za-z0-9_-]+)\1\s*\]\[\s*(['"])([A-Za-z
 
 
 def _sink_nodes(task_ir: Mapping[str, Any]) -> Set[str]:
-    """Nodes whose values feed no other node: the task's outputs, which a verifier checks."""
-
     dag = dag_index(task_ir)
     fed = {str(e["to"]["node_id"]) for e in dag.value_edges()}
     return {n for n in dag.order if n not in dag.outgoing or not dag.outgoing[n]} | (
@@ -319,20 +264,11 @@ def _sink_nodes(task_ir: Mapping[str, Any]) -> Set[str]:
 
 
 def freeze_verifiers(task_ir: Mapping[str, Any], gold: Mapping[str, Any]) -> Dict[str, Any]:
-    """Anchor an IR's verifiers to its gold (D-036, D-040).  In every verifier predicate the
-    references to *upstream* facts become the gold value as a literal: qualified
-    ``:<node>__<name>`` and bare ``:<name>`` SQL parameters, and ``V["node"]["name"]``
-    references in derived predicates -- except references to the task's sink nodes (a final
-    verifier) or to the verified node itself (a node verifier), which stay live so the
-    predicate compares the run's own output with a gold-anchored expectation.  ``expected_ref``
-    becomes ``expected``.  A verifier that compares run values only with each other accepts a
-    consistently wrong run; the frozen form is what the mutation test and rollouts check."""
-
     values: Dict[str, Any] = {}
     by_name: Dict[str, Any] = {}
     for v in gold.get("values", ()):
         values[_param_name(str(v["node_id"]), str(v["name"]))] = v.get("value")
-        by_name.setdefault(str(v["name"]), v.get("value"))  # first in node order, as _bindable
+        by_name.setdefault(str(v["name"]), v.get("value"))
     sinks = _sink_nodes(task_ir)
     missing: List[str] = []
 
@@ -425,7 +361,6 @@ def freeze_verifiers(task_ir: Mapping[str, Any], gold: Mapping[str, Any]) -> Dic
     return frozen
 
 
-# ------------------------------------------------------------------------ composed rubric
 RUBRIC_VERSION = "composed-rubric/1.0"
 
 
@@ -440,10 +375,6 @@ def _rubric_substitutions(
     values: Mapping[Tuple[str, str], Any],
     prefix: str,
 ) -> List[Tuple[Any, Any]]:
-    """``(source-task value, composed gold value)`` pairs that composition changed: every
-    produced value of the source task's nodes that differs in the composed gold, and every
-    instruction literal that composition replaced by an upstream output."""
-
     subs: List[Tuple[Any, Any]] = []
     for entry in (source_gold or {}).get("values", ()):
         old = entry.get("value")
@@ -495,7 +426,7 @@ def _compose_item(
         expected.append(
             {"kind": exp["kind"], "value": hit, "source_value": exp["value"], "raw": exp["raw"]}
         )
-    for old, new in subs:  # unquoted names and other literals the patterns do not pick up
+    for old, new in subs:
         if isinstance(old, str) and len(old) >= min_literal_chars and old in text:
             text = text.replace(old, str(new))
             expected.append({"kind": "text", "value": new, "source_value": old, "raw": old})
@@ -519,13 +450,6 @@ def compose_rubric(
     config: RubricCheckConfig,
     min_literal_chars: int,
 ) -> Dict[str, Any]:
-    """Rubric of a (composed) task (paper appendix B, composed rubrics): the rubric items of
-    every source task, each keeping its weight, with the expected values that composition
-    changed updated to the composed gold lineage ``gold``.  ``sources`` maps a source task id
-    to ``{"task_ir", "gold", "rubrics"}`` (the source IR, its gold lineage and its rubric
-    items).  The result keeps the MyPCBench ``grading`` shape (``type`` + ``rubrics``) so the
-    rubric judge reads it item by item."""
-
     values = {(str(v["node_id"]), str(v["name"])): v.get("value") for v in gold.get("values", ())}
     items: List[Dict[str, Any]] = []
     for entry in source_prefixes(task_ir):
@@ -550,17 +474,12 @@ def compose_rubric(
 
 
 def lineage(task_ir: Mapping[str, Any]) -> Tuple[List[str], List[str]]:
-    """``(source seed task ids, operators applied)`` of an IR; a seed is its own source."""
-
     composition = (task_ir.get("provenance") or {}).get("composition") or {}
     sources = list(composition.get("source_task_ids") or [str(task_ir["task_id"])])
     return sources, list(composition.get("operators") or [])
 
 
 def source_prefixes(task_ir: Mapping[str, Any]) -> List[Dict[str, str]]:
-    """``[{"task_id", "node_prefix"}]`` per source task, in ``lineage`` order: the source task's
-    node ``n`` is node ``node_prefix + n`` of ``task_ir`` (used to compose rubrics)."""
-
     composition = (task_ir.get("provenance") or {}).get("composition") or {}
     if composition.get("source_prefixes"):
         return [dict(p) for p in composition["source_prefixes"]]
@@ -586,11 +505,6 @@ def graft(
     gold_b: Optional[Mapping[str, Any]] = None,
     final_verifier: str = "all_of",
 ) -> Dict[str, Any]:
-    """Compose ``a`` then ``b``: b's literal input ``edge.to`` is fed by a's output.  With the
-    parents' gold lineages the verifiers of b's affected nodes are rebound from parent
-    literals to the composed values (``rebind_predicate``); without them they are kept
-    verbatim and the gold-execution gate decides."""
-
     pa, pb = "a_", "b_"
     ra, rb = rename_ir(a, pa), rename_ir(b, pb)
     src_node, src_port = pa + edge["from"]["node_id"], edge["from"]["port_id"]
@@ -668,10 +582,6 @@ def conditionalize(
     task_id: Optional[str] = None,
     final_verifier: str = "all_of",
 ) -> Optional[Dict[str, Any]]:
-    """Gate b's first state-changing node on a boolean produce of a's decide node.  The final
-    verifier is ``compose_final_verifier`` of both parents (b's values do not change, so
-    nothing is rebound)."""
-
     first_write = next((n for n in b["nodes"] if n["op"] in STATE_OPS), None)
     if first_write is None:
         return None
@@ -679,7 +589,7 @@ def conditionalize(
     ra, rb = rename_ir(a, pa), rename_ir(b, pb)
     gate_node = pb + first_write["node_id"]
     if any(str(p.get("port_id")) == "gate" for p in first_write.get("inputs", ())):
-        return None  # already conditionalised (a composed IR); one gate per node
+        return None
     for node in rb["nodes"]:
         if node["node_id"] == gate_node:
             node["inputs"].append(
@@ -733,7 +643,6 @@ def conditionalize(
     }
 
 
-# ------------------------------------------------------------------------ beam search
 @dataclass(frozen=True)
 class SearchConfig:
     beam_width: int = 16
@@ -751,7 +660,7 @@ class SearchConfig:
     min_nodes_composed: int = 10
     carry_threshold: int = 3
     compat: CompatConfig = CompatConfig()
-    final_verifier: str = "all_of"  # FINAL_VERIFIER_MODES
+    final_verifier: str = "all_of"
 
     @classmethod
     def from_sampling(cls, sampling: Mapping[str, Any]) -> "SearchConfig":
@@ -797,9 +706,6 @@ class Scored:
 
 
 def score_profile(profile: Mapping[str, Any], config: SearchConfig) -> Tuple[float, List[str]]:
-    """Higher is better: share of nodes in target buckets weighted by the bucket targets,
-    minus structural penalties.  Rejections are the hard gates (section 5.4 / 7.4)."""
-
     rejections: List[str] = []
     structural = profile["structural"]
     if structural["independent_component_ratio"] > config.max_independent_component_ratio:
@@ -844,9 +750,6 @@ def edges_touching(
     graph: Optional[SchemaGraph],
     compat: CompatConfig,
 ) -> List[Dict[str, Any]]:
-    """Compat edges between ``state`` and the other pool members only (both directions);
-    pool-internal edges are not needed to grow ``state`` and are skipped."""
-
     others = [p for p in pool if p["task_id"] != state["task_id"]]
     state_out = output_ports(state)
     state_in = literal_input_ports(state, compat.excluded_literals)
@@ -875,11 +778,6 @@ def beam_search(
     pool: Optional[Sequence[Mapping[str, Any]]] = None,
     gold_lookup: Optional[Callable[[Mapping[str, Any]], Optional[Mapping[str, Any]]]] = None,
 ) -> List[Scored]:
-    """Grow each seed by up to ``max_grafts`` grafts; keep the best ``beam_width`` composed IRs
-    that pass the gates (and ``executable`` when given).  Returns accepted candidates, best
-    first.  ``pool`` is the set of IRs grafts are drawn from (default: the seeds), so a driver
-    can run one beam per seed against the whole accepted set."""
-
     pool = list(pool if pool is not None else seeds)
     beam: List[Scored] = [evaluate(ir, config, 0) for ir in seeds]
     accepted: Dict[str, Scored] = {}
@@ -910,7 +808,7 @@ def beam_search(
                         final_verifier=config.final_verifier,
                     )
                     scored = evaluate(composed, config, state.grafts + 1)
-                except Exception as exc:  # a malformed composition is a rejection, not a crash
+                except Exception as exc:
                     candidates.append(
                         Scored(
                             dict(a),
@@ -941,7 +839,7 @@ def beam_search(
                             )
                             if composed is not None:
                                 candidates.append(evaluate(composed, config, state.grafts + 1))
-                        except Exception as exc:  # malformed composition = rejection
+                        except Exception as exc:
                             candidates.append(
                                 Scored(
                                     dict(state.task_ir),

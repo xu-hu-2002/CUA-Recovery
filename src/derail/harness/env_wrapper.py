@@ -1,19 +1,3 @@
-"""Wrap a MyPCBench ``env`` so the official runner loop records the three ledgers.
-
-Execution doc v1.2 section 4.4 / DECISIONS D-021, D-022.  The wrapper is transparent to
-``run_mypcbench.py``: ``reset`` / ``step`` / ``_execute_shell`` keep their signatures.  Around
-each action it
-
-1. posts the cursor for the coming action (before dispatch, bash actions included),
-2. dispatches through the wrapped env,
-3. pulls the change-log rows written since the last pull (``Delta_t``) and the tracer records
-   of this action (``Pages_t`` + observations), takes the screenshot / a11y text from the
-   observation, and appends a ``rollout-trace/1.0`` step.
-
-``reset`` writes cursor ``-1`` and records ``task_start_seq`` per database.  The wrapped env
-and the control client are injected, so the class is exercised with fakes offline.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
@@ -44,16 +28,12 @@ class DerailEnvWrapper:
         self._flags = {"declared_complete": False, "declared_infeasible": False}
         self._pending_thought: Optional[str] = None
 
-    # ---- attribute passthrough so the official runner sees the same env ------------------
     def __getattr__(self, name: str) -> Any:
         return getattr(self._env, name)
 
     def note_thought(self, thought: Optional[str]) -> None:
-        """Runner hook: the agent's reasoning for the next action (stored on the step)."""
-
         self._pending_thought = thought
 
-    # ---- reset -------------------------------------------------------------------------
     def reset(self, task_config: Optional[Dict] = None, soft: bool = False) -> Dict[str, Any]:
         obs = self._env.reset(task_config=task_config, soft=soft)
         self.builder = self._builder_factory()
@@ -64,7 +44,6 @@ class DerailEnvWrapper:
         self._flags = {"declared_complete": False, "declared_infeasible": False}
         return obs
 
-    # ---- actions -----------------------------------------------------------------------
     def _begin(self) -> int:
         self._action_index += 1
         self._control.set_cursor(self._action_index)
@@ -124,7 +103,6 @@ class DerailEnvWrapper:
         )
         return result
 
-    # ---- finish ------------------------------------------------------------------------
     def finish(
         self,
         *,

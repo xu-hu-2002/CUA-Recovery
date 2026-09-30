@@ -1,10 +1,3 @@
-# scaffold: upstream_runner —— agent 由 MyPCBench 自己构造（--agent-type
-# openai_cuabash：Responses API + 内置 computer/shell 工具），DERAIL 的 factory
-# 碰不到它，所以除身份与并发字段外本文件是纯文档。对它调 load_agent_config()
-# 会明确报错。
-#
-# model 是 routify 裸名；网关要带 provider 前缀时用 GPT55_MODEL 覆盖
-# （01_collect_trajectories.sh 的 resolve_agent 读该环境变量）。
 agent_id: gpt_5_5
 family: openai_computer_use
 scaffold: upstream_runner
@@ -14,11 +7,7 @@ api_snapshot: routify/protocol/openai/v1 (2026-08-06)
 output_format: native_computer_call
 history_renderer: zdr_stateless_replay
 live_adapter: MyPCBench.agent-harness.agents.openai_cua
-# VM 并发度。托管 API 不占卡，上限是配额而非显存。v1 重跑时 4 个 VM 并发把
-# OpenAI project 的花费上限打爆：3 分 21 秒内 135 次 429，直接杀掉 3 个 episode。
-# 跑大批量前先确认配额，必要时调小。
 num_vms: 4
-# 01_collect_all.sh 预估时长用；不影响采集行为。
 eta_step_seconds: 9.0
 eta_step_seconds_source: v1 全量采集步间间隔中位（docs/ROUTIFY_API_MATRIX.md §9.3）
 status: collected_v1_pending_rejudge_with_opus_4_8

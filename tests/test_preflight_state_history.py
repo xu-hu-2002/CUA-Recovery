@@ -12,7 +12,7 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 def _load_preflight_module():
-    path = REPOSITORY / "scripts" / "10_preflight_takeover_history.py"
+    path = REPOSITORY / "scripts" / "takeover" / "preflight_history.py"
     spec = importlib.util.spec_from_file_location("takeover_history_preflight", path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {path}")

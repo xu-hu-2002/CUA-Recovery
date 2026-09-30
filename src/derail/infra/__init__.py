@@ -1,10 +1,3 @@
-"""Repository-side access to the VM infrastructure scripts (brief section 1, ``infra/``).
-
-The files under ``<repo>/infra/`` are deployed into the VM and must stay standard-library
-only.  Rather than keeping a second copy here, :func:`load_vm_script` imports one of them by
-path so offline tests and the replay verifier exercise exactly the deployed code.
-"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -19,8 +12,6 @@ INFRA_ROOT = Path(
 
 
 def load_vm_script(relative: str) -> ModuleType:
-    """Import ``infra/<relative>`` (e.g. ``"triggers/install_triggers.py"``) as a module."""
-
     path = INFRA_ROOT / relative
     if not path.is_file():
         raise FileNotFoundError("infra script not found: %s" % path)

@@ -1,10 +1,4 @@
-"""History renderer for the frozen DERAIL Qwen3.6 general-VLM scaffold.
-
-Qwen3.6 has no frozen official computer-use protocol in this repository.  This
-adapter therefore names the actual DERAIL scaffold and mirrors its
-``NativeToolComputerAgent`` message/tool format; it must not be described as a
-native Qwen CUA protocol.
-"""
+"""History renderer for the frozen DERAIL Qwen3.6 general-VLM scaffold."""
 
 from __future__ import annotations
 

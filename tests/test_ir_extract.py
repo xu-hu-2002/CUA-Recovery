@@ -1,5 +1,4 @@
-"""Task IR v1 extraction on the miniworld with a fake model: prompt rendering, reply
-normalisation, static + grounding validation, gold execution and the rubric check."""
+"""Task IR v1 extraction on the miniworld with a fake model."""
 
 from __future__ import annotations
 
@@ -74,8 +73,6 @@ class FakeClient:
 
 
 def _model_style_reply() -> str:
-    """The mw-002 IR as a model would plausibly write it: fenced, synonyms, defaults omitted."""
-
     ir = json.loads((MINIWORLD / "task_ir" / "mw-002.json").read_text())
     nodes = copy.deepcopy(ir["nodes"])
     for node in nodes:
@@ -179,7 +176,6 @@ class ExtractionTests(unittest.TestCase):
                 )
             ).run(task_ir, world, REPOSITORY)
         self.assertIs(gold["final_verifier_passed"], True)
-        # reuse the saved reply: no model call, same result
         reparse = Path(self.tmp.name) / "reparse"
         manifest2 = run_extraction_v1(
             [TASK],
@@ -212,7 +208,6 @@ class ExtractionTests(unittest.TestCase):
         with WorldCopy.open("miniworld", self.dbs, Path(self.tmp.name) / "copy2") as world:
             gold = GoldInterpreter().run(task_ir, world, REPOSITORY)
             extra = context_values(task_ir, gold, world.connections)
-        # Jim's e-mail is not a gold value (the DM is resolved by id) but sits in the dms row.
         self.assertTrue(any("jim.halpert" in str(v) for v in extra))
         self.assertEqual(
             check("mw-002", gold, expectations, self.rubric_config)["verdict"], "needs_review"
@@ -304,7 +299,6 @@ if __name__ == "__main__":
 
 class LiteralAndVariableTests(unittest.TestCase):
     def test_literal_spellings(self):
-        # An ISO date literal is accepted when the instruction says "July 2"; times likewise.
         self.assertTrue(literal_allowed("2026-07-02", "meet on July 2 at 3pm"))
         self.assertTrue(literal_allowed("15:00", "meet on July 2 at 3pm"))
         self.assertFalse(literal_allowed("16:00", "meet on July 2 at 3pm"))
@@ -338,7 +332,7 @@ class LiteralAndVariableTests(unittest.TestCase):
             self.assertEqual(clean, [])
             leaked = copy.deepcopy(task_ir)
             n4 = [n for n in leaked["nodes"] if n["node_id"] == "n4"][0]
-            n4["inputs"][0]["literal"] = "jim.halpert@dundermifflin.com"  # a world fact
+            n4["inputs"][0]["literal"] = "jim.halpert@dundermifflin.com"
             n1 = [n for n in leaked["nodes"] if n["node_id"] == "n1"][0]
             n1["inputs"].append(
                 {

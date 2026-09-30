@@ -1,34 +1,9 @@
 #!/usr/bin/env bash
-# =============================================================================
-# DERAIL opencua_72b smoke — Nebula 提交入口（Mac 唯一入口）。
-#
-# 拓扑（开源模型形态；full 阶段走 ROCK proxy 拓扑，仿 MCUA OSWorld）：
-#   L1 推理   Nebula job 内 vLLM（OSS FUSE 上的 xlangai/OpenCUA-72B）
-#   L2 编排   同一 job：entry + derail_rock_driver.py（agent loop 在 Nebula，
-#             模型采样走 localhost；截图/动作经 bridge 打进沙箱）
-#   L3 环境   ROCK 沙箱（osworld-rock:v7）：guest QEMU + gateway(:8080)
-#   沙箱永不回连 Nebula（pod IP 不可达实证），方向只有 Nebula → Proxy → 沙箱。
-#
-# SMOKE_PHASE：
-#   probe  只验 vLLM 加载 OSS 权重 + 采样探针 +（默认）沙箱可达性探针；
-#   full   探针过后走 ROCK 单任务 smoke（shard smoke_one，与 API agent 同链）。
-#
-# 凭证通道与 submit_derail_rock_nebula.sh 相同：property_file(0600) + mount-staged
-# secret；本链不需要 routify key（开源模型不经网关）。DRY_RUN=1 是默认值。
-#
-# 用法：
-#   bash scripts/rock/submit_derail_opencua_smoke.sh                     # 干跑
-#   DRY_RUN=0 SMOKE_PHASE=probe bash scripts/rock/submit_derail_opencua_smoke.sh
-#   DRY_RUN=0 SMOKE_PHASE=full  bash scripts/rock/submit_derail_opencua_smoke.sh
-# =============================================================================
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
-# A formal Nebula bundle must correspond to a committed, reviewable source
-# revision. Untracked local data (for example takeovewr_annotation/) is not
-# packaged and does not affect this check.
 ALLOW_DIRTY_SUBMIT="${ALLOW_DIRTY_SUBMIT:-0}"
 if [[ "$ALLOW_DIRTY_SUBMIT" != "1" ]] \
   && { ! git -C "$REPO" diff --quiet --ignore-submodules -- \
@@ -37,9 +12,6 @@ if [[ "$ALLOW_DIRTY_SUBMIT" != "1" ]] \
   exit 2
 fi
 
-# Both submit entrypoints stage a fixed-name run config that must be present
-# while nebulactl snapshots the worktree. Serialize local packaging so two
-# fleets cannot overwrite or remove each other's config and secret reference.
 SUBMIT_LOCK_DIR="$REPO/.submit_derail_nebula.lock"
 _release_submit_lock() {
   rm -f "$SUBMIT_LOCK_DIR/pid"
@@ -66,40 +38,30 @@ if [[ "$_submit_lock_acquired" != "1" ]]; then
 fi
 trap _release_submit_lock EXIT
 
-# --- 凭证自动加载：ROCK_API_KEY/ROCK_BASE_URL 等在 MCUA .env 里（用户确认） ----------
-# 只补当前未设置的变量，不覆盖显式传入值；文件可经 MCUA_ENV_FILE 改指。
 MCUA_ENV_FILE="${MCUA_ENV_FILE:-$HOME/Desktop/Long_horizon-MCUA/.env}"
 if [[ -z "${ROCK_API_KEY:-}" && -f "$MCUA_ENV_FILE" ]]; then
   set -a; . "$MCUA_ENV_FILE" 2>/dev/null || true; set +a
   echo "[submit-opencua-smoke] loaded ROCK creds from $MCUA_ENV_FILE"
 fi
 
-# --- smoke 参数 -------------------------------------------------------------------
 SMOKE_PHASE="${SMOKE_PHASE:-probe}"
 case "$SMOKE_PHASE" in probe|full) ;; *)
   echo "ERROR: SMOKE_PHASE 只能是 probe|full" >&2; exit 2 ;;
 esac
 OPENCUA_MODEL="${OPENCUA_MODEL:-opencua-72b}"
 SERVE_PORT="${SERVE_PORT:-8000}"
-# OSS FUSE 直读权重实测 ~52s/shard，82 shards ≈ 71min，加 warmup 留余量。
 SERVE_READY_TIMEOUT="${SERVE_READY_TIMEOUT:-5400}"
-# 权重目录默认值在 OSS_PREFIX 定值后拼（见下方 OSS 路径段）。
-# 沙箱 -> job vLLM 可达性探针：legacy 拓扑遗留；proxy 拓扑下 vLLM 走 localhost，
-# 默认关（需要时 SANDBOX_REACH_PROBE=1 显式开）。
 SANDBOX_REACH_PROBE="${SANDBOX_REACH_PROBE:-0}"
 
-# full 阶段的采集参数（与 submit_derail_rock_nebula.sh 对齐）。
 AGENT_ID="${AGENT_ID:-opencua_72b}"
 SHARD_FILE="${SHARD_FILE:-configs/mypcbench_task_shards/smoke_one.json}"
 COLLECTION_ID="${COLLECTION_ID:-smoke_opencua72b_nebula_$(date -u +%Y%m%dT%H%M%SZ)}"
-# REPEATS / TASK_TIMEOUT 留空 = 取 configs/collection/mypcbench_runtime.yaml。
 REPEATS="${REPEATS:-}"
 NUM_VMS_OVERRIDE="1"
 MAX_STEPS="${MAX_STEPS:-8}"
 TASK_TIMEOUT="${TASK_TIMEOUT:-}"
 TIMEOUT_PER_VM="${TIMEOUT_PER_VM:-259200}"
 
-# --- Nebula job 配置（整节点：vLLM TP8 + driver 编排） -----------------------------
 QUEUE="${QUEUE:-<nebula-queue>}"
 NEBULA_PROJECT="${NEBULA_PROJECT:-<nebula-project>}"
 PLATFORM_ALGO_NAME="${PLATFORM_ALGO_NAME:-pytorch2100}"
@@ -116,12 +78,10 @@ TAKEOVER_SHARD_OFFSET="${TAKEOVER_SHARD_OFFSET:-0}"
 TAKEOVER_TRAJECTORY_ID_FILTER="${TAKEOVER_TRAJECTORY_ID_FILTER:-}"
 TAKEOVER_TRAJECTORY_ID_FILE="${TAKEOVER_TRAJECTORY_ID_FILE:-}"
 OPENCUA_MAX_TOKENS_OVERRIDE="${OPENCUA_MAX_TOKENS_OVERRIDE:-}"
-# 照 MCUA opencua-72b 实跑规格（32C/8卡/128G）；MI308X 只吃整节点。
 CPU="${CPU:-3200}"
 GPU_UNITS="${GPU_UNITS:-800}"
 MEM="${MEM:-131072}"
 
-# --- ROCK 沙箱配置（与闭源链同一套） -------------------------------------------------
 ROCK_BASE_URL="${ROCK_BASE_URL:-<rock-endpoint>}"
 ROCK_SANDBOX_IMAGE="${ROCK_SANDBOX_IMAGE:?set ROCK_SANDBOX_IMAGE}"
 ROCK_CLUSTER="${ROCK_CLUSTER:?set ROCK_CLUSTER}"
@@ -133,7 +93,6 @@ ROCK_EXPERIMENT_ID="${ROCK_EXPERIMENT_ID:-derail-mypcbench}"
 ROCK_RUN_TIMEOUT="${ROCK_RUN_TIMEOUT:-108000}"
 ROCK_AUTO_CLEAR_SECONDS="${ROCK_AUTO_CLEAR_SECONDS:-172800}"
 
-# --- OSS 路径 ----------------------------------------------------------------------
 OSS_ENDPOINT="${OSS_ENDPOINT:?set OSS_ENDPOINT}"
 OSS_BUCKET="${OSS_BUCKET:-<oss-bucket>}"
 OSS_PREFIX="${OSS_PREFIX:-<oss-prefix>}"
@@ -152,8 +111,6 @@ MYPCBENCH_QWEN_MAX_TOKENS="${MYPCBENCH_QWEN_MAX_TOKENS:-}"
 MYPCBENCH_QWEN_HISTORY_N="${MYPCBENCH_QWEN_HISTORY_N:-}"
 MYPCBENCH_QWEN_CONTEXT_POLICY="${MYPCBENCH_QWEN_CONTEXT_POLICY:-}"
 VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
-# Proxy takeover results use the frozen experiment layout. Collection jobs keep
-# the legacy raw path because their downstream consumers expect it.
 if [[ "$DERAIL_WORKLOAD" == "takeover" ]]; then
   _default_proxy_results="/data/oss_bucket_0/${OSS_PREFIX}/DERAIL/results/takeover/failure_prefix_v1/${TAKEOVER_SOURCE_AGENT}/${TAKEOVER_TARGET_AGENT}/${TAKEOVER_CONDITION}/d${TAKEOVER_DEPTH}"
 else
@@ -167,7 +124,6 @@ TAKEOVER_INPUT_ROOT="${TAKEOVER_INPUT_ROOT:-/data/oss_bucket_0/${OSS_PREFIX}/DER
 DRY_RUN="${DRY_RUN:-1}"
 ALLOW_PLACEHOLDER="${ALLOW_PLACEHOLDER:-0}"
 
-# 占位符检查：占位符会被拼进 OSS URI 造成假失败，DRY_RUN 也拦。
 if [[ "$ALLOW_PLACEHOLDER" != "1" ]]; then
   for _req in QUEUE NEBULA_PROJECT ROCK_BASE_URL ROCK_USER_ID OSS_BUCKET OSS_PREFIX; do
     _val="${!_req}"
@@ -179,7 +135,6 @@ if [[ "$ALLOW_PLACEHOLDER" != "1" ]]; then
 fi
 
 if [[ "$DRY_RUN" == "0" ]]; then
-  # 可达性探针或 full 阶段都要建沙箱：需要 ROCK_API_KEY。
   if [[ "${SANDBOX_REACH_PROBE}" == "1" || "$SMOKE_PHASE" == "full" ]]; then
     [[ -n "${ROCK_API_KEY:-}" ]] || {
       echo "ERROR: ROCK_API_KEY 未设置（建沙箱会 401）；或设 SANDBOX_REACH_PROBE=0 且 SMOKE_PHASE=probe" >&2
@@ -189,7 +144,6 @@ fi
 
 [[ -f "$REPO/$SHARD_FILE" ]] || { echo "ERROR: 找不到 shard 文件：$REPO/$SHARD_FILE" >&2; exit 2; }
 
-# --- 提交前 sweep 僵尸沙箱（同闭源链；429 教训） --------------------------------------
 SWEEP_STALE_SANDBOXES="${SWEEP_STALE_SANDBOXES:-1}"
 if [[ "$SWEEP_STALE_SANDBOXES" == "1" && "$DRY_RUN" == "0" \
       && ( "${SANDBOX_REACH_PROBE}" == "1" || "$SMOKE_PHASE" == "full" ) ]]; then
@@ -208,7 +162,6 @@ if [[ "$SWEEP_STALE_SANDBOXES" == "1" && "$DRY_RUN" == "0" \
   fi
 fi
 
-# --- OSS 凭证 + cluster.json + run-config -------------------------------------------
 OSS_ID="${OSS_ACCESS_ID:-$(sed -n 's/^accessKeyID=//p' "${HOME}/.ossutilconfig" 2>/dev/null || true)}"
 OSS_KEY="${OSS_ACCESS_KEY:-$(sed -n 's/^accessKeySecret=//p' "${HOME}/.ossutilconfig" 2>/dev/null || true)}"
 [[ -n "${OSS_ID}" && -n "${OSS_KEY}" ]] \
@@ -237,7 +190,6 @@ printf 'oss_access_id=%s\noss_access_key=%s\noss_bucket=%s\noss_endpoint=%s\n' \
   "${OSS_ID}" "${OSS_KEY}" "${OSS_BUCKET}" "${OSS_ENDPOINT}" > "$REPO/$PROPS_FILE"
 umask 022
 
-# --- 0600 secret 上 OSS mount 通道（OSS AK + ROCK_API_KEY；无 routify） -------------
 OSSUTIL_BIN="$(command -v ossutil 2>/dev/null || echo "/usr/local/bin/ossutil")"
 if [[ -x "${OSSUTIL_BIN:-/nonexistent}" ]]; then
   _tmp_secret="$(mktemp)"; chmod 600 "$_tmp_secret"
@@ -260,7 +212,6 @@ else
 fi
 echo "[submit-opencua-smoke] cluster.json -> $REPO/$CLUSTER_FILE : $(cat "$REPO/$CLUSTER_FILE")"
 
-# --- .opencua_run.env（随代码包走；绝不含任何 key） ----------------------------------
 cat > "$REPO/$RUN_ENV_FILE" <<ENVF
 export SMOKE_PHASE='${SMOKE_PHASE}'
 export OPENCUA_MODEL='${OPENCUA_MODEL}'
@@ -326,8 +277,6 @@ ENVF
 chmod 600 "$REPO/$RUN_ENV_FILE"
 echo "[submit-opencua-smoke] run-config -> $REPO/$RUN_ENV_FILE (phase=$SMOKE_PHASE shard=$SHARD_FILE)"
 
-# Submit a clean committed tree; live checkouts may contain large untracked
-# raw/artifact/model files and stall nebulactl before task registration.
 STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/derail-nebula-submit.XXXXXX")"
 git -C "$REPO" archive HEAD | tar -x -C "$STAGING_DIR"
 cp "$REPO/$CLUSTER_FILE" "$REPO/$RUN_ENV_FILE" "$REPO/$PROPS_FILE" "$STAGING_DIR/"
@@ -340,10 +289,7 @@ if [[ -n "${JOB_NAME_SUFFIX:-}" ]]; then
   JOB_NAME="${JOB_NAME}-${JOB_NAME_SUFFIX}"
 fi
 IGNORE_LIST="${IGNORE_LIST:-third_party/*,takeovewr_annotation/*,artifacts/raw_rollouts/*,artifacts/derail_builds/*,artifacts/model_outputs/*,artifacts/takeover/bundles/*,artifacts/phase5/*,data/synthesis/*,draft/*,runs/*,.git/*,.venv*,.env,docs/*,*.log,*.pyc,__pycache__/*,.props_*,.cluster_*}"
-# 注意：.opencua_run.env 必须随代码包上传（entry 要 source），不能进 ignore。
 
-# Use nebulactl for submission.  The Node nebula-cli is a log/task observer
-# and does not reliably implement the run-mdl registration path used here.
 NEBULACTL_BIN="$(command -v nebulactl 2>/dev/null \
   || { [[ -x "$HOME/bin/nebulactl" ]] && echo "$HOME/bin/nebulactl"; } \
   || command -v nebula-cli 2>/dev/null \

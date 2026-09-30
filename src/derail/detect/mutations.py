@@ -1,15 +1,3 @@
-"""Mutation library (execution doc v1.2 section 6.1), static side.
-
-Every produce type maps to the type-preserving mutations that could corrupt it; the static
-profile attaches those mutation types to each node's latent horizon (``mutation/1.0`` with
-``mode: static``).  Concrete mutated values come from the world and are produced by the
-dynamic module (section 6.3, deferred), so ``mutated_value_ref`` here names the *kind* of
-substitute, not a value.
-
-The type -> mutation table lives in ``configs/synthesis/mutations_v1.yaml`` so the port-type
-vocabulary and the mutation vocabulary can evolve without code changes.
-"""
-
 from __future__ import annotations
 
 import re
@@ -25,7 +13,7 @@ MUTATIONS_CONFIG_VERSION = "mutations-config/1.0"
 @dataclass(frozen=True)
 class MutationLibrary:
     by_family: Mapping[str, Tuple[str, ...]]
-    family_patterns: Tuple[Tuple[str, str], ...]  # (regex over the type name, family)
+    family_patterns: Tuple[Tuple[str, str], ...]
     write_mutations: Tuple[str, ...]
     default_family: str
 
@@ -54,9 +42,6 @@ class MutationLibrary:
         return self.by_family.get(self.family_of(type_name), ())
 
     def mutations_for_node(self, node: Mapping[str, Any]) -> List[Tuple[str, str, str]]:
-        """``(produce_name, produce_type, mutation_type)`` for every produce, plus write
-        mutations once per node that writes."""
-
         out: List[Tuple[str, str, str]] = []
         for produce in node.get("produces", ()):
             for mutation in self.mutations_for_type(str(produce.get("type", ""))):
@@ -73,8 +58,6 @@ def static_mutation_records(
     library: MutationLibrary,
     profile_version: str,
 ) -> List[Dict[str, Any]]:
-    """One ``mutation/1.0`` record per (node, mutation type), static mode."""
-
     records: List[Dict[str, Any]] = []
     for node in task_ir["nodes"]:
         node_id = str(node["node_id"])

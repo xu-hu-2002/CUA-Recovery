@@ -1,22 +1,3 @@
-/**
- * DERAIL request-level SQL tracer for the MyPCBench web apps (execution doc v1.2 section 4.2).
- *
- * Loaded with NODE_OPTIONS=--require /opt/derail/trace.js (see systemd-dropin.conf).  It
- * wraps better-sqlite3 so every prepared statement executed while an HTTP request is being
- * served is written to /data/_trace/<app>.jsonl as
- *
- *   {ts, action_index, route, method, sql, rows_returned, rows, params, db}
- *
- * The request is tracked with AsyncLocalStorage entered from http.Server's "request" event,
- * so statements run by nested async work still belong to the request that caused them.  The
- * current action index is read from the cursor file the control API maintains
- * (DERAIL_CURSOR_FILE, default /data/_derail/cursor.json); a missing file means -1.
- *
- * Only reads are needed for Pages_t (writes are captured by the database triggers), but every
- * statement is logged so a later audit can cross-check; the row count is what the OSM builder
- * uses to know which tables a route rendered.  Nothing here changes application behaviour;
- * any tracer error is swallowed after a single stderr line.
- */
 "use strict";
 
 const fs = require("fs");
@@ -78,8 +59,6 @@ function truncateParams(params) {
   }
 }
 
-// Result rows of a read (bounded): the observation facts (execution doc 4.2b) are derived from
-// them by the harness, so what the page could render is on record, not just how many rows.
 function capturedRows(method, result) {
   try {
     let rows = null;
@@ -97,11 +76,10 @@ function capturedRows(method, result) {
 function rowsReturned(result) {
   if (Array.isArray(result)) return result.length;
   if (result === undefined || result === null) return 0;
-  if (typeof result === "object" && "changes" in result) return 0; // run() info object
+  if (typeof result === "object" && "changes" in result) return 0;
   return 1;
 }
 
-// ---- HTTP request context -----------------------------------------------------------------
 const originalEmit = http.Server.prototype.emit;
 http.Server.prototype.emit = function (event, req, res) {
   if (event === "request" && req && typeof req.url === "string") {
@@ -113,7 +91,6 @@ http.Server.prototype.emit = function (event, req, res) {
   return originalEmit.apply(this, arguments);
 };
 
-// ---- better-sqlite3 wrapping ----------------------------------------------------------------
 function wrapDatabase(Database) {
   if (Database.__derailWrapped) return Database;
   const originalPrepare = Database.prototype.prepare;

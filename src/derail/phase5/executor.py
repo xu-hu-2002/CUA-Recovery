@@ -10,8 +10,6 @@ from .hazard_records import TERMINAL_STATUSES, HazardRecordError, terminalize
 def apply_results(
     records: list[Mapping[str, Any]], results: Mapping[str, Mapping[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Apply a complete result map without overwriting terminal records."""
-
     output: list[dict[str, Any]] = []
     seen: set[str] = set()
     for record in records:

@@ -1,9 +1,4 @@
-"""Small immutable DAG index over a validated task fragment.
-
-``derail.synthesis.graph`` validates fragments; this index exposes the derived structure
-(adjacency, topological order, depths, ancestry) that several v0.2 metrics need, so each metric
-module stays a pure function over the index instead of re-deriving the graph.
-"""
+"""Small immutable DAG index over a validated task fragment."""
 
 from __future__ import annotations
 
@@ -63,8 +58,6 @@ class DagIndex:
         return _endpoint(edge, "from")[0], _endpoint(edge, "to")[0]
 
     def longest_depth(self) -> Dict[str, int]:
-        """Longest path from any source, counted in nodes (sources have depth 1)."""
-
         depth = {node_id: 1 for node_id in self.order}
         for node_id in self.order:
             for target in self.outgoing[node_id]:
@@ -72,8 +65,6 @@ class DagIndex:
         return depth
 
     def shortest_depth(self) -> Dict[str, int]:
-        """Shortest path from any source, counted in nodes (sources have depth 1)."""
-
         depth: Dict[str, Optional[int]] = {node_id: None for node_id in self.order}
         queue: deque = deque()
         for source in self.sources:
@@ -90,8 +81,6 @@ class DagIndex:
         return {node_id: int(value) for node_id, value in depth.items() if value is not None}
 
     def longest_distances_from(self, source: str) -> Dict[str, int]:
-        """Longest path length in edges from ``source``; unreachable nodes are omitted."""
-
         distance = {node_id: -1 for node_id in self.order}
         distance[source] = 0
         for node_id in self.order:
@@ -119,6 +108,4 @@ class DagIndex:
         return self._closure(node_id, self.outgoing)
 
     def value_edges(self) -> Iterable[Mapping[str, Any]]:
-        """Edges that carry a value or state (control edges are excluded)."""
-
         return (edge for edge in self.edges if edge.get("kind") != "control_dependency")

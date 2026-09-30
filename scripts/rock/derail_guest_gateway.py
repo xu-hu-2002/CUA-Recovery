@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-"""Route ROCK's fixed sandbox service port to QEMU guest HTTP services.
-
-DERAIL 移植自 Long_horizon-MCUA/scripts/rock_guest_gateway.py（纯 stdlib，
-沙箱内零依赖）。跑在 ROCK 沙箱容器 :8080，把平台 Proxy 打进来的
-/<prefix>/... 请求按路由表转发给 guest（MyPCBench 控制面 :5000）。
-
-Plain HTTP requests are proxied via http.client.  Requests carrying an
-``Upgrade: websocket`` handshake are tunnelled instead: the raw handshake is
-replayed verbatim to the guest service and, once the 101 goes through, both
-sockets are pumped byte-for-byte in both directions.  Without this, CDP
-clients (Playwright connect_over_cdp) died with a 500 from *this* gateway --
-the HOP_HEADERS filter stripped the Upgrade/Connection headers and Chrome
-never switched protocols (event #18, task 35253b65, four-model outage).
-"""
+"""Route ROCK's fixed sandbox service port to QEMU guest HTTP and WebSocket services."""
 
 from __future__ import annotations
 
@@ -52,11 +39,7 @@ def is_websocket_upgrade(headers) -> bool:
 
 
 def read_http_head(sock: socket.socket) -> bytes:
-    """Read until the end of the response head; keep any trailing bytes.
-
-    The server may legally push WebSocket frames immediately after the 101,
-    so everything received is returned and later forwarded verbatim.
-    """
+    """Read until the end of the response head; keep any trailing bytes."""
     buffer = b""
     while b"\r\n\r\n" not in buffer:
         if len(buffer) > WS_HEAD_LIMIT:
@@ -137,8 +120,6 @@ class Gateway:
             connection.request(request.command, path, body=body, headers=headers)
             self.copy_response(request, connection.getresponse())
         except (OSError, http.client.HTTPException) as exc:
-            # HTTPException (e.g. BadStatusLine when the upstream slams the
-            # connection) used to escape as an opaque 500; keep it a 502.
             request.send_error(502, str(exc))
         finally:
             connection.close()
@@ -146,7 +127,7 @@ class Gateway:
     def tunnel_websocket(self, request: BaseHTTPRequestHandler, route: Route,
                          path: str) -> None:
         """Replay the client's upgrade handshake verbatim and go raw-TCP."""
-        request.close_connection = True  # this socket never serves HTTP again
+        request.close_connection = True
         lines = [f"{request.command} {path} HTTP/1.1",
                  f"Host: {route.host}:{route.port}"]
         lines += [f"{key}: {value}" for key, value in request.headers.items()
@@ -167,10 +148,8 @@ class Gateway:
                 request.send_error(502, f"websocket handshake failed: {exc}")
                 return
             client = request.connection
-            client.sendall(head)  # 101 head (+ any early frames) verbatim
+            client.sendall(head)
             if status != 101:
-                # Upstream refused the upgrade: its full HTTP answer has been
-                # relayed; drain briefly so short error bodies arrive intact.
                 upstream.settimeout(2.0)
                 try:
                     while chunk := upstream.recv(65536):
@@ -180,9 +159,6 @@ class Gateway:
                 return
             upstream.settimeout(None)
             client.settimeout(None)
-            # Client bytes may already sit in rfile's buffer, so the
-            # client->upstream direction must read through rfile, not the
-            # raw socket.  Upstream direction pumps in this thread.
             writer = threading.Thread(
                 target=pump, args=(lambda: request.rfile.read1(65536), upstream),
                 daemon=True)

@@ -1,4 +1,3 @@
-# Database file stem -> product name shown to users and in the paper (DECISIONS D-016).
 schema_version: app-display-names/1.0
 names:
   mail: HooliMail

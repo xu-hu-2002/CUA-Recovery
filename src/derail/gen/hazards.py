@@ -1,12 +1,3 @@
-"""World-side hazards: base rates and persona diffs (execution doc v1.2 section 7.3).
-
-Offline half of the injector: count each hazard type's base rate on the base world
-(``configs/synthesis/hazards_v1.yaml`` queries), refuse types with base rate zero, and produce
-the persona JSON patch for a target edge together with a ``hazard-injection/1.0`` record in
-status ``pending``.  The seeder run, the cross-application consistency check and the
-gold-uniqueness check happen in the VM and update the record.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -50,8 +41,6 @@ class HazardConfig:
 
 
 def base_rates(config: HazardConfig, database_dir: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
-    """``{hazard_type: {"count": n, "units": [{app, unit, count}]}}`` over the base world."""
-
     out: Dict[str, Dict[str, Any]] = {}
     for hazard, queries in config.base_rate_queries.items():
         units = []
@@ -122,8 +111,6 @@ def injection_record(
     rates: Mapping[str, Mapping[str, Any]],
     target_cell: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """``hazard-injection/1.0`` in status pending (or BASE_RATE_ZERO when not injectable)."""
-
     injection_id = (
         "hz-%s"
         % hashlib.sha256(

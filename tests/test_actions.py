@@ -1,5 +1,3 @@
-"""Canonical action、坐标和 replay 的基础测试。"""
-
 import unittest
 
 from derail.canonical.actions import (

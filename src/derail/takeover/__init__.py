@@ -1,4 +1,4 @@
-"""构建 takeover 时交给目标 agent 的原生历史。"""
+"""Native history handed to the target agent at takeover."""
 
 from .diagnosis import HumanDiagnosisEvidence, load_human_diagnosis_evidence
 from .history import (

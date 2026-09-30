@@ -56,8 +56,6 @@ class Qwen38ScaffoldAdapter(Qwen36ScaffoldAdapter):
     def _xy(x_px: int, y_px: int, width: int, height: int) -> tuple[int, int]:
         if width <= 1 or height <= 1:
             raise ValueError("Qwen3.8 history action has an invalid source frame")
-        # Match MyPCBenchVMReplayBackend's endpoint-aware reprojection. This
-        # keeps history tool calls aligned with the actual 1280x800 replay VM.
         return round(x_px * 1279 / (width - 1)), round(y_px * 799 / (height - 1))
 
     @staticmethod
@@ -80,8 +78,6 @@ class Qwen38ScaffoldAdapter(Qwen36ScaffoldAdapter):
 
     @staticmethod
     def _literal_text_key(action: Action) -> str | None:
-        """Recognize EvoCUA's character-by-character typing representation."""
-
         if not isinstance(action, HotkeyAction) or len(action.keys) != 1:
             return None
         key = action.keys[0]
@@ -177,10 +173,6 @@ class Qwen38ScaffoldAdapter(Qwen36ScaffoldAdapter):
                 or any(not Holo31Adapter._SAFE_KEY.fullmatch(key) for key in action.keys)
             )
         ):
-            # The frozen computer schema has no keyDown/keyUp/mouseDown/mouseUp/
-            # hscroll primitive and caps hotkey chords at five keys. Qwen3.8's
-            # native hybrid scaffold does have bash, so preserve the exact
-            # PyAutoGUI operation there instead of dropping or approximating it.
             return [self._bash_call(compile_pyautogui(action), call_id)]
         return [super().action_to_call(action, call_id)]
 
@@ -194,13 +186,6 @@ class Qwen38ScaffoldAdapter(Qwen36ScaffoldAdapter):
     def _result_per_call(
         calls: List[Dict[str, Any]], result_text: str
     ) -> List[str]:
-        """Bind captured shell results to generated Qwen call IDs by order.
-
-        Replay call IDs belong to the source agent and cannot be reused in the
-        target transcript.  The canonical sequence order is stable, so order is
-        the lossless bridge between source results and target-generated IDs.
-        """
-
         gui_reply = Holo31Adapter._TOOL_RESULT
         results = [gui_reply] * len(calls)
         shell_positions = [

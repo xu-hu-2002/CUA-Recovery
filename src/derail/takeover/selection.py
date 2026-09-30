@@ -43,8 +43,6 @@ def _resolve_double_annotation(labels: Path, trajectory_id: str, candidates: lis
 def _repaired_prefix(
     repairs_dir: Optional[Path], trajectory_id: str, canonical_sha256: str, root: int
 ) -> Optional[Mapping[str, Any]]:
-    """The human-verified repaired prefix of one trajectory, or ``None`` when absent or stale."""
-
     if repairs_dir is None:
         return None
     path = repairs_dir.expanduser().resolve() / trajectory_id / "repair_report.json"
@@ -78,13 +76,7 @@ def select_takeover_failures(
     repairs_dir: Optional[Path] = None,
     require_repaired_prefix: bool = False,
 ) -> dict[str, Any]:
-    """Return failures with paired human review+annotation, excluding bad rollouts.
-
-    Depth eligibility is ``derail.construction.cases.eligible_depths`` (paper App. C).  When
-    ``repairs_dir`` holds a human-verified repaired prefix for a trajectory
-    (``<repairs_dir>/<trajectory_id>/repair_report.json``), the item carries its URIs; with
-    ``require_repaired_prefix`` a trajectory without one is excluded.
-    """
+    """Return failures with paired human review+annotation, excluding bad rollouts."""
 
     build = build_dir.expanduser().resolve()
     labels = human_labels_dir.expanduser().resolve()
@@ -158,9 +150,6 @@ def select_takeover_failures(
             candidate_annotator = str(annotation.get("annotator_id", ""))
             if annotator_id and candidate_annotator != annotator_id:
                 continue
-            # A flag invalidates only that annotator's own submission.  A
-            # different human's failure annotation is disagreement, not a
-            # global veto on the trajectory.
             if candidate_annotator in flagged_annotators:
                 continue
             review_path = labels / "rubric_scores" / annotation_path.name
@@ -201,8 +190,6 @@ def select_takeover_failures(
                 )
             continue
         if len(candidates) > 1:
-            # Double-annotated trajectory (paper App. E): take the label the third annotator's
-            # adjudication settled on, or either label when both agree on root and t_e.
             candidates = _resolve_double_annotation(labels, trajectory_id, candidates)
         if len(candidates) != 1:
             excluded.append(

@@ -1,7 +1,6 @@
 .DS_Store
 /env.yaml
 /.env
-# Nebula/xdl 提交残留配置，含明文 OSS AK/SK，绝不入库。
 xdl_config_*
 __pycache__/
 *.py[cod]
@@ -15,7 +14,6 @@ build/
 *.egg-info/
 /.tools/
 
-# 大型或可能包含敏感桌面内容的实验产物只保留 manifest。
 artifacts/snapshots/*
 artifacts/screenshots/*
 artifacts/raw_rollouts/*
@@ -28,37 +26,24 @@ artifacts/judge_pilot/*
 artifacts/eval_images/*
 artifacts/quarantine/*
 artifacts/error depth/*
-# artifacts/takeover/ 顶层是代码和结果（run_takeover.sh、README、判分 CSV），要进库；
-# 每次 rollout 的产物是 RUN_TAG 命名的子目录（takeover_v1 已 9.2G，含全部截图），不进。
 artifacts/takeover/*/
-# smoke 的任务子集是 MyPCBench 任务定义的副本，而 third_party/ 本来就不进 Git；
-# 把它抄进来等于在仓库里存第二份上游数据。子集完全由
-# (tasks_file, n, seed) 决定，.claude/skills/smoke-task-selection 保证可复现，
-# selection.json 也随产物留在 run_root 里，不需要版本化。
 artifacts/smoke_tasks/*
 !artifacts/**/README.md
-# 轨迹打包 zip 数百 MB；manifest 记 SHA-256 与条目数，按既有约定入库。
 artifacts/traj_bundles/**/*.zip
 
-# 本地凭证 env（含 routify/Anthropic/ROCK/OSS 明文密钥）。仓库公开，绝不入库。
 *_creds.env
 
-# judge 假零分污染的隔离区，属实验残骸不属 release。
 _quarantine_*/
 
-# 调试期的模型对话转储（完整 prompt + base64 截图），11M 起步，属于实验产物。
 draft/
 
-# 运行和结果目录中的 README/manifest 可追踪，逐次大文件默认忽略。
 runs/**/episodes/
 results/raw/
 
-# 本地研究材料和内部审稿笔记不属于公开 release。
 /reference/
 /review/
 /notes
 
-# LaTeX 临时文件。
 *.aux
 *.bbl
 *.blg
@@ -70,16 +55,12 @@ results/raw/
 *.toc
 /iclr2026/iclr2026_conference.pdf
 
-# 论文源码与图表由作者另行管理，不进这个仓库的提交（2026-09-06）。
 iclr2026/
 
-# 仓库里只留 README，说明/笔记/报告类 markdown 只放本地（2026-09-29）。
-# prompts/ 下的 md 是运行时读取的 prompt 模板，属于代码。
 *.md
 !README.md
 !prompts/**/*.md
 
-# 生成数据和论文 PDF 不进仓库。
 /data/synthesis/generation/
 /data/synthesis/task_ir/
 /data/synthesis/task_ir_v1/

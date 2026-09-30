@@ -1,23 +1,5 @@
-# DERAIL annotation statistics - logical field mapping
-# ---------------------------------------------------
-# PROPOSED BY PHASE 0 - NOT YET CONFIRMED. Edit freely; nothing downstream
-# hard-codes a physical column name, every one is read from this file.
-#
-# `store` values:
-#   failure_annotations  human_labels/<traj>__<annot>.json
-#   rubric_scores        human_labels/rubric_scores/<traj>__<annot>.json
-#   cleaning_proposals   human_labels/cleaning_proposals/<traj>__<annot>.json
-#   rollout_flags        human_labels/rollout_flags/<traj>__<annot>.json
-#   canonical            <agent_build>/canonical/<traj>/*.json
-#   derived              computed in clean.py by the named rule
-#
-# `confidence`: high | medium | low | absent
-
 meta:
   schema_version: "phase0-proposal-1"
-  # 0-based, because the annotation UI writes action_index_global directly.
-  # The spec assumed 1-based; set this to 1 if you disagree and every step
-  # figure will shift accordingly.
   step_index_base: 0
   primary_key: [trajectory_id, annotator]
   join_key_across_agents: task_id
@@ -31,11 +13,11 @@ fields:
 
   agent:
     store: canonical
-    column: source_agents        # list; clean.py asserts it is single-valued
+    column: source_agents
     confidence: high
 
   annotator:
-    store: multi                 # name differs per store
+    store: multi
     column:
       failure_annotations: annotator_id
       rubric_scores: reviewer_id
@@ -55,7 +37,7 @@ fields:
 
   agent_self_report:
     store: derived
-    rule: terminal_action_status   # canonical terminal_action_kind/status
+    rule: terminal_action_status
     confidence: medium
 
   human_verdict:
@@ -89,7 +71,7 @@ fields:
   clear_failure_step:
     store: failure_annotations
     column: identifiable_at_action_index
-    null_means: right_censored     # UI checkbox "failure never becomes clear"
+    null_means: right_censored
     confidence: high
 
   failure_depth:
@@ -121,72 +103,41 @@ fields:
     store: absent
     confidence: absent
 
-# ---------------------------------------------------------------------------
-# Analysis-set definition. Phase 1/2 read this instead of assuming.
-# ---------------------------------------------------------------------------
 analysis_set:
-  # Agent -> the single annotator whose labels are kept for that agent.
-  # Confirmed by the user 2026-08-20: any other annotator's labels on these
-  # agents are treated as noise and dropped. This makes agent and annotator
-  # perfectly collinear by construction; see the methodology warning block.
   agent_annotator_whitelist:
     gpt_5_5: Haoming
     claude_opus_4_8: xuhu
     evocua_32b: Jinxin
-  # A rollout enters the analysis iff it has a human rubric review.
   require_rubric_review: true
-  # ...and is not flagged Wrong Rollout.
   exclude_wrong_rollout: true
-  # Denominator below this gets a [LOW_N] marker on every derived rate.
   low_n_threshold: 10
 
-# Statistics that this run is scoped to produce. Anything not listed is out of
-# scope for the current request and is deliberately NOT computed, rather than
-# computed and hidden.
 scope:
   task_score: true
   rubric_score: true
-  error_types: true          # "root cause" distribution
+  error_types: true
   error_depth: true
-  reversibility: false       # out of scope this run
-  clean_prefix: false        # out of scope this run
-  sole_blocker: false        # out of scope this run
-  cooccurrence: false        # out of scope this run
-  self_report_confusion: false  # out of scope this run
+  reversibility: false
+  clean_prefix: false
+  sole_blocker: false
+  cooccurrence: false
+  self_report_confusion: false
 
-# Depth binning used for the ordinal (measurement-robust) view.
 depth_bins:
-  edges: [0, 2, 5]           # -> "0-1", "2-4", "5+"
+  edges: [0, 2, 5]  # -> "0-1", "2-4", "5+"
   labels: ["0-1", "2-4", "5+"]
 
 bootstrap:
   n_resamples: 10000
   seed: 42
 
-# ---------------------------------------------------------------------------
-# error_type -> category. Two candidate groupings disagree; pick one.
-#   spec_*   : the grouping given in the analysis request
-#   taxonomy_*: the grouping recorded in human_labels/taxonomy/open_coded_labels.json
-# Labels absent from the chosen grouping are reported as UNMAPPED, never guessed.
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Label normalisation, applied in clean.py BEFORE any categorisation or counting.
-# Order: rename first, then drop. Results are de-duplicated per rollout, so a
-# rename onto a label the rollout already carries collapses to one occurrence.
-# Every applied edit is logged to tables/label_normalization_log.csv.
-# Confirmed by the user 2026-08-20.
-# ---------------------------------------------------------------------------
 label_normalization:
   rename:
-    # The annotator's "wrong_subgoal" is the same concept as this label.
     wrong_subgoal: misunderstand_task_objective
   drop:
-    # Removed from the taxonomy at the user's instruction. Rollouts whose only
-    # label was this one keep task_score/rubric/depth statistics but leave the
-    # error-type analysis set, and are listed in the report as label-missing.
     - gui_workflow_bypass
 
-error_category_source: spec        # spec | taxonomy_export
+error_category_source: spec  # spec | taxonomy_export
 
 error_categories:
   spec:
@@ -196,9 +147,6 @@ error_categories:
     execution:   [grounding_failure, incorrect_ui_element,
                   typing_or_parameter_error, section_content_misplacement]
     termination: [fail_to_terminate, premature_completion]
-  # Reproduced verbatim from the taxonomy export; it covers only 6 of the 18
-  # labels actually used and it contradicts `spec` on detail_misperception and
-  # scope_error.
   taxonomy_export:
     planning:    [lack_of_knowledge]
     perception:  []
@@ -206,23 +154,13 @@ error_categories:
                   scope_error, section_content_misplacement]
     termination: []
 
-# ---------------------------------------------------------------------------
-# Annotation protocol (paper App. E), read by derail_annot_stats.agreement.
-# ---------------------------------------------------------------------------
 annotation_protocol:
-  # "For Qwen3.5-35B-A3B, EvoCUA-32B, and OpenCUA-72B, we sample 30% of the
-  # trajectories, stratified by task category. A second annotator labels this
-  # subset independently. A third annotator resolves any disagreement."
   double_annotation:
     agents: [qwen3_5_35b_a3b, evocua_32b, opencua_72b]
     fraction: 0.30
     stratify_by: task_category
     seed: 42
-  # Human-LLM agreement: the LLM judge's pass verdict against the human
-  # task_success (adjudicated when a third annotator resolved a disagreement).
   human_llm_agreement:
-    judge_result_file: osworld_full_traj_result.json   # next to the source traj.jsonl
+    judge_result_file: osworld_full_traj_result.json
     judge_pass_field: passed
-    # A task passes under Pass@k when any of its rollouts passes; with one
-    # repeat this is the per-trajectory verdict.
     unit: task

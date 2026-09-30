@@ -1,15 +1,3 @@
-"""LLM-assisted Task IR extraction with programme validation (manual v0.2 section 5.4).
-
-The model only *proposes* a candidate IR.  This module renders the prompt from the task, its
-world subgraph and the ontology, parses the reply, wraps it as a ``grounded-task-module/0.1``
-record marked ``needs_review``, and runs the static checks (DAG, ports, grounding, effects).
-Nothing here promotes a module to ``human_verified``.
-
-Network access goes through one small OpenAI-compatible client that refuses to run unless the
-repository's explicit approval variables are set (the same policy as ``configs/judges``).  The
-API key is read from the environment and never logged or written.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -112,11 +100,7 @@ class LLMClient(Protocol):
 
 
 class OpenAICompatibleClient:
-    """Minimal chat-completions client over the standard library.
-
-    Construction fails unless ``approval_env`` is truthy and ``purpose_env`` names an allowed
-    purpose, so a configured key can never be spent by accident.
-    """
+    """Minimal chat-completions client over the standard library."""
 
     def __init__(self, config: ExtractorConfig, purpose: str):
         approved = os.environ.get(config.approval_env, "").strip().lower() in _TRUE_VALUES
@@ -129,7 +113,6 @@ class OpenAICompatibleClient:
         api_key = os.environ.get(config.api_key_env, "")
         base_url = os.environ.get(config.base_url_env, "") or config.base_url_default
         if base_url and not base_url.lower().startswith(("http://", "https://")):
-            # Never echo the value: a mis-set variable may hold a credential.
             raise ApprovalRequired(
                 "%s is not an http(s) URL (length %d); fix the environment / .env"
                 % (config.base_url_env, len(base_url))
@@ -170,7 +153,6 @@ class OpenAICompatibleClient:
             with urllib.request.urlopen(request, timeout=self._config.timeout_s) as response:
                 reply = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            # Never echo the request (it carries the key); status and a short body are enough.
             raise RuntimeError(
                 "extraction request failed: HTTP %s %s"
                 % (exc.code, exc.read()[:200].decode("utf-8", "replace"))
@@ -188,8 +170,6 @@ _PLACEHOLDER = re.compile(r"\{\{([a-z_]+)\}\}")
 
 
 def render_prompt(template: str, fields: Mapping[str, str]) -> str:
-    """Replace ``{{name}}`` placeholders; unknown placeholders are an error, not silence."""
-
     missing = sorted(set(_PLACEHOLDER.findall(template)) - set(fields))
     if missing:
         raise KeyError("prompt template lacks values for %s" % missing)
@@ -247,8 +227,6 @@ def build_prompt_fields(
 
 
 def parse_extraction_response(text: str) -> Dict[str, Any]:
-    """Extract the single JSON object from a reply that may wrap it in a code fence."""
-
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     candidate = fenced.group(1) if fenced else text[text.find("{") : text.rfind("}") + 1]
     if not candidate.strip():
@@ -262,8 +240,6 @@ def parse_extraction_response(text: str) -> Dict[str, Any]:
     return parsed
 
 
-# Field-name synonyms models tend to produce; normalised before validation so a reply is not
-# rejected for vocabulary the validator does not know.
 _NODE_SYNONYMS = {"operation": "op", "application": "app", "goal": "semantic_goal"}
 _PORT_SYNONYMS = {"name": "port_id", "port": "port_id"}
 APP_UNSPECIFIED = "unspecified"
@@ -273,8 +249,6 @@ _UNBOUND_FIELDS = ("name", "app", "kind", "needed_by", "why")
 
 
 def normalize_unbound(entries: Any) -> List[Dict[str, Any]]:
-    """Coerce ``unbound_entities`` to objects with a fixed field set (strings become names)."""
-
     result: List[Dict[str, Any]] = []
     for entry in entries or ():
         if isinstance(entry, Mapping):
@@ -289,16 +263,12 @@ def normalize_unbound(entries: Any) -> List[Dict[str, Any]]:
 
 
 def normalize_fragment(fragment: Mapping[str, Any]) -> Dict[str, Any]:
-    """Return a copy with synonym keys renamed on nodes and ports (existing keys win)."""
-
     result = json.loads(json.dumps(fragment))
     for node in result.get("nodes", ()):
         for old, new in _NODE_SYNONYMS.items():
             if old in node and new not in node:
                 node[new] = node.pop(old)
         if not node.get("app"):
-            # Keep the placeholder visible: the grounding check reports it and a reviewer must
-            # fill it in.  Never infer the application from port groundings.
             node["app"] = APP_UNSPECIFIED
         for direction in ("inputs", "outputs"):
             for port in node.get(direction, ()) or ():
@@ -347,8 +317,6 @@ def to_grounded_module(
     source_sha256: str,
     llm_call: Mapping[str, Any],
 ) -> ExtractedModule:
-    """Wrap a parsed reply as a ``needs_review`` module and collect every static issue."""
-
     task_id = str(task["id"])
     fragment = normalize_fragment(parsed["fragment"])
     fragment["schema_version"] = FRAGMENT_SCHEMA_VERSION
@@ -407,17 +375,6 @@ def run_extraction(
     workers: int = 1,
     progress: Optional[Callable[[int, int, str, float], None]] = None,
 ) -> Dict[str, Any]:
-    """Render prompts for every task; call the model only when a client is supplied.
-
-    Without a client this is a dry run: prompts are written so they can be inspected and hashed
-    before any budget is spent.  ``saved_replies_dir`` re-parses replies from an earlier run
-    (``<task_id>.txt``) instead of calling the model, so parser fixes never cost a second call.
-    Modules are appended to ``modules.jsonl``; every record keeps ``review_status: needs_review``
-    regardless of the static outcome.  ``workers`` > 1 issues model calls concurrently; outputs
-    are still written in task order so the run is reproducible file for file.  ``progress``
-    is called after every fetched reply with ``(done, total, task_id, seconds)``.
-    """
-
     system = config.prompt_system.read_text(encoding="utf-8")
     user_template = config.prompt_user.read_text(encoding="utf-8")
     prompts_dir = output_dir / "prompts"

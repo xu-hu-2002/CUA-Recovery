@@ -21,8 +21,6 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 class FakeControl:
-    """In-memory stand-in for the VM control API: records cursor posts, serves ledgers."""
-
     def __init__(self):
         self.cursor_log = []
         self.cursor = None
@@ -45,7 +43,6 @@ class FakeControl:
             return {"records": [t for t in self.trace if t["action_index"] == index]}
         raise AssertionError(path)
 
-    # what the VM would do when the agent acts
     def write(self, db, tbl, rowid, op, new):
         self.seq[db] += 1
         self.rows.append(
@@ -237,7 +234,7 @@ class ReplayRunnerTests(unittest.TestCase):
                 env._execute_shell = lambda command: {
                     "returncode": 0,
                     "output": "",
-                }  # drops the read
+                }
                 original_step = env.step
 
                 def broken_step(action, pause=2.0):
@@ -302,7 +299,7 @@ class ReplayRunnerTests(unittest.TestCase):
         by_depth = {d["depth"]: d for d in record["depths"]}
         self.assertTrue(by_depth[0]["passed"] and by_depth[1]["passed"])
         self.assertEqual(len(by_depth[1]["attempts"]), 3)
-        self.assertEqual(by_depth[5]["code"], "DEPTH_UNAVAILABLE")  # beyond the trace
+        self.assertEqual(by_depth[5]["code"], "DEPTH_UNAVAILABLE")
         self.assertEqual(state["runs"], 6)
 
     def test_divergent_replay_is_a_mismatch(self):
@@ -319,4 +316,4 @@ class ReplayRunnerTests(unittest.TestCase):
         depth = record["depths"][0]
         self.assertFalse(depth["passed"])
         self.assertEqual(depth["code"], "PREFIX_REPLAY_MISMATCH")
-        self.assertEqual(depth["attempts"][1]["first_mismatch_action_index"], 2)  # wrong row
+        self.assertEqual(depth["attempts"][1]["first_mismatch_action_index"], 2)

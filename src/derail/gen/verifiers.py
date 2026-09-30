@@ -1,24 +1,4 @@
-"""State verifiers, mutation values, mutation test and dynamic latent horizon.
-
-Execution doc v1.2 sections 6.1, 6.3, 7.5.
-
-- ``compile_verifiers(task_ir)``: the three layers -- node verifiers (from the IR),
-  milestone verifiers (critical nodes' verifiers) and the final-state verifier (the IR's
-  ``final_verifier`` with its equivalent final states); returns a ``verifier-bundle/1.0``
-  description used by the harness and the case builder.
-- ``mutation_values(...)``: type-preserving substitutes taken from the world (another row of
-  the same table, +-1 day, +-5 %, a dropped list element ...), so a mutated value "looks
-  legal".
-- ``mutation_test(...)``: execute the IR with each ``(node, mutation)`` override; a mutation
-  is *caught* when any downstream node verifier or the final verifier rejects.  The first
-  rejecting downstream node gives the dynamic latent horizon (section 6.3); a caught-only-
-  by-final mutation is ``verifier_only``; an uncaught one is ``silent``.
-- ``verify_final_state(...)``: the frozen final verifier (``sql`` / ``derived`` / nested
-  ``all_of``) on a world an agent left behind.  ``V`` is the run's value scope: the gold
-  lineage's values, with the observation nodes (``confirm`` / ``verify``) and the pure
-  values computed from them re-derived on that world, and created rows / files checked
-  for existence (paper 03:28, F:97: "accepted by the fixed final verifier").
-"""
+"""State verifiers, mutation values, mutation test and dynamic latent horizon."""
 
 from __future__ import annotations
 
@@ -40,7 +20,6 @@ from derail.world.facts import date_part
 VERIFIER_BUNDLE_VERSION = "verifier-bundle/1.0"
 
 
-# ------------------------------------------------------------------------- verifiers
 def compile_verifiers(task_ir: Mapping[str, Any]) -> Dict[str, Any]:
     nodes = list(task_ir["nodes"])
     node_verifiers = [
@@ -65,7 +44,6 @@ def compile_verifiers(task_ir: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------- mutation values
 def _other_row_id(
     conn: sqlite3.Connection,
     table: str,
@@ -103,8 +81,6 @@ def _other_row_id(
 
 
 def _table_for(task_ir: Mapping[str, Any], node_id: str, name: str) -> Optional[Tuple[str, str]]:
-    """``(app, table)`` a produce refers to, from the node's reads/writes entity refs."""
-
     ref = "derived:%s:%s" % (node_id, name)
     for node in task_ir["nodes"]:
         for entry in list(node.get("reads", ())) + list(node.get("writes", ())):
@@ -123,8 +99,6 @@ def mutation_values(
     world: WorldCopy,
     rng: random.Random,
 ) -> Optional[Any]:
-    """A concrete substitute for the gold value of ``(node_id, name)`` under ``mutation``."""
-
     value = next(
         (v["value"] for v in gold["values"] if v["node_id"] == node_id and v["name"] == name), None
     )
@@ -180,16 +154,15 @@ def mutation_values(
     return None
 
 
-# ----------------------------------------------------------------------- mutation test
 @dataclass
 class MutationOutcome:
     node_id: str
     produce: str
     mutation: str
     mutated_value: Any
-    caught_by: Optional[str]  # rejecting node id, "final", "sink:<node>", "writes", or None
+    caught_by: Optional[str]
     dynamic_horizon: Optional[int]
-    observability_class: str  # required_next | required_later | verifier_only | silent
+    observability_class: str
     error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -200,11 +173,6 @@ _V_REF = re.compile(r"""V\[\s*(['"])([A-Za-z0-9_-]+)\1\s*\]\[\s*(['"])([A-Za-z0-
 
 
 def consumed_produces(task_ir: Mapping[str, Any]) -> Set[Tuple[str, str]]:
-    """``(node_id, produce name)`` pairs some later node, verifier or the final verifier
-    reads: through a value edge, a ``V["node"]["name"]`` reference, or a later derivation
-    naming the produce.  A mutation of an unconsumed value can only be silent, so the
-    mutation test skips those (D-040)."""
-
     out: Set[Tuple[str, str]] = set()
     for edge in task_ir.get("edges", ()):
         if edge.get("kind") != "control_dependency":
@@ -228,7 +196,6 @@ def consumed_produces(task_ir: Mapping[str, Any]) -> Set[Tuple[str, str]]:
     for text in texts:
         for match in _V_REF.finditer(text):
             out.add((match.group(2), match.group(4)))
-    # Same-node reuse: a later produce of the node naming an earlier one.
     for node in task_ir["nodes"]:
         produces = list(node.get("produces", ()))
         for index, produce in enumerate(produces):
@@ -260,11 +227,6 @@ def _canonical(value: Any) -> Any:
 def gold_state_divergence(
     task_ir: Mapping[str, Any], gold: Mapping[str, Any], record: Mapping[str, Any]
 ) -> Optional[str]:
-    """Where a run's gold-visible outcome differs from the gold: a sink node's produced value
-    (``sink:<node>``) or the set of non-volatile written cells (``writes``); None when the
-    outcome matches.  This is the programme's stand-in for the rubric judge, which compares
-    an answer with the rubric's expected values, i.e. the gold (D-042)."""
-
     sinks = _sink_nodes(task_ir)
     expected = {
         (str(v["node_id"]), str(v["name"])): _canonical(v.get("value"))
@@ -307,9 +269,6 @@ def mutation_test(
     max_per_node: int = 4,
     files_root: Optional[Union[str, Path]] = None,
 ) -> List[MutationOutcome]:
-    """Execute every applicable mutation and record which verifier catches it.  ``files_root``
-    is the home file tree copied into every mutation world (tasks that read files)."""
-
     rng = random.Random(seed)
     dag = dag_index(task_ir)
     order = list(dag.order)
@@ -393,23 +352,14 @@ def mutation_test(
     return outcomes
 
 
-# ------------------------------------------------------------------- final-state verdict
-# Nodes whose produces read the outcome of the run (the final verifier's ``V[...]`` refs
-# point at them).  Pure-value nodes (``PURE_DERIVATIONS`` only, no writes) fed by them are
-# recomputed; every other value (resolved ids, pre-write reads) is the gold's.
 OBSERVATION_OPS = ("confirm", "verify")
 PURE_DERIVATIONS = ("expr", "upstream", "literal")
-# Derivation errors that mean "the outcome is not in the world" (e.g. the report file was
-# never saved): the verdict is False.  Any other interpreter error leaves it undecided.
 ABSENT_STATE_ERRORS = ("FILE_MISSING",)
 
 
 def world_sources(
     database_dir: Union[str, Path], app_databases: Mapping[str, Optional[str]]
 ) -> Dict[str, Path]:
-    """Every ``<stem>.sqlite`` of ``database_dir`` keyed by its stem and by each app id aliased
-    to it, so node apps and verifier apps (``hoolimail`` / ``mail``) both resolve."""
-
     out = {p.stem: p for p in sorted(Path(database_dir).glob("*.sqlite")) if p.is_file()}
     for app, stem in app_databases.items():
         if stem and stem in out:
@@ -418,8 +368,6 @@ def world_sources(
 
 
 def _created_in(world: WorldCopy, node: Mapping[str, Any], name: str, value: Any) -> bool:
-    """Whether the row / file the gold created as ``node.name`` exists in ``world``."""
-
     if isinstance(value, str) and value.startswith("file:"):
         return world.inventory is not None and world.inventory.get(value) is not None
     ref = "derived:%s:%s" % (node["node_id"], name)
@@ -438,11 +386,6 @@ def final_state_scope(
     interpreter: GoldInterpreter,
     observation_ops: Sequence[str] = OBSERVATION_OPS,
 ) -> Dict[str, Any]:
-    """``{"reference_time", "V"}`` for the final verifier on ``world``.  Starts from the gold
-    values; a created row / file whose gold id is absent from ``world`` becomes None; the
-    ``observation_ops`` nodes, and every read-only node fed by a re-derived value (edge or
-    ``V[...]`` reference), are re-derived on ``world`` with inputs bound from this scope."""
-
     env: Dict[str, Dict[str, Any]] = {str(n["node_id"]): {} for n in task_ir["nodes"]}
     for value in gold.get("values", ()):
         env.setdefault(str(value["node_id"]), {})[str(value["name"])] = value.get("value")
@@ -457,15 +400,12 @@ def final_state_scope(
         if node_id in skipped:
             continue
         sources = [binding.get((node_id, str(p["port_id"]))) for p in node.get("inputs", ())]
-        # Values computed only from other values (decisions over confirmations) follow
-        # their re-derived inputs; lookups keep the gold (pre-write) result.
         pure = not node.get("writes") and all(
             p["derivation"].get("kind") in PURE_DERIVATIONS for p in node.get("produces", ())
         )
         texts = " ".join(json.dumps(p["derivation"]) for p in node.get("produces", ()))
         fed = {s[0] for s in sources if s} | {m.group(2) for m in _V_REF.finditer(texts)}
         observe = str(node.get("op")) in observation_ops or bool(pure and fed & rederived)
-        # An observation of something the run never created observes nothing.
         blind = observe and any(s in absent for s in sources)
         scope = dict(base)
         if observe:
@@ -475,7 +415,7 @@ def final_state_scope(
         scope["V"] = env
         for produce in node.get("produces", ()):
             name = str(produce["name"])
-            if produce["derivation"].get("kind") == "create":  # never write while verifying
+            if produce["derivation"].get("kind") == "create":
                 if not _created_in(world, node, name, env[node_id].get(name)):
                     env[node_id][name] = None
                     absent.add((node_id, name))
@@ -496,10 +436,6 @@ def verify_final_state(
     observation_ops: Sequence[str] = OBSERVATION_OPS,
     absent_state_errors: Sequence[str] = ABSENT_STATE_ERRORS,
 ) -> Dict[str, Any]:
-    """``{"recovered": True | False | None, "detail"}``: the task's final verifier (with its
-    equivalent final states, ``all_of`` parts recursively) on ``world``; None when the task
-    has no state verifier or the verdict cannot be computed."""
-
     final = task_ir.get("final_verifier")
     if not final or final.get("kind") not in ("sql", "derived", "all_of"):
         return {"recovered": None, "detail": "no state verifier"}

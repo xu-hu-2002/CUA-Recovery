@@ -1,20 +1,3 @@
-"""Recovery trajectory generation (paper 03:28, appendix F:97-101, Alg.1 line 52).
-
-For a recovery case -- instruction ``l`` and the erroneous history ``H_c`` of a failed
-training-split rollout cut at ``c = t_r + d`` -- the *base model itself* continues from the
-replayed state under three hints of increasing detail (``l1_step`` the erroneous step,
-``l2_evidence`` plus the conflicting observation, ``l3_state_diff`` plus the affected rows),
-up to ``attempts_per_level`` attempts per level; the teacher gets ``teacher_attempts`` with
-``teacher_level`` when all fail.  The first continuation the fixed final verifier accepts is
-``r*``.  ``r*`` is then checked for information that only the hint carried (leak filter,
-F:101) and the case becomes one ``(l, H_c, r*)`` sample with the hint removed.
-
-The loop is environment-agnostic: ``restore(hint, teacher)`` puts the world at ``c`` with
-``H_c`` injected, ``policy`` produces one action given (instruction, history, observation,
-hint), ``step`` executes it, ``verify`` returns the final-verifier verdict.  Tests drive it
-with fakes; the VM/GPU driver is ``scripts/recovery_gen_v1.py``.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,8 +15,6 @@ RECOVERY_SAMPLE_VERSION = "recovery-sample/1.0"
 
 
 def hint_text(level: str, case: Mapping[str, Any]) -> str:
-    """The three hint strengths, built only from the case's program-verified references."""
-
     refs = case.get("evidence_refs") or {}
     root = case.get("root_cause_action_index")
     carried = refs.get("carried_value_ref") or {}
@@ -69,8 +50,6 @@ def hint_text(level: str, case: Mapping[str, Any]) -> str:
 
 @dataclass(frozen=True)
 class RecoveryConfig:
-    """``recovery`` section of ``configs/train/sft_v1.yaml``; defaults follow the paper."""
-
     base_agent: str = "qwen3_5_35b_a3b"
     levels: Tuple[str, ...] = HINT_LEVELS
     attempts_per_level: int = 8
@@ -133,17 +112,14 @@ class RecoveryResult:
 
 Policy = Callable[
     [str, Sequence[Mapping[str, Any]], Any, str], Any
-]  # (instruction, history, observation, hint) -> action | None
+]
 
 
-# ---------------------------------------------------------------------------- hint leak
 def _words(text: str) -> List[str]:
     return re.findall(r"\w+", text.lower())
 
 
 def _context_text(case: Mapping[str, Any]) -> str:
-    """What the unaware model sees besides the screen: ``l`` and the actions of ``H_c``."""
-
     history = case["input"]["history"]
     return " ".join(
         [str(case["input"]["instruction"])]
@@ -154,12 +130,6 @@ def _context_text(case: Mapping[str, Any]) -> str:
 def hint_leaks(
     hint: str, steps: Sequence[Mapping[str, Any]], case: Mapping[str, Any], config: RecoveryConfig
 ) -> List[str]:
-    """Where the thoughts of ``r*`` use information only the hint carried (F:101): a mention
-    of the erroneous step's index, the affected table / row the hint named, any
-    ``leak_ngram`` words copied from the hint that ``l`` and ``H_c`` do not contain, or a
-    configured meta pattern ("the hint says").  Actions are not checked: typing the corrected
-    value is the recovery itself, and values on screen are observable without the hint."""
-
     thoughts = "\n".join(str(s.get("thought") or "") for s in steps).lower()
     if not thoughts.strip():
         return []
@@ -192,8 +162,6 @@ def hint_leaks(
 def redact_leaks(
     hint: str, steps: Sequence[Mapping[str, Any]], case: Mapping[str, Any], config: RecoveryConfig
 ) -> List[Dict[str, Any]]:
-    """Drop the thought sentences that leak; actions are kept as they are."""
-
     out = []
     for step in steps:
         sentences = re.split(r"(?<=[.!?\n])\s+", str(step.get("thought") or ""))
@@ -202,7 +170,6 @@ def redact_leaks(
     return out
 
 
-# ---------------------------------------------------------------------------- generation
 def generate_recovery(
     case: Mapping[str, Any],
     *,
@@ -213,9 +180,6 @@ def generate_recovery(
     config: RecoveryConfig,
     teacher_policy: Optional[Policy] = None,
 ) -> RecoveryResult:
-    """Run the hint schedule for one case; ``restore(hint, teacher)`` starts each attempt
-    from the replayed state ``c`` with ``H_c`` as the agent's history."""
-
     result = RecoveryResult(sample_id=str(case["sample_id"]), accepted=None)
     instruction = case["input"]["instruction"]
     base_history = list(case["input"]["history"])
@@ -265,7 +229,7 @@ def generate_recovery(
                 return result
             if record.leaks and config.leak_policy == "resample":
                 continue
-            if record.leaks:  # redact
+            if record.leaks:
                 record = replace(record, steps=redact_leaks(hint, steps, case, config))
             result.accepted = record
             return result
@@ -275,9 +239,6 @@ def generate_recovery(
 def recovery_sample(
     case: Mapping[str, Any], result: RecoveryResult, loss_weights: Mapping[str, float]
 ) -> Optional[Dict[str, Any]]:
-    """The ``(l, H_c, r*)`` sample of an accepted recovery (Alg.1 line 53): the input is the
-    case's instruction and history only -- no hint (unaware, 05:176)."""
-
     if result.accepted is None:
         return None
     return {
@@ -312,8 +273,6 @@ def recovery_sample(
 
 
 def sample_key(sample: Mapping[str, Any]) -> str:
-    """Content key of ``(l, H_c, r*)`` for ``Dedup(Q)`` (Alg.1 line 57)."""
-
     payload = {
         "l": sample["input"]["instruction"],
         "h": [h.get("action") for h in sample["input"]["history"]],

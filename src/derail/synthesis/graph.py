@@ -1,9 +1,4 @@
-"""Task-IR validation, composition, and intrinsic long-horizon metrics.
-
-The synthesis layer operates on semantic operations rather than GUI actions.  It
-therefore stays independent of the replay/action stack used by the DERAIL
-takeover benchmark.
-"""
+"""Task-IR validation, composition, and intrinsic long-horizon metrics."""
 
 from __future__ import annotations
 
@@ -100,8 +95,6 @@ def _topological_order(node_ids: Iterable[str], edges: Sequence[Mapping[str, Any
 
 
 def validate_task_fragment(fragment: Mapping[str, Any]) -> None:
-    """Validate semantic nodes, ports, bindings, and DAG structure."""
-
     nodes = fragment.get("nodes")
     edges = fragment.get("edges")
     if not isinstance(nodes, list) or not nodes:
@@ -177,8 +170,6 @@ def validate_task_fragment(fragment: Mapping[str, Any]) -> None:
 
 
 def validate_grounded_module(module: Mapping[str, Any]) -> None:
-    """Validate a GroundedTaskModule and all public interface references."""
-
     for field in (
         "module_id",
         "source_task_id",
@@ -247,8 +238,6 @@ def compose_modules(
     modules: Sequence[Mapping[str, Any]],
     compatibility_edges: Sequence[Mapping[str, Any]],
 ) -> Dict[str, Any]:
-    """Compose modules and selected bindings into one validated TaskFragment."""
-
     if not modules:
         raise SynthesisValidationError("GLOBAL_CONSTRAINT_UNSAT", "no modules selected")
     module_by_id = {str(module["module_id"]): module for module in modules}
@@ -399,8 +388,6 @@ def _independent_component_ratio(
 def compute_complexity(
     fragment: Mapping[str, Any], anchor_module_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Compute the intrinsic long-horizon metrics defined by the design document."""
-
     validate_task_fragment(fragment)
     nodes = list(fragment["nodes"])
     edges = list(fragment["edges"])
@@ -466,7 +453,7 @@ def compute_complexity(
         if any(bool(effect.get("irreversible")) for effect in node.get("side_effects", ()))
     }
     sources = [node_id for node_id in order if not incoming[node_id]]
-    shortest = {node_id: None for node_id in order}  # type: Dict[str, Optional[int]]
+    shortest = {node_id: None for node_id in order}
     queue: deque[str] = deque()
     for source in sources:
         shortest[source] = 1

@@ -1,10 +1,3 @@
-"""Phase 3 figures. matplotlib only, one figure per call, no explicit colours,
-300 dpi PNG. No seaborn.
-
-Every figure is a direct rendering of a table written alongside it; none of them
-smooths, interpolates or extrapolates.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -26,7 +19,6 @@ def _save(fig, path: Path) -> Path:
 
 
 def task_score_forest(task_tbl: pd.DataFrame, out: Path) -> Path:
-    """Forest plot of task success rate with Wilson 95% CI, one row per agent."""
     d = task_tbl.sort_values("rate", na_position="first").reset_index(drop=True)
     fig, ax = plt.subplots(figsize=(8, 0.6 * len(d) + 2))
     y = np.arange(len(d))
@@ -43,10 +35,6 @@ def task_score_forest(task_tbl: pd.DataFrame, out: Path) -> Path:
 
 
 def rubric_ratio_hist(clean: pd.DataFrame, out: Path) -> Path:
-    """Faceted histogram of rubric_pass_ratio, one panel per agent.
-
-    Counts in fixed 0.1 bins so that piling at 0 and 1 (bimodality) is visible.
-    """
     agents = sorted(clean["agent"].unique())
     fig, axes = plt.subplots(len(agents), 1, figsize=(8, 2.4 * len(agents)), sharex=True)
     if len(agents) == 1:
@@ -64,7 +52,6 @@ def rubric_ratio_hist(clean: pd.DataFrame, out: Path) -> Path:
 
 
 def error_type_stacked(long: pd.DataFrame, out: Path) -> Path:
-    """Stacked bar of error-category share per agent (label-normalised)."""
     pivot = (long.groupby(["agent", "error_category"]).size()
              .unstack(fill_value=0))
     shares = pivot.div(pivot.sum(axis=1), axis=0)
@@ -81,7 +68,6 @@ def error_type_stacked(long: pd.DataFrame, out: Path) -> Path:
 
 
 def error_type_bars(rates: pd.DataFrame, out: Path) -> Path:
-    """Rollout-normalised error-label rate per agent, grouped bars with CI."""
     d = rates[(rates.level == "error_type") & (rates.agent != "OVERALL")]
     order = (rates[(rates.level == "error_type") & (rates.agent == "OVERALL")]
              .sort_values("rate", ascending=False)["value"].tolist())
@@ -106,10 +92,6 @@ def error_type_bars(rates: pd.DataFrame, out: Path) -> Path:
 
 
 def depth_km(clean: pd.DataFrame, group_col: str, out: Path, title: str) -> Path:
-    """Kaplan-Meier curves of failure depth by group.
-
-    y = P(failure not yet clear); censoring = "failure never becomes clear".
-    """
     from lifelines import KaplanMeierFitter
 
     sub = clean[clean["depth_status"].isin(["observed", "right_censored"])]
@@ -136,7 +118,6 @@ def depth_km(clean: pd.DataFrame, group_col: str, out: Path, title: str) -> Path
 
 
 def depth_hist(clean: pd.DataFrame, out: Path) -> Path:
-    """Histogram of observed (uncensored) depth, one panel per agent."""
     obs = clean[clean["depth_status"] == "observed"]
     agents = sorted(obs["agent"].unique())
     fig, axes = plt.subplots(len(agents), 1, figsize=(9, 2.4 * len(agents)), sharex=True)
@@ -155,7 +136,6 @@ def depth_hist(clean: pd.DataFrame, out: Path) -> Path:
 
 
 def depth_bins_bar(bins_tbl: pd.DataFrame, out: Path, title: str) -> Path:
-    """Stacked proportion bars of the ordinal depth bins per group."""
     d = bins_tbl[bins_tbl.group_value != "OVERALL"]
     pivot = d.pivot_table(index="group_value", columns="depth_bin",
                           values="rate", aggfunc="first").fillna(0)
@@ -173,10 +153,6 @@ def depth_bins_bar(bins_tbl: pd.DataFrame, out: Path, title: str) -> Path:
 
 
 def rubric_heatmap(matrix_tbl: pd.DataFrame, out: Path) -> Path:
-    """Heatmap of rubric-slot pass rate (rows) by agent (columns).
-
-    Slots are positional within each task's bundle, so a row mixes criteria.
-    """
     d = matrix_tbl[matrix_tbl.agent != "OVERALL"]
     pivot = d.pivot_table(index="rubric_id", columns="agent", values="rate")
     pivot = pivot.reindex(sorted(pivot.index, key=lambda x: int(x[1:])))
@@ -200,11 +176,6 @@ def rubric_heatmap(matrix_tbl: pd.DataFrame, out: Path) -> Path:
 
 
 def coverage_bar(cov: pd.DataFrame, out: Path) -> Path:
-    """Annotated vs un-annotated self-report composition, per agent.
-
-    This is the selection-bias figure: a large gap between the two bars of an
-    agent means its labelled subset is not representative of its build.
-    """
     agents = sorted(cov["agent"].unique())
     levels = ["success", "failure", "no_terminate"]
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -234,11 +205,6 @@ def coverage_bar(cov: pd.DataFrame, out: Path) -> Path:
 
 
 def weighted_vs_unweighted_scatter(clean: pd.DataFrame, out: Path) -> Path:
-    """Weighted vs unweighted rubric score, one point per rollout.
-
-    The diagonal is where weighting changes nothing; vertical distance from it
-    is the effect of the task's weight vector on that rollout.
-    """
     fig, ax = plt.subplots(figsize=(7, 7))
     for agent, g in clean.groupby("agent"):
         ax.scatter(g["rubric_pass_ratio"], g["weighted_rubric_score"],
@@ -253,7 +219,6 @@ def weighted_vs_unweighted_scatter(clean: pd.DataFrame, out: Path) -> Path:
 
 
 def weighted_ratio_hist(clean: pd.DataFrame, out: Path) -> Path:
-    """Histogram of the weighted rubric score, one panel per agent."""
     agents = sorted(clean["agent"].unique())
     fig, axes = plt.subplots(len(agents), 1, figsize=(8, 2.4 * len(agents)), sharex=True)
     if len(agents) == 1:

@@ -1,13 +1,4 @@
-"""Restricted expression evaluator for Task IR derivations and derived verifiers.
-
-Expressions are Python syntax parsed with :mod:`ast` and evaluated by a small tree walker:
-no attribute access, no imports, no assignments, only the node types listed in
-``_ALLOWED`` and calls to the functions in ``DEFAULT_FUNCTIONS``.  The function table is a
-protocol constant (it does not vary per machine or experiment); callers can extend it by
-passing ``functions``.
-
-``evaluate("date_add(start, 1)", {"start": "2026-04-07T11:00:00"})``
-"""
+"""Restricted expression evaluator for Task IR derivations and derived verifiers."""
 
 from __future__ import annotations
 
@@ -42,8 +33,6 @@ def _format_dt(value: _dt.datetime, template: Optional[str]) -> str:
 
 
 def date_add(value: Any, days: int = 0, hours: int = 0, minutes: int = 0) -> str:
-    """Shift an ISO date-time; output keeps the input's format (naive or with offset)."""
-
     stamp = _parse_dt(value)
     shifted = stamp + _dt.timedelta(days=days, hours=hours, minutes=minutes)
     template = "%Y-%m-%d" if len(str(value).strip()) == 10 else None
@@ -63,8 +52,6 @@ def weekday_of(value: Any) -> str:
 
 
 def at_time(date_value: Any, clock: str) -> str:
-    """``at_time("2026-04-07", "15:00") -> "2026-04-07T15:00:00"``."""
-
     day = _parse_dt(date_value).date()
     hour, _, minute = clock.partition(":")
     return _dt.datetime(day.year, day.month, day.day, int(hour), int(minute or 0)).strftime(
@@ -95,8 +82,6 @@ def count_by(rows: Iterable[Any], key: str) -> Dict[Any, int]:
 
 
 def argmax(mapping: Mapping[Any, Any]) -> Any:
-    """Key with the largest value; ties broken by the smallest key for determinism."""
-
     if not mapping:
         return None
     return sorted(mapping.items(), key=lambda item: (-item[1], str(item[0])))[0][0]
@@ -306,7 +291,7 @@ class _Evaluator:
             lower = self.visit(index.lower) if index.lower else None
             upper = self.visit(index.upper) if index.upper else None
             return value[lower:upper]
-        if hasattr(ast, "Index") and isinstance(index, ast.Index):  # Python < 3.9
+        if hasattr(ast, "Index") and isinstance(index, ast.Index):
             index = index.value  # type: ignore[attr-defined]
         return value[self.visit(index)]
 
@@ -344,8 +329,6 @@ def evaluate(
     env: Mapping[str, Any],
     functions: Optional[Mapping[str, Callable[..., Any]]] = None,
 ) -> Any:
-    """Evaluate ``expression`` over ``env`` with the whitelisted functions."""
-
     try:
         tree = ast.parse(expression, mode="eval")
     except SyntaxError as exc:
@@ -357,5 +340,5 @@ def evaluate(
         return _Evaluator(env, table).visit(tree)
     except ExpressionError:
         raise
-    except Exception as exc:  # a whitelisted function failed on the actual values
+    except Exception as exc:
         raise ExpressionError("%r: %s: %s" % (expression, type(exc).__name__, exc)) from exc

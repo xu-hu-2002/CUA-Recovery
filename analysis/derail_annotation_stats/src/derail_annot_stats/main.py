@@ -1,7 +1,4 @@
-"""Entry point: run the whole pipeline. Idempotent, side-effect free outside out_dir.
-
-    DERAIL_BUILDS_DIR=... DERAIL_ANALYSIS_OUT=... python -m derail_annot_stats.main
-"""
+"""Run the whole annotation-statistics pipeline."""
 
 from __future__ import annotations
 
@@ -33,7 +30,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
     n_res = int(boot.get("n_resamples", 10000))
     seed = int(boot.get("seed", S.SEED))
 
-    # ---------------- Phase 1 ----------------
     cl, exclusions, diagnostics = C.build_clean_table(paths, mapping)
     long = C.explode_error_types(cl, mapping)
     inconsistencies = C.consistency_checks(cl)
@@ -56,7 +52,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
 
     T: dict[str, pd.DataFrame] = {}
 
-    # ---------------- Phase 2.0 hygiene ----------------
     T["sample_size"] = pd.DataFrame([
         dict(agent=a,
              annotator="; ".join(sorted(g["annotator"].unique())),
@@ -92,12 +87,10 @@ def run(paths: Paths, mapping_path: Path) -> None:
         "root_cause_step", "clear_failure_step", "failure_depth",
         "error_types", "reversibility", "trajectory_length"])
 
-    # ---------------- Phase 2.1 task score ----------------
     T["task_score_by_agent"] = S.task_score_by_agent(cl, low_n)
     T["task_score_test"] = S.unpaired_group_test(cl, "task_score", low_n)
     T["task_score_by_task_category"] = S.task_score_by_group(cl, "task_category", low_n)
 
-    # ---------------- Phase 2.2 rubric ----------------
     T["rubric_score_by_agent"] = S.rubric_score_by_agent(cl, low_n, n_res, seed)
     T["rubric_ratio_distribution"] = S.rubric_ratio_distribution(cl, low_n)
     T["rubric_by_agent_matrix"] = S.rubric_by_agent_matrix(cl, low_n)
@@ -105,7 +98,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
     T["rubric_weight_profile"] = S.rubric_weight_profile(cl)
     T["weighted_vs_unweighted_gap"] = S.weighted_vs_unweighted_gap(cl)
 
-    # ---------------- Phase 2.3 error types ----------------
     T["label_normalization_log"] = cl.attrs.get(
         "label_normalization_log", pd.DataFrame())
     T["label_missing_by_agent"] = S.label_missing_by_agent(cl, low_n)
@@ -116,7 +108,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
     T["error_category_homogeneity"] = S.error_level_homogeneity(long, cl, "error_category", low_n)
     T["error_rank_correlation"] = S.top_labels_rank_correlation(long, "error_type")
 
-    # ---------------- Phase 2.4 depth ----------------
     T["depth_sample_composition"] = S.depth_sample_composition(cl, low_n)
     T["depth_by_agent"] = S.depth_descriptives(cl, ["agent"], low_n)
     T["depth_by_task_category"] = S.depth_descriptives(cl, ["task_category"], low_n)
@@ -132,9 +123,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
     T["depth_by_error_type"] = S.depth_by_error_type(long, "error_type", low_n)
     T["depth_by_error_category"] = S.depth_by_error_type(long, "error_category", low_n)
 
-    # Depth by error category needs a per-rollout view for KM/log-rank: a rollout
-    # is assigned to a category only when all its labels agree, so overlapping
-    # multi-category rollouts are reported separately rather than double counted.
     cl_cat = cl.copy()
     cl_cat["single_error_category"] = [
         c[0] if isinstance(c, list) and len(c) == 1 else
@@ -147,7 +135,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
 
     T["inconsistencies"] = inconsistencies
 
-    # ---------------- Phase 3 figures ----------------
     F: dict[str, Path] = {}
     fg = paths.figures
     F["task_forest"] = P.task_score_forest(T["task_score_by_agent"], fg / "task_score_forest.png")
@@ -170,7 +157,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
                                        "Ordinal depth bins by agent")
     F["coverage"] = P.coverage_bar(coverage, fg / "annotation_coverage.png")
 
-    # ---------------- write tables ----------------
     _write(cl.drop(columns=["rubric_scores_json", "rubric_weights"])
              .assign(error_types=cl["error_types"].apply(
                  lambda v: "|".join(v) if isinstance(v, list) else ""),
@@ -182,7 +168,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
     for name, df in T.items():
         _write(df, paths.tables / f"{name}.csv")
 
-    # ---------------- Phase 4 sanity ----------------
     checks = _sanity_checks(cl, exclusions, T, long)
 
     (paths.out_dir / "report.md").write_text(
@@ -190,7 +175,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
     (paths.out_dir / "sanity_checks.md").write_text(
         R.build_sanity(T, cl, exclusions, checks), encoding="utf-8")
 
-    # Consolidated one-row-per-agent summary at the path named in the request.
     summary = _summary_csv(T, cl)
     _write(summary, paths.out_dir / "statistic_analysis.csv")
 
@@ -205,7 +189,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
 
 
 def _sanity_checks(cl, exclusions, T, long) -> list[dict]:
-    """Execute Phase 4 checks; each returns PASS/FAIL with the observed numbers."""
     out = []
 
     def add(name, ok, detail):
@@ -294,7 +277,6 @@ def _sanity_checks(cl, exclusions, T, long) -> list[dict]:
 
 
 def _summary_csv(T: dict, cl: pd.DataFrame) -> pd.DataFrame:
-    """One consolidated row per agent covering the four requested statistics."""
     ts = T["task_score_by_agent"].set_index("agent")
     rb = T["rubric_score_by_agent"].set_index("agent")
     dp = T["depth_by_agent"].set_index("agent") if not T["depth_by_agent"].empty else None

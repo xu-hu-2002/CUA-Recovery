@@ -29,12 +29,10 @@ export TAKEOVER_TOKENIZE_BASE_URL="${KIMI_TOKENIZE_BASE_URL:-${OPENAI_BASE_URL:-
 export TAKEOVER_TOKENIZE_MODE=chat_usage
 export TAKEOVER_CONTEXT_CAP="${KIMI_EXPERIMENT_CONTEXT_CAP:-262144}"
 export NUM_VMS_OVERRIDE=1
-# Empty = run_takeover.sh reads max_steps from configs/takeover/takeover.yaml (100).
 export MAX_STEPS="${MAX_STEPS:-}"
 export COLLECTION_ID="${COLLECTION_ID:-takeover-kimi-self-d${DEPTH}-${CONDITION}-s${SHARD_OFFSET}of${SHARD_COUNT}}"
 export PROXY_RESULTS_OSS_MOUNT="${PROXY_RESULTS_OSS_MOUNT:-/data/oss_bucket_0/${OSS_PREFIX:-<oss-prefix>}/DERAIL/results/takeover/failure_prefix_v1/kimi_k3/kimi_k3/${CONDITION}/d${DEPTH}}"
 
-# Keep the controller script in the upload while excluding raw and bundled data.
 export IGNORE_LIST="${IGNORE_LIST:-third_party/*,takeovewr_annotation/*,artifacts/raw_rollouts/*,artifacts/derail_builds/*,artifacts/model_outputs/*,artifacts/takeover/bundles/*,draft/*,runs/*,.git/*,.venv*,.env,docs/*,*.log,*.pyc,__pycache__/*,.props_*,.cluster_*}"
 
 if [[ "${DRY_RUN:-1}" == "0" && -z "$TAKEOVER_TOKENIZE_BASE_URL" ]]; then

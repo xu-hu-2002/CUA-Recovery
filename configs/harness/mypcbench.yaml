@@ -1,34 +1,19 @@
-# 我们从 third_party/MyPCBench 取用的东西，全部登记在这里。
-#
-# 为什么需要这份清单：third_party/ 不进 Git，所以仓库里既看不到上游代码，也看不
-# 出我们到底依赖了它的哪些部分。已经吃过两次亏 ——
-#   1. 判官的 max_images / concurrency 只存在于调用者 shell 的环境变量里，v1 的
-#      552 个任务因此跑在三套配置下，事后靠逐个翻结果文件才发现；
-#   2. 子进程 stderr 被截到 2000 字符，39 个 episode 的中断原因全部丢失。
-# 两者的共同点都是：我们依赖了上游的某个默认值，但仓库里没有任何地方写着它。
-#
-# 这份清单本身不被任何脚本读取（它是索引，不是配置）。真正生效的值在下面 owns
-# 段落指向的那些文件里。
-
 harness_id: mypcbench
 upstream_repo: https://github.com/ljang0/MyPCBench.git
 upstream_commit: caf9c754ffe0b41c7e629e17fff19299774af1cb
 local_root: third_party/MyPCBench
-tracked_in_git: false          # 见根目录 .gitignore
+tracked_in_git: false
 
-# ── 我们改了上游什么 ────────────────────────────────────────────────────
-# 可逆、可审计的 patch 链。采集入口会幂等应用 agents 两个 patch；
-# setup_third_party.sh 还会按顺序应用 judge 两个 patch。
 patches:
   - path: patches/mypcbench_caf9c754_derail_agents.patch
     applies_to: agent-harness/agents/（含 openai_cuabash.py 的工具轨迹回填）, agent-harness/env.py, agent-harness/run_mypcbench.py, agent-harness/run_parallel_tasks.py
-    applied_by: scripts/01_collect_trajectories.sh
+    applied_by: scripts/collection/collect_trajectories.sh
   - path: patches/mypcbench_caf9c754_message_trajectory_agents.patch
     applies_to: agent-harness/agents/claude_cuabash.py, agent-harness/agents/openai_cuabash.py, agent-harness/run_mypcbench.py
-    applied_by: scripts/01_collect_trajectories.sh（在 DERAIL adapter patch 之后）
+    applied_by: scripts/collection/collect_trajectories.sh（在 DERAIL adapter patch 之后）
   - path: patches/mypcbench_caf9c754_native_responses_state.patch
     applies_to: agent-harness/agents/openai_cuabash.py, agent-harness/run_mypcbench.py
-    applied_by: scripts/01_collect_trajectories.sh（在 tool-message trajectory patch 之后）
+    applied_by: scripts/collection/collect_trajectories.sh（在 tool-message trajectory patch 之后）
   - path: patches/mypcbench_caf9c754_derail_judge.patch
     applies_to: agent-harness/utils/osworld_full_traj_judge.py, agent-harness/utils/rubric_judge.py
     applied_by: scripts/setup_third_party.sh
@@ -39,26 +24,20 @@ patches:
     applies_to: agent-harness/judge_results.py, agent-harness/utils/osworld_full_traj_judge.py
     applied_by: scripts/setup_third_party.sh（在 message-first judge patch 之后）
 
-# ── 我们接管了哪些参数（这些文件是真源，改它们会改变行为）────────────────
 owns:
   judge_hyperparameters: configs/judges/mypcbench_rubric.yaml
   collection_runtime: configs/collection/mypcbench_runtime.yaml
   environment: configs/environments/mypcbench_1280x800.yaml
-  # reset 后的确定性命令 + 每步状态指纹。不改上游：01 把 src/derail/rollout/site_hook
-  # 放进 PYTHONPATH，run_mypcbench.py 进程启动时包装 MyPCBenchEnv.reset/step。
   environment_hooks: src/derail/rollout/state_probe.py
   task_sources: configs/collection/sources.yaml
   agent_identity: configs/agents/*.yaml
 
-# ── 快照 / fork ─────────────────────────────────────────────────────────
-# agent prompt：只读快照，runtime 仍从上游代码读，改 .txt 不影响 collection。
-# judge prompt：**2026-08-09 起由 DERAIL 接管**（见下 judge_prompt_fork）。
 snapshots:
-  generator: scripts/dump_upstream_prompts.py
-  drift_check: python scripts/dump_upstream_prompts.py --check   # 退出码非零 = 已漂移
-  agent_system_prompts: prompts/agents/upstream_resolved/        # 只读快照
-  judge_prompts: prompts/judges/                                 # 我们实际发出的版本
-  judge_prompts_upstream_original: prompts/judges/upstream_original/   # diff 基准
+  generator: scripts/collection/dump_upstream_prompts.py
+  drift_check: python scripts/collection/dump_upstream_prompts.py --check
+  agent_system_prompts: prompts/agents/upstream_resolved/
+  judge_prompts: prompts/judges/
+  judge_prompts_upstream_original: prompts/judges/upstream_original/
 
 judge_prompt_fork:
   date: 2026-08-09
@@ -88,25 +67,17 @@ judge_prompt_fork:
     response 为空，规则改了也无内容可采信；judge 会拒绝 action 非空但 message 为空的
     旧轨迹。必须重采后重判才生效。
 
-# ── 依赖但不接管的上游默认值 ────────────────────────────────────────────
-# 登记在此仅为可见性：改这些要改上游代码或加 patch，不要在这里改数字。
-# 每一项都记下现值，好让上游升级时的 diff 能被人看见。
 upstream_defaults:
-  runner_max_steps: 100                  # run_mypcbench.py --max_steps（我们传 collection config 的 150）
-  # 上下文截图上限。前两项由 01 按 collection config 的 context_images 导出环境变量覆盖。
-  openai_zdr_keep_images: 4              # agents/openai_cuabash.py:150 读 OPENAI_ZDR_KEEP_IMAGES
-  qwen_image_max: 20                     # agents/qwen_cua.py:466 读 MYPCBENCH_QWEN_IMAGE_MAX
-  # claude_cuabash 不读环境变量，runner 也不传参，恒为 20（= K）；但遇到 25MB payload
-  # 错误会把它减半并在本 episode 内保持（claude_cuabash.py:786-797）。我们这一侧关不掉，
-  # 只能从日志 "reducing image cap" 事后识别。
-  runner_task_timeout_seconds: 7200      # run_mypcbench.py --timeout（我们在 collection config 里传 3600）
-  agent_api_retry_times: 5               # agents/openai_base.py:202；对分钟级的 429 配额封锁不够
-  judge_default_model: gemini-3.1-flash-lite-preview   # 论文口径；我们没有 GEMINI_API_KEY
+  runner_max_steps: 100
+  openai_zdr_keep_images: 4
+  qwen_image_max: 20
+  runner_task_timeout_seconds: 7200
+  agent_api_retry_times: 5
+  judge_default_model: gemini-3.1-flash-lite-preview
   judge_default_max_images: 200
   judge_default_concurrency: 4
-  done_sentinel: "```DONE``` 或独占一行的 DONE"          # agents/openai_base.py:622-627，严格哨兵
+  done_sentinel: "```DONE``` 或独占一行的 DONE"
 
-# ── 已知的上游缺陷（影响分数，尚未修）──────────────────────────────────
 known_defects:
   - id: tool_call_payload_empty
     where: agent-harness/run_mypcbench.py:400-405（**上游原生代码**，非 DERAIL patch 引入）
@@ -131,10 +102,10 @@ known_defects:
       同轮已有自然语言时追加而不覆盖。runner 对其余 agent 的已执行 action 再做非空兜底。
       工具文本不参与 DONE/FAIL 扫描。judge 每步 message 上限放宽至 4000 字符。
     judge_side_fix: >-
-      scripts/14_takeover_bundle_prefix.py 在判分前从 bundle 一侧补全：空载荷的纯工具轮
+      scripts/takeover/bundle_prefix.py 在判分前从 bundle 一侧补全：空载荷的纯工具轮
       从该行 agent_metadata.tool_messages（Claude runner 从对齐的 messages.json）取回调用
       与输出写进 raw_response_text；接管前缀步取 canonical 行的 action + tool_result。
-      scripts/run_judge.sh 与 02_judge_rubrics.sh 每次判分前都跑它（幂等），所以已有的
+      scripts/judge/run_judge.sh 与 scripts/judge/judge_rubrics.sh 每次判分前都跑它（幂等），所以已有的
       旧轨迹不必重采也能按完整工具证据重判。
     status: >-
       采集侧已修复（2026-08-16，新轨迹）；判分侧由 14 补全（旧轨迹重判即可，无需重采）
@@ -159,11 +130,10 @@ known_defects:
       暂未改动控制流，先靠日志把两者区分开。
     status: 诊断已补（2026-08-09）；根因待下次采集的数据确认
 
-# ── 与 leaderboard 不可比的原因（写论文时必须交代）────────────────────
 incomparable_with_leaderboard:
   reason: judge model substitution
   paper_judge: gemini-3.1-flash-lite-preview
-  our_judge: gpt-5.6-terra          # 本仓库无 GEMINI_API_KEY
+  our_judge: gpt-5.6-terra
   calibration:
     - agent: qwen3_5_35b_a3b
       ours: {rubric: 36.8, perfect: 9.2}

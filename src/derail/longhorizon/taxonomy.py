@@ -1,9 +1,3 @@
-"""Paper error taxonomy and its deterministic coarse grouping (manual v0.2 section 9.2).
-
-The 15 paper types live in ``configs/synthesis/failure_taxonomy_*.yaml``.  ``group`` is a pure
-function of ``paper_type``; a case record therefore never stores a hand-assigned group.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -40,18 +34,9 @@ class FailureTaxonomy:
         raise TaxonomyError("label %r is not a frozen paper type" % paper_type)
 
     def group_of(self, paper_type: str) -> str:
-        """Derive the coarse group (local / long_horizon / termination) from a paper type."""
-
         return self.category_to_group[self.category_of(paper_type)]
 
     def normalize(self, raw_labels: Iterable[str]) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
-        """Apply renames and drop retired labels.
-
-        Returns ``(frozen_labels, dropped_labels)`` preserving the annotator's order.  Labels
-        that are neither frozen, renamed nor retired raise ``TaxonomyError`` so unknown
-        vocabulary never silently enters a count.
-        """
-
         kept = []
         dropped = []
         known = set(self.paper_types)
@@ -67,12 +52,6 @@ class FailureTaxonomy:
         return tuple(kept), tuple(dropped)
 
     def primary_paper_type(self, labels: Sequence[str]) -> Optional[str]:
-        """Pick one paper type for a multi-label annotation.
-
-        The rule is the configured category priority; inside the winning category the
-        annotator's listing order is kept.  Returns ``None`` for an empty label set.
-        """
-
         for category in self.category_priority:
             for label in labels:
                 if self.category_of(label) == category:

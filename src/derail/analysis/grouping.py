@@ -1,5 +1,3 @@
-"""常用结果分组；后续图表生成应复用同一分组逻辑。"""
-
 from __future__ import annotations
 
 from collections import defaultdict

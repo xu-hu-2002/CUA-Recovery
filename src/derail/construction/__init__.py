@@ -1,5 +1,3 @@
-"""从失败轨迹构建可执行 DERAIL cases。"""
-
 from .cases import CaseConstructionError, CasePlan, DepthInstance, build_case_plan, eligible_depths
 from .repair import (
     PrefixAudit,

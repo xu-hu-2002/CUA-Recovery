@@ -9,7 +9,7 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 def _load_script():
-    path = REPOSITORY / "scripts" / "04_build_benchmark.py"
+    path = REPOSITORY / "scripts" / "benchmark" / "build_benchmark.py"
     spec = importlib.util.spec_from_file_location("derail_build_benchmark", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

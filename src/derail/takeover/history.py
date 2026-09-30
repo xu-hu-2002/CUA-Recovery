@@ -1,4 +1,4 @@
-"""从 replay observations 和 canonical actions 构建可审计的原生历史。"""
+"""Build auditable native history from replay observations and canonical actions."""
 
 from __future__ import annotations
 
@@ -17,11 +17,7 @@ from derail.takeover.source_logs import load_trajectory_log
 def build_native_history(
     adapter: AgentAdapter, steps: Iterable[HistoryStep]
 ) -> List[Dict[str, Any]]:
-    """对每一步先做 capability check，再调用 renderer。
-
-    这里故意没有 textual fallback。对主 benchmark 而言，“能描述”不等于“能在该
-    agent 的原生 action space 中无损表示”。
-    """
+    """Check capability for each step, then render native history."""
 
     messages: List[Dict[str, Any]] = []
     previous_step_id = -1
@@ -49,12 +45,9 @@ def build_native_history(
             messages.insert(0, {"role": "system", "content": system_prompt()})
         elif getattr(adapter, "history_starts_with_system_message", True):
             raise ValueError("native history adapter omitted the initial system message")
-        # 否则：该格式原生不含 system record（如 Qwen 3.5 的 vendored agent
-        # 每步自建 system prompt），历史从 state records 直接开始即无损。
     return messages
 
 
-# reasoning_policy values of native_history.schema.json, keyed by strip_reasoning.
 REASONING_POLICIES = {True: "source_action_only_reasoning_stripped", False: "preserved_as_recorded"}
 
 
@@ -71,8 +64,6 @@ class NativeHistoryArtifact:
     instance_id: str = ""
     replay_observation_sha256s: Tuple[str, ...] = ()
     conformance_probe_uri: str = ""
-    # configs/takeover/takeover.yaml history.strip_reasoning: source reasoning removed from
-    # the injected history (H = (o_i, a_i)) or kept as recorded.
     strip_reasoning: bool = True
 
     def __post_init__(self) -> None:

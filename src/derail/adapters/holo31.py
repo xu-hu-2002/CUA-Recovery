@@ -1,9 +1,4 @@
-"""Holo-3.1 native OpenAI-style function-calling adapter。
-
-这里注册的是 DERAIL 冻结后的实验 schema，而不是声称模型卡逐项公开了这些参数。
-正式实验前必须对 scroll/hotkey/drag 等 primitive 做 action-conformance probe，并把
-checkpoint revision、runtime 和 probe 结果写入 run manifest。
-"""
+"""Holo-3.1 native OpenAI-style function-calling adapter."""
 
 from __future__ import annotations
 
@@ -29,13 +24,7 @@ from .base import ActionNotSupportedError, AgentCapabilities, HistoryStep
 
 
 class Holo31Adapter:
-    """Render the history consumed by ``NativeToolComputerAgent``.
-
-    The renderer deliberately mirrors the live agent's ``messages`` property:
-    one frozen system message followed by user/assistant/tool triples.  It does
-    not recreate model reasoning.  ``instruction`` is required when rendering
-    because the live user message repeats the task text on every turn.
-    """
+    """Render the history consumed by ``NativeToolComputerAgent``."""
 
     _REPO_ROOT = Path(__file__).resolve().parents[3]
     _SYSTEM_PROMPT_PATH = (
@@ -84,9 +73,7 @@ class Holo31Adapter:
     @staticmethod
     def _xy(x_px: int, y_px: int, width: int, height: int) -> Tuple[int, int]:
         Holo31Adapter._require_frozen_frame(width, height)
-        # This is the inverse of SafePyAutoGUICompiler, which maps 1000 to
-        # width-1/height-1.  Do not use the generic coordinate helper here:
-        # its upstream-agent convention divides by the full extent.
+        # Inverse of SafePyAutoGUICompiler: 1000 maps to width-1/height-1.
         x = round(x_px * 1000 / (width - 1))
         y = round(y_px * 1000 / (height - 1))
         roundtrip_x = round(x * (width - 1) / 1000)
@@ -106,8 +93,6 @@ class Holo31Adapter:
         if isinstance(action, ClickAction):
             x, y = self._xy(action.x_px, action.y_px, action.frame_width, action.frame_height)
             name = action.kind
-            # Exact live schema from build_computer_tools(): target summaries are
-            # canonical metadata, not a Holo tool argument.
             args = {"x": x, "y": y, "button": action.button}
         elif isinstance(action, TypeAction):
             if len(action.text) > 10000:
@@ -206,15 +191,12 @@ class Holo31Adapter:
             },
             {
                 "role": "assistant",
-                # Recorded source reasoning is preserved in the preceding trajectory log.
                 "content": None,
                 "tool_calls": [call],
             },
             {
                 "role": "tool",
                 "tool_call_id": call_id,
-                # This is the exact visible acknowledgement stored by
-                # NativeToolComputerAgent before the environment executes.
                 "content": self._TOOL_RESULT,
             },
         ])

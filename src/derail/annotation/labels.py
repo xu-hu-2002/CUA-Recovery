@@ -1,5 +1,3 @@
-"""人工裁决后的失败标签。"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

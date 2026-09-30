@@ -1,20 +1,3 @@
-"""Build ``rollout-trace/1.0`` records from per-step ledgers (execution doc v1.2 section 4.4).
-
-The harness hands over, per action: the action, the change-log rows attributed to it
-(``Delta_t``), the tracer records of the requests it caused (``Pages_t`` and the API /
-CLI observations), the screenshot and a11y text.  This module normalises them:
-
-- action parameters (``Params_t``) via the canonical PyAutoGUI normaliser when the action is
-  PyAutoGUI code, else the shell command text;
-- tracer SQL records -> ``pages`` (route, rendered fields) and ``observation-event/1.0``
-  facts built from the captured result rows (``table:<id>`` entities when the row has an
-  ``id`` column, ``table:*`` otherwise);
-- modality per step (``gui`` for PyAutoGUI, ``cli`` for shell) and the trace's primary
-  modality.
-
-Nothing here touches the VM.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -35,8 +18,6 @@ def sha256_bytes(data: Optional[bytes]) -> Optional[str]:
 
 
 def sql_tables(sql: str) -> List[str]:
-    """Tables a SELECT reads: the FROM table first, then JOINed tables."""
-
     out: List[str] = []
     for match in list(_FROM.finditer(sql)) + list(_JOIN.finditer(sql)):
         name = match.group(1)
@@ -46,8 +27,6 @@ def sql_tables(sql: str) -> List[str]:
 
 
 def _flatten_params(action: Any) -> List[Dict[str, Any]]:
-    """``Params_t`` of a canonical action dict: typed text, key names, click targets."""
-
     params: List[Dict[str, Any]] = []
     kind = action.get("kind") if isinstance(action, Mapping) else None
     if kind == "sequence":
@@ -82,9 +61,6 @@ def observation_from_shell(
     rollout_id: Optional[str] = None,
     home_prefix: str = "/home/user",
 ) -> Optional[Dict[str, Any]]:
-    """A file read on the command line (``cat``, ``head`` ...) becomes a ``files.documents``
-    content fact so the omission detector and the ledger see it (D-028 follow-up)."""
-
     if not output:
         return None
     match = _CAT.match(command or "")
@@ -119,14 +95,12 @@ class ActionRecord:
     """What the wrapper knows about one executed action."""
 
     raw: Any
-    modality: str  # gui | cli | control
+    modality: str
     thought: Optional[str] = None
     shell_output: Optional[str] = None
 
 
 def normalize_action(record: ActionRecord, normalizer: PyAutoGUINormalizer) -> Dict[str, Any]:
-    """``{"type", "raw", "canonical"}`` + params for one action."""
-
     raw = record.raw
     if record.modality == "cli":
         command = raw if isinstance(raw, str) else str(raw.get("command", raw))
@@ -174,8 +148,6 @@ def _entity_for(table: str, row: Mapping[str, Any]) -> str:
 def observation_from_trace_record(
     record: Mapping[str, Any], action_index: int, rollout_id: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    """``observation-event/1.0`` from one tracer record, or None when it carries no rows."""
-
     rows = record.get("rows")
     if not rows:
         return None
@@ -219,8 +191,6 @@ def observation_from_trace_record(
 
 
 def pages_from_trace_records(records: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
-    """``Pages_t``: one entry per (app, route) with the (table, column) fields its SQL read."""
-
     pages: Dict[tuple, Dict[str, Any]] = {}
     for record in records:
         if record.get("source") == "cli" or not record.get("route"):
@@ -264,7 +234,6 @@ class TraceBuilder:
     image_digest: Optional[str] = None
     instruction: Optional[str] = None
     frame: tuple = (1280, 800)
-    # Share of actions one modality needs to be the trace's primary modality (D-024).
     primary_modality_threshold: float = 0.7
     steps: List[Dict[str, Any]] = field(default_factory=list)
     changelog_start_seq: Dict[str, int] = field(default_factory=dict)

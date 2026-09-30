@@ -1,10 +1,4 @@
-"""Truthful registry for target-agent native-history support.
-
-An entry is marked implemented only when canonical actions can be lowered into
-the exact message structure used by the checked-in live agent.  Missing entries
-raise with a source-specific blocker; there is intentionally no "closest
-format" fallback.
-"""
+"""Truthful registry for target-agent native-history support."""
 
 from __future__ import annotations
 
@@ -72,8 +66,6 @@ class NativeHistoryRegistration:
     def status_dict(self) -> Dict[str, object]:
         data = asdict(self)
         data.pop("factory")
-        # Implemented means code exists, not that the mandatory live
-        # conformance probe has passed.
         data["release_ready_without_probe"] = False
         return data
 

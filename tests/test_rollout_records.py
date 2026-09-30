@@ -1,5 +1,3 @@
-"""MyPCBench failure collection 的 provenance 测试。"""
-
 import unittest
 
 from derail.rollout.records import RolloutRecord

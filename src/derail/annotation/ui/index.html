@@ -65,7 +65,6 @@
   body.resizing { user-select: none; }
   body.resizing iframe, body.resizing img { pointer-events: none; }
 
-  /* ---- step list ---- */
   .trajectory-pane { display: flex; flex-direction: column; overflow: hidden; }
   .steps { padding: 0; overflow: auto; min-height: 0; }
   .clean-toolbar {
@@ -104,7 +103,6 @@
   .m.ident { background: var(--ident); }
   .m.drop  { background: #555b66; }
 
-  /* ---- viewer ---- */
   .viewer {
     --task-brief-height: 220px;
     --meta-height: 84px;
@@ -182,7 +180,6 @@
     white-space: pre-wrap; word-break: break-word; overflow: auto;
   }
 
-  /* ---- form ---- */
   .form { padding: 10px 12px 40px; }
   .form h3 {
     margin: 16px 0 6px; font-size: 12px; text-transform: uppercase;
@@ -481,12 +478,9 @@ let ANNOTATOR = (qs.get("annotator") || localStorage.getItem(ANNOTATOR_KEY) || "
 if (qs.get("annotator") && SAFE_ANNOTATOR.test(ANNOTATOR)) {
   localStorage.setItem(ANNOTATOR_KEY, ANNOTATOR);
 }
-// The token arrives once in the link and is then kept locally, so a reload without it still works
-// and the credential stops travelling through the address bar on every navigation.
 const TOKEN = (qs.get("token") || localStorage.getItem("derail.annot.token") || "").trim();
 if (qs.get("token")) localStorage.setItem("derail.annot.token", TOKEN);
 
-// Screenshots load through <img>, which cannot carry a header, so they authenticate by query.
 const withToken = (url) => (TOKEN ? url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN) : url);
 
 async function api(path, options) {
@@ -697,9 +691,9 @@ function changeAnnotator() {
   location.replace(next.toString());
 }
 
-let CONFIG = null;   // /api/config
-let TASK = null;     // /api/task/<id>
-let cur = 0;         // selected action index
+let CONFIG = null;
+let TASK = null;
+let cur = 0;
 let showBefore = false;
 let RUBRIC_SCORES = {};
 let RANGE_SELECTION = new Set();
@@ -780,17 +774,15 @@ function saveViewLocation() {
       actionIndex: action ? Number(action.action_index_global) : 0,
       showBefore,
     }));
-  } catch (_) { /* losing view position must never affect annotation drafts */ }
+  } catch (_) {}
 }
 
-const S = {          // per-trajectory annotation state
+const S = {
   root: null, ident: null, noHorizon: false,
   types: new Set(), extra: new Set(),
   typeSteps: {}, typeEvidence: {}, rev: "", rationale: "", drops: {}, cleanReviewed: false,
   wrongRollout: false,
 };
-
-/* ---------------- persistence (draft only; the server owns the real file) ---- */
 
 const draftKey = () => `derail.annot.${TASK.trajectory_id}.${ANNOTATOR}`;
 const rubricDraftKey = () => `derail.rubrics.${TASK.trajectory_id}.${ANNOTATOR}`;
@@ -805,7 +797,7 @@ function loadRubricDraft() {
     for (const [rubricId, score] of Object.entries(saved)) {
       if (score === 0 || score === 1) RUBRIC_SCORES[rubricId] = score;
     }
-  } catch (_) { /* a corrupt rubric draft must not block annotation */ }
+  } catch (_) {}
 }
 
 function saveRubricDraft() {
@@ -925,10 +917,6 @@ async function recoverServerDraft() {
 
 const EVIDENCE_BLOCK_MARKER = "\n\nError type evidence:\n";
 
-/* Submitting supersedes the draft, so reopening a finished trajectory used to show an empty
-   form even though the files were on disk.  These three helpers read the submission back.
-   The final annotation schema carries no per-label step/evidence fields — submit() folds them
-   into the rationale — so the block has to be split back out to refill those inputs. */
 function splitEvidenceBlock(rationale, labels) {
   const text = String(rationale || "");
   const plain = { rationale: text, typeSteps: {}, typeEvidence: {} };
@@ -941,7 +929,6 @@ function splitEvidenceBlock(rationale, labels) {
     if (head && known.has(head[1])) {
       entries.push({ label: head[1], refs: head[2], detail: head[3] });
     } else if (entries.length) {
-      // Evidence is a textarea, so one entry may span several lines.
       entries[entries.length - 1].detail += "\n" + line;
     } else {
       return plain;
@@ -972,8 +959,6 @@ function submissionToDraftState(submission) {
   };
   if (annotation) {
     const labels = Array.isArray(annotation.error_types) ? annotation.error_types : [];
-    // Split on the tree the checkboxes are actually built from, so a restored label lands in
-    // the same box the annotator ticked; seed_labels is only the fallback.
     const taxonomy = (CONFIG && CONFIG.taxonomy) || {};
     const seed = new Set(taxonomy.groups
       ? Object.values(taxonomy.groups).flat()
@@ -1135,8 +1120,6 @@ async function clearCurrentTask() {
     button.disabled = false;
   }
 }
-
-/* ---------------- rendering ------------------------------------------------ */
 
 function taskIsPerfectSuccess() {
   if (!TASK || S.wrongRollout) return false;
@@ -1322,7 +1305,6 @@ function renderViewer() {
 
 function renderTaskBrief() {
   const serverHints = Array.isArray(TASK.derived_error_types) ? TASK.derived_error_types : [];
-  // Automatic lineage analysis to verify (paper App. E); indices are 0-based like the UI's.
   const auto = TASK.auto_proposal;
   const autoHint = auto
     ? ` · auto proposal (${auto.review_route}): root #${auto.root_cause_action_index ?? "?"}` +
@@ -1621,8 +1603,6 @@ function renderCleanPrefix() {
 function render() { renderSteps(); renderViewer(); renderForm(); }
 function commit() { saveDraft(); render(); }
 
-/* ---------------- validation (mirrors src/derail/annotation/records.py) ----- */
-
 function validate() {
   const e = [];
   if (S.wrongRollout) return {
@@ -1637,8 +1617,6 @@ function validate() {
   const taskSuccess = rubricComplete && rubrics.every((rubric) =>
     RUBRIC_SCORES[rubric.rubric_id || "—"] === 1
   );
-  // A fully successful trajectory has no root cause, error horizon, or clean failure prefix.
-  // Its complete rubric verdicts are still saved so every rollout receives a human decision.
   if (taskSuccess) return {
     errors: e, types: [], typeSteps: {}, typeEvidence: {}, taskSuccess,
   };
@@ -1702,8 +1680,6 @@ function validate() {
   return { errors: e, types, typeSteps, typeEvidence, taskSuccess };
 }
 
-/* ---------------- actions -------------------------------------------------- */
-
 function actionIsRangeSelectable(actionId) {
   const boundary = cleanBoundary();
   return boundary !== null && actionId >= 0 && actionId <= boundary &&
@@ -1747,8 +1723,6 @@ function removeSelectedRange() {
     return;
   }
 
-  // Merge any already-removed range that overlaps or directly touches the new range. This
-  // makes it possible to expand a previous clean-up decision without restoring it first.
   let expanded = true;
   while (expanded) {
     expanded = false;
@@ -1834,7 +1808,6 @@ async function loadTask(trajectoryId) {
   try {
     await refreshOpenCodedLabels(false);
   } catch (_) {
-    // A temporary label-registry read failure must not block annotation work.
   }
   $("errors").textContent = "";
   const remembered = loadViewLocation();
@@ -1850,8 +1823,6 @@ async function loadTask(trajectoryId) {
   RANGE_SELECTION = new Set(); RANGE_ANCHOR = null; SHOW_REMOVED = false;
   const hasLocalDraft = loadDraft();
   loadRubricDraft();
-  // An unsubmitted local draft is the annotator's newest edit and still wins.  Otherwise a
-  // trajectory they already submitted reopens showing that submission rather than a blank form.
   let restoredSubmission = null;
   if (!hasLocalDraft) {
     try {
@@ -1868,10 +1839,7 @@ async function loadTask(trajectoryId) {
   S.extra.delete("wrong_subgoal");
   delete S.typeSteps.wrong_subgoal;
   delete S.typeEvidence.wrong_subgoal;
-  // Server-derived terminal signals remain visible in the task brief as hints.
-  // Only labels explicitly selected by the human annotator enter the submission.
   if (currentTaskNeedsRerun()) S.wrongRollout = true;
-  // Draft loading replaces S.types/S.extra, so build the checkbox tree only after recovery.
   renderLabelGroups();
   renderTaskBrief();
   $("tagCount").textContent = TASK.actions.length + " actions";
@@ -2010,9 +1978,6 @@ async function submit() {
     error_type_action_indices: typeSteps,
     error_type_evidence: typeEvidence,
     reversibility: S.rev,
-    // Keep per-label action evidence even when talking to an older annotation server that
-    // ignores the structured field above.  This preserves backward compatibility with the
-    // currently running collection while making every label independently auditable.
     rationale: rationaleWithTypeEvidence(S.rationale, types, typeSteps, typeEvidence),
     cleaning_review_complete: S.cleanReviewed,
     cleaning_drop_candidates: Object.entries(S.drops).map(([index, decision]) => ({
@@ -2053,8 +2018,6 @@ async function submit() {
     $("submit").disabled = false;
   }
 }
-
-/* ---------------- static UI wiring ----------------------------------------- */
 
 function setSelectOptions(id, values, selected, label) {
   const sel = $(id);
@@ -2245,8 +2208,6 @@ function rationaleWithTypeEvidence(rationale, types, typeSteps, typeEvidence) {
   const evidenceByLabel = typeEvidence && typeof typeEvidence === "object"
     ? typeEvidence
     : {};
-  // A reopened submission may already carry a block from its previous submit; drop it so a
-  // correction replaces the evidence instead of stacking a second copy onto the rationale.
   const base = String(rationale || "");
   const previous = base.lastIndexOf(EVIDENCE_BLOCK_MARKER);
   rationale = previous < 0 ? base : base.slice(0, previous);
@@ -2286,8 +2247,6 @@ function makeErrorTypeRow(label, openCoded) {
   });
   if (openCoded) cb.dataset.openCoded = "true";
   cb.onchange = () => {
-    // S.types/S.extra are replaced when another task draft is loaded. Resolve the current Set
-    // at click time so a checkbox can never mutate a stale task's state.
     const selectedSet = errorTypeSet(openCoded);
     if (cb.checked) {
       selectedSet.add(label);
@@ -2596,7 +2555,7 @@ async function initialize() {
     `taxonomy ${CONFIG.taxonomy.version} / ${CONFIG.taxonomy.mode}`;
   if (!CONFIG.trajectories.length) {
     gate("<div><h2>No annotation_task.json files in this build</h2>" +
-         "<p>Run <code>scripts/03_prepare_annotations.py</code> first.</p></div>");
+         "<p>Run <code>scripts/benchmark/prepare_annotations.py</code> first.</p></div>");
     return;
   }
   const remembered = loadViewLocation();

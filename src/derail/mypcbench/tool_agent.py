@@ -1,9 +1,4 @@
-"""OpenAI-compatible 原生工具调用 agent。
-
-本模块只把经过验证的结构化 tool call 编译成 PyAutoGUI；绝不执行模型返回的
-任意 Python。Holo-3.1 使用 0--1000 归一化坐标，Qwen3.6 使用 DERAIL 明确定义的
-1280x800 绝对像素 scaffold。后者不是 Qwen 官方 computer-use 协议。
-"""
+"""OpenAI-compatible native tool-calling agent."""
 
 from __future__ import annotations
 
@@ -33,19 +28,11 @@ from .agent_config import (
 logger = logging.getLogger("derail.mypcbench.tool_agent")
 REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[3]))
 
-# 取值域定义在 agent_config，那里是 yaml 的校验层；这里重新导出，保持既有
-# `from .tool_agent import EXECUTE_ALL_CALLS_IN_ORDER` 的调用点不变。
 _MULTI_TOOL_POLICIES = MULTI_TOOL_POLICIES
 
-# kimi-k3 上游请求校验会拒绝 content 为空的 assistant 消息（"the message at
-# position N with role 'assistant' must not be empty"），即使该消息携带
-# tool_calls（2026-08-09 smoke 采集两条轨迹尾段 400 崩溃的根因）。推理模型
-# 经常返回空可见 content + tool_calls，回放历史时统一补占位符；traj.jsonl
-# 记录的是真实 visible_content，不受此处影响。
+# kimi-k3 rejects assistant messages with empty content, even with tool_calls.
 _EMPTY_ASSISTANT_PLACEHOLDER = "(tool call)"
 
-# 历史 turn 的截图被折叠掉时留下的痕迹。措辞跟着上游 qwen35vl_agent 的
-# collapse_text 走：模型必须知道那一步「有过截图」，否则会以为自己没看过。
 _FOLDED_SCREENSHOT_PLACEHOLDER = (
     "(screenshot from this step has been removed from the context to save space)"
 )
@@ -59,13 +46,7 @@ def takeover_condition_prompt(
     root_cause_action_index: Optional[int] = None,
     hint: str = "",
 ) -> str:
-    """Return the intervention text for one DERAIL takeover condition.
-
-    The text is appended only to the first post-prefix user turn.  In
-    particular, it is never written into the replay-derived history itself.
-    ``hinted`` (recovery-data generation) returns the free-text ``hint`` verbatim,
-    in the position the ``diagnosed`` text takes.
-    """
+    """Return the intervention text for one DERAIL takeover condition."""
 
     if condition not in TAKEOVER_PROMPT_CONDITIONS:
         raise ValueError(f"unknown takeover prompt condition: {condition!r}")
@@ -106,68 +87,32 @@ def takeover_condition_prompt(
 
 
 class ToolCallError(ValueError):
-    """模型 tool call 不符合冻结 schema。"""
+    """Model tool call does not match the frozen schema."""
 
 
 class BatchedToolCallError(ToolCallError):
-    """保守策略下，模型一次返回了多个交互动作。"""
-
-
+    """Model returned multiple interactive actions under the conservative policy."""
 
 
 @dataclass(frozen=True)
 class ToolAgentProtocol:
-    """decoder 的行为参数。
-
-    正式路径上每个字段都由 ``configs/agents/<agent_id>.yaml`` 逐项提供（见
-    :func:`protocol_from_config`），取值理由也写在那里 —— 这里的注释只解释字段
-    含义。下面的 default 仅供测试直接构造使用；agent_config 要求 yaml 写全所有
-    live 字段，正式路径落不到默认值上。
-    """
+    """Decoder behavior parameters."""
 
     agent_id: str
     coordinate_protocol: str
     system_prompt: str
-    # 保留图片的 turn 数上限（上游 qwen35vl_agent 的 image_max）。超出的历史 turn
-    # 仍留在对话里，只是图片被换成占位文本。
     max_images_in_context: int = 3
-    # 保留完整消息的 turn 数上限（上游的 history_n）。默认等于 max_images_in_context
-    # 时行为与 2026-08-09 v1 采集一致：窗口外的 turn 直接丢掉。
     history_turns: int = 3
-    # 折叠图片的粒度（上游的 fold_size）：一次多折 N 张，避免每步都重算前缀。
     image_fold_size: int = 10
-    # 是否把窗口外 turn 的动作压成 `Previous actions:` 文本块附在当前 user 消息里
-    # （上游 qwen35vl_agent.py:462 的做法）。关掉时窗口外的历史彻底消失。
     previous_action_log: bool = False
-    # None = 请求体不带 temperature。kimi-k3（routify）是推理模型，显式传
-    # temperature 会被 400 拒绝（2026-08-09 实测）；其余 scaffold 保持 0.0。
     temperature: Optional[float] = 0.0
     max_tokens: int = 2048
     tool_choice: str = "auto"
-    # Holo 原生倾向于把 click→write、click→click、动作→wait 作为一个有序批次。
-    # Qwen3.6 仍使用保守的单交互策略；不要在共享 decoder 里无条件放开。
     multi_tool_policy: str = ONE_INTERACTION_PLUS_COLLAPSED_WAITS
-    # 2 而不是 1：一次修复后仍违规就整局判 FAIL，v1 smoke 里 115 次拒绝因此杀掉
-    # 10 局。Holo 打批的习惯很顽固，第一次修复常常只从三个动作减到两个，第二次
-    # 才收敛。所有 DERAIL scaffold 必须取同一个值，否则失败分布不可比。
     schema_repair_attempts: int = 2
-    # 同一动作连发多少次、或两动作循环多少轮才算死循环。0 = 停用，
-    # _loop_reason 在 limit 为 0 时直接短路。
     alternating_action_repeat_limit: int = 0
-    # 连续多少步视觉状态不变就判定空转。与 alternating_action_repeat_limit 互补：
-    # 后者盯的是"动作重复"，这一条盯的是"屏幕没反应"，动作各不相同也照样触发。
-    # 同样 0 = 停用。
     stalled_state_step_limit: int = 0
-    # cuabash 变体：是否给模型暴露 `bash` 工具。命令经 runner 传入的 env 引用
-    # （VM 控制通道 /execute，shell=True）执行，stdout/stderr/exit code 以 tool
-    # 消息回填、同一 predict 内继续对话 —— 对齐 gpt_5_5 shell_call 的
-    # agent-internal 语义：bash 轮不消耗 runner 的 max_steps 预算。
-    # 与 qwen_cuabash 的"bash 单独占一步"语义不同，横比时必须写明。
     enable_bash: bool = False
-    # Qwen3.8 is evaluated as a hybrid computer-use agent.  Other DERAIL
-    # general-model scaffolds keep their frozen GUI-only behavior.
-    # 与 enable_bash 不是同一个东西：两者工具装配路径、记账语义、轨迹记录都不同
-    # （见 predict 里的两条分流），qwen3_8_27b.yaml 同时声明二者即为此故。
     enable_shell: bool = False
 
     def __post_init__(self) -> None:
@@ -177,40 +122,11 @@ class ToolAgentProtocol:
 
 _SAFE_KEY = re.compile(r"^[A-Za-z0-9_+\-]{1,32}$")
 _BUTTONS = {"left", "right", "middle"}
-# scroll.delta_y 的单位是 pyautogui 的滚轮格数。旧 schema 只写 "delta_y" 不写单位，
-# 上限是形同虚设的 10000，于是 Holo-3.1 按像素理解：2026-08-08 的 smoke10 里 107 次
-# scroll 有 96 次 |delta| >= 150，每一次都把页面直接顶到页首或页尾。
-#
-# 单位确实是格数，不是像素 —— 走上游 scaffold 的 qwen3_5 自己发的就是 -3/-5/-10
-# （1957 次 scroll 里 1657 次落在 |delta| <= 15），EvoCUA 发 -3，OpenCUA 发 -10。
-# 所以这里修的是「schema 没说清单位」，不是改执行语义，改完仍与对照组同口径。
-#
-# 30 这个上限的依据：对 smoke20_evocua / smoke20_opencua / v1_qwen3_5 的截图做
-# 逐像素竖直位移互相关，MyPCBench 各 app 页面的可滚动余量只有 ~420-465px，3 格就
-# 已经滚到底（3 格 -> 414px，故一格 >= 138px）。15 格必定饱和，30 格留了一倍余量。
 _MAX_SCROLL_NOTCHES = 30
-# cuabash 变体的 bash 护栏。命令长度与输出截断防止上下文被单条命令打爆；
-# 轮数上限防"一步内无限 bash"烧穿网关 RPM 配额（bash 轮不占 max_steps 预算，
-# 没有轮数上限的话一个死循环模型可以在单个 predict 里永续请求）。烧满上限
-# 仍无 GUI 动作/answer，按 BASH_BUDGET_ABORT 判 FAIL，interventions 保留全部
-# bash_round 供审计。
-# 上限取值沿革：初值 8。F5 kimi_k3_cuabash 正式全量（8 轮）实测 ~54% 任务被
-# 熔断（116/214，其中 101 个死在第 1 步），每步轮数双峰分布（1-2 轮 vs 打满
-# 8），打满≈熔断——8 对 kimi_k3 的长链 bash 风格偏紧。2026-08-23 放宽到 16，
-# 先用 shard_1 同批 46 任务做 8 vs 16 配对 A/B，熔断率显著回落再全量补跑
-# （见 results/COLLECTION_LOG.md 02:xx 立项条目）。
-# 记账模式：DERAIL_BASH_ACCOUNTING=internal（默认）时 bash 轮在 predict 内部
-# 循环、不占 runner 步数，由本上限兜底；=steps（统一记账，对齐上游
-# openai_cuabash）时 bash 轮每轮返回、由 runner 计为 TOOL_CALL 步，预算主体
-# 回到 max_steps，本上限不再介入（见 _MAX_CONSECUTIVE_BASH_STEPS）。
 _BASH_COMMAND_MAX_CHARS = 2000
 _BASH_OUTPUT_CAP = 8192
 _MAX_BASH_ROUNDS_PER_STEP = 16
 
-# 统一记账模式（DERAIL_BASH_ACCOUNTING=steps）的安全阀：bash 轮本身已消耗
-# runner 步数（对齐上游 openai_cuabash 的 TOOL_CALL 轮语义），max_steps 就是
-# 预算主体；这个上限只拦「连发 bash 始终不回 GUI」的病态循环，取值刻意远大于
-# 任何正常侦查链（gpt_5_5 实测最长连发 54 轮且能回头）。
 _MAX_CONSECUTIVE_BASH_STEPS = 64
 _SAFE_PYAUTOGUI_METHODS = {
     "click",
@@ -233,11 +149,7 @@ _SAFE_PYAUTOGUI_METHODS = {
 
 
 def validate_pyautogui_program(code: str) -> str:
-    """验证官方 text-code agent 的输出只含 literal PyAutoGUI 调用。
-
-    OpenCUA 的官方协议输出 PyAutoGUI code block。MyPCBench 会直接交给 Python，
-    因而这里必须在保留官方 prompt/parser 的同时补一层 AST 白名单。
-    """
+    """Validate that text-code agent output contains only literal PyAutoGUI calls."""
 
     if not isinstance(code, str):
         raise ToolCallError("PyAutoGUI program 必须是字符串")
@@ -249,8 +161,6 @@ def validate_pyautogui_program(code: str) -> str:
         tree = ast.parse(code, mode="exec")
     except SyntaxError as exc:
         raise ToolCallError("PyAutoGUI program 语法无效") from exc
-    # EvoCUA 的官方 type parser 会把长文本展开成逐字符 press，因此上限需明显高于
-    # 一般 GUI step；代码长度与 AST 白名单仍阻止资源滥用和任意执行。
     if not 1 <= len(tree.body) <= 2000:
         raise ToolCallError("每步只允许 1--2000 个 PyAutoGUI 调用")
     for statement in tree.body:
@@ -278,12 +188,6 @@ def validate_pyautogui_program(code: str) -> str:
 
 
 def _coordinate_pair_from_string(raw: str) -> Optional[tuple[float, float]]:
-    """把 "[878, 160]" / "867, 163" 解析成坐标对，其余一律返回 None。
-
-    只认「恰好两个数」。三个数、单个数、带单位、非数字都返回 None，让 schema
-    repair 去处理 —— 猜错一个坐标比多花一轮 repair 代价大得多。
-    """
-
     text = raw.strip()
     try:
         parsed = json.loads(text if text.startswith("[") else f"[{text}]")
@@ -325,12 +229,7 @@ def _tool(
 def build_computer_tools(
     x_maximum: int, y_maximum: Optional[int] = None, *, include_bash: bool = False
 ) -> list[dict[str, Any]]:
-    """构造冻结的动作 schema；坐标含义由 system prompt 明确说明。
-
-    ``include_bash=True`` 追加 `bash` 工具（cuabash 变体）。bash 不经
-    SafePyAutoGUICompiler —— 它在 predict 内直接执行并把结果作为 tool 消息
-    回填，见 NativeToolComputerAgent 的 bash 分流。
-    """
+    """Build the frozen computer action schema."""
 
     y_maximum = x_maximum if y_maximum is None else y_maximum
     x_coordinate = {"type": "integer", "minimum": 0, "maximum": x_maximum}
@@ -489,7 +388,7 @@ def _boolean(args: Mapping[str, Any], name: str, default: bool = False) -> bool:
 
 
 class SafePyAutoGUICompiler:
-    """将白名单 tool call 转成 MyPCBench 接受的 PyAutoGUI action。"""
+    """Compile whitelisted tool calls into MyPCBench PyAutoGUI actions."""
 
     def __init__(self, screen_size: tuple[int, int], coordinate_protocol: str):
         self.width, self.height = screen_size
@@ -498,8 +397,6 @@ class SafePyAutoGUICompiler:
         if coordinate_protocol not in {"absolute_pixels", "normalized_0_1000"}:
             raise ValueError(f"未知坐标协议：{coordinate_protocol}")
         self.coordinate_protocol = coordinate_protocol
-        # 本次 compile() 里发生的越界截断。调用方在每次 compile 前清空、compile
-        # 后读取，用来把截断写进 trajectory 的 interventions 并回告模型。
         self.clamps: list[dict[str, Any]] = []
 
     def _coordinate(
@@ -508,17 +405,6 @@ class SafePyAutoGUICompiler:
         coordinate_args: Mapping[str, Any] = args
         raw_x = args.get(x_name)
         if y_name not in args and isinstance(raw_x, str):
-            # vLLM 的 qwen3_coder tool parser 会把两个坐标压进 x 一个字段，y 整个
-            # 丢掉。两种已观测到的形态：
-            #   Qwen3.6  x="[878, 160]"   （JSON 数组）
-            #   Holo-3.1 x="867, 163"     （裸的逗号对）
-            # 两者都是无歧义的坐标对。只接受「恰好两个数」这一种形态，其余一律
-            # 交给 schema repair；原始 arguments 仍原样写进 trajectory 以便审计。
-            # 这里只补回被 parser 吃掉的 y，不改变任何坐标协议的取值范围或缩放。
-            #
-            # Holo 这一支的证据：2026-08-08 smoke10 的 45 次 schema_repair 里有 33
-            # 次是裸逗号对，其中 32 次模型在重试轮给出的 x/y 与串里的两个数完全
-            # 一致，说明按 (A, B) 解读就是模型本意。
             pair = _coordinate_pair_from_string(raw_x)
             if pair is not None:
                 coordinate_args = {**args, x_name: pair[0], y_name: pair[1]}
@@ -537,7 +423,6 @@ class SafePyAutoGUICompiler:
         if self.coordinate_protocol == "normalized_0_1000":
             if not 0 <= x <= 1000 or not 0 <= y <= 1000:
                 raise ToolCallError("归一化坐标必须位于 [0, 1000]")
-            # 1000 对应最右/下方可点击像素，而不是屏幕外的 width/height。
             x = x * (self.width - 1) / 1000
             y = y * (self.height - 1) / 1000
         if not 0 <= x < self.width or not 0 <= y < self.height:
@@ -602,14 +487,6 @@ class SafePyAutoGUICompiler:
             x, y = self._coordinate(args, "x", "y")
             delta_y = int(_number(args, "delta_y"))
             if abs(delta_y) > _MAX_SCROLL_NOTCHES:
-                # 截断而不是拒绝。拒绝会走 schema repair，而 repair 预算
-                # （schema_repair_attempts=2）一旦耗尽 predict() 直接返回 FAIL：
-                # 把「单位理解错」升级成「整局作废」，制造的正是我们想从数据里
-                # 剔除的、与模型能力无关的失败。
-                #
-                # 截断也不是静默的：这一步会记进 interventions 供审计，并通过
-                # tool 消息明确告诉模型「你的 delta 被当作像素了，实际执行的是 N
-                # 格」，它下一步就能自己改口径。
                 clamped = _MAX_SCROLL_NOTCHES if delta_y > 0 else -_MAX_SCROLL_NOTCHES
                 self.clamps.append(
                     {
@@ -650,7 +527,6 @@ class SafePyAutoGUICompiler:
             seconds = _number(args, "seconds") if "seconds" in args else 2
             if not 0 <= seconds <= 30:
                 raise ToolCallError("wait.seconds 必须位于 [0, 30]")
-            # MyPCBench 对 WAIT 有专门语义，避免让模型注入 sleep 代码。
             return ["WAIT"]
 
         if name == "answer":
@@ -664,8 +540,6 @@ class SafePyAutoGUICompiler:
 
 
 def _tool_call_dict(call: Any, fallback_index: int) -> dict[str, Any]:
-    """兼容 OpenAI SDK object 与测试时的普通字典。"""
-
     if isinstance(call, Mapping):
         function = call.get("function", {})
         arguments = function.get("arguments", "{}")
@@ -691,8 +565,6 @@ def _tool_call_dict(call: Any, fallback_index: int) -> dict[str, Any]:
 
 
 def _content_tool_calls(content: Optional[str]) -> list[dict[str, Any]]:
-    """兼容未开启 vLLM tool parser 时落在 content 中的 JSON。"""
-
     if not content:
         return []
     candidates = re.findall(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", content, re.DOTALL)
@@ -727,33 +599,12 @@ def _read_frozen_prompt(filename: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-# 所有 agent 共享的那段 prompt 的唯一副本：完成纪律 + 环境块
-# （persona + 17 应用端口表）。
-#
-# 这一块**与模型无关**，因此每个 agent 必须逐字节拿到同一份——它决定 agent 知不
-# 知道 app 在 localhost:PORT。2026-08-10 的 smoke 实测过缺它的代价：EvoCUA 把
-# Cheskepdia 当成公网站点，敲 cheskepdia.com 撞 Server Not Found 后 6 步就 FAIL。
-#
-# 以前这段文本在 prompts/agents/*_mypcbench_system.txt 里各存了一份（三份逐字节
-# 相同），靠 dump_upstream_prompts.py 同步各自的尾部。现在只留这一个文件：
-# 上游 build_mypcbench_context(has_bash=False) 生成，--check 负责检测漂移。
-# 不在运行时 import agents.prompts，是因为 third_party/ 不进 Git——别人 clone
-# DERAIL 下来必须仍然看得见、也跑得起 prompt。
 MYPCBENCH_SHARED_BLOCK_FILE = "mypcbench_shared_block.txt"
-# cuabash 变体（enable_bash: true）用这份：has_bash=True 的环境块带 sudo 密码与
-# Python/LibreOffice CLI 提示，完成纪律保留 bash 从句。同样由 dump 脚本生成与
-# 校验；两个变体都必须对拥有对应工具面的 agent 逐字节一致。
 MYPCBENCH_SHARED_BLOCK_BASH_FILE = "mypcbench_shared_block_bash.txt"
 
 
 def compose_system_prompt(scaffold_filename: str, *, has_bash: bool = False) -> str:
-    """scaffold 段 + 共享块（按 agent 的 bash 工具面选变体）。
-
-    两段都按原样拼接、不加分隔符：scaffold 文件以恰好一个换行结尾，环境块以
-    ``\\n## Persona`` 开头，接起来正好是剥离之前的那两个换行。整体再 strip 一次，
-    与旧的 `_read_frozen_prompt(整份文件)` 逐字节相同。这里不能用
-    `_read_frozen_prompt` 读共享块——它会 strip 掉块首那个换行。
-    """
+    """Concatenate the scaffold prompt and the shared environment block."""
     shared_file = MYPCBENCH_SHARED_BLOCK_BASH_FILE if has_bash else MYPCBENCH_SHARED_BLOCK_FILE
     for filename in (scaffold_filename, shared_file):
         path = REPO_ROOT / "prompts" / "agents" / filename
@@ -766,7 +617,7 @@ def compose_system_prompt(scaffold_filename: str, *, has_bash: bool = False) -> 
 
 
 class NativeToolComputerAgent:
-    """满足 MyPCBench ``reset/predict`` contract 的视觉工具调用 agent。"""
+    """Visual tool-calling agent implementing MyPCBench's ``reset/predict`` contract."""
 
     def __init__(
         self,
@@ -777,9 +628,6 @@ class NativeToolComputerAgent:
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         client: Any = None,
-        # env / environment 是同一个 VM 句柄的两个入口名：cuabash 分支传 env=，
-        # 上游 qwen38 takeover 分支传 environment=。构造体分别存进 self._env 与
-        # self._environment，两条 bash 分流各读各的，故不做归一。
         env: Any = None,
         environment: Any = None,
     ):
@@ -787,8 +635,6 @@ class NativeToolComputerAgent:
         self.screen_size = tuple(screen_size)
         self.protocol = protocol
         self.compiler = SafePyAutoGUICompiler(self.screen_size, protocol.coordinate_protocol)
-        # runner 从 run_mypcbench.get_agent(..., env=env) 一路传进来的 VM 控制句柄，
-        # 仅 cuabash 变体的 bash 分流使用；GUI-only agent 持有引用但不触碰。
         self._env = env
         if protocol.coordinate_protocol == "normalized_0_1000":
             self.tools = build_computer_tools(1000, 1000, include_bash=protocol.enable_bash)
@@ -812,29 +658,22 @@ class NativeToolComputerAgent:
         self._turns: list[list[dict[str, Any]]] = []
         self.last_trajectory_tool_messages: list[dict[str, Any]] = []
         self.agent_metadata: dict[str, Any] = {}
-        # 与 self._turns 一一对应的动作文本，用来重建 `Previous actions:`。取的是
-        # 编译后的 pyautogui 串而不是模型 content：kimi-k3 有 33% 的步返回空
-        # content（2026-08-09 smoke 实测 204/625），拿 content 做日志会丢掉三分之一。
         self._turn_actions: list[tuple[str, ...]] = []
         self._action_batches: list[tuple[str, ...]] = []
         self._state_actions: list[tuple[str, tuple[str, ...]]] = []
-        # bash 记账模式（见 _MAX_BASH_ROUNDS_PER_STEP 注释）：internal=步内循环
-        # （默认，与 cap8/cap16 各批次一致）；steps=统一记账，bash 轮消耗步数。
         accounting = os.environ.get("DERAIL_BASH_ACCOUNTING", "internal")
         if accounting not in ("internal", "steps"):
             raise ValueError(
                 f"DERAIL_BASH_ACCOUNTING 只接受 internal/steps，实际为 {accounting!r}"
             )
         self._bash_accounting = accounting
-        # steps 模式专用：连续 bash 步计数（GUI 动作/answer 落地时清零），
-        # 配合 _MAX_CONSECUTIVE_BASH_STEPS 拦病态循环。
         self._consecutive_bash_steps = 0
         self._takeover_instruction: Optional[str] = None
         self._takeover_prompt = ""
 
     @property
     def messages(self) -> list[dict[str, Any]]:
-        """供 MyPCBench 在 episode 结束时保存去除图片后的完整可见对话。"""
+        """Full visible conversation with images removed."""
 
         flattened = [{"role": "system", "content": self.protocol.system_prompt}]
         for turn in self._turns:
@@ -845,7 +684,7 @@ class NativeToolComputerAgent:
         if self._client is None:
             try:
                 from openai import OpenAI
-            except ImportError as exc:  # pragma: no cover - 由 collection 环境触发
+            except ImportError as exc:  # pragma: no cover
                 raise RuntimeError("缺少 openai；请安装 `pip install -e '.[collection]'`") from exc
             if not self._base_url:
                 raise RuntimeError("缺少 OPENAI_BASE_URL，无法连接本地推理服务")
@@ -952,8 +791,6 @@ class NativeToolComputerAgent:
 
     @staticmethod
     def _resolve_history_image_url(value: str) -> str:
-        """Resolve replay screenshot paths before sending an OpenAI-compatible request."""
-
         if value.startswith(("data:image/", "http://", "https://")):
             return value
         if value.startswith("file://"):
@@ -1024,15 +861,6 @@ class NativeToolComputerAgent:
 
     @staticmethod
     def _screenshot_fingerprint(screenshot: bytes) -> str:
-        """Build a stable visual-state fingerprint for bounded loop detection.
-
-        The GNOME top bar contains a changing clock, so byte hashes treat an
-        otherwise identical desktop as new every minute.  For loop detection
-        only, ignore that 32-pixel strip and quantize a small grayscale image.
-        The original screenshot remains untouched in the model request and
-        trajectory artifacts.
-        """
-
         try:
             from PIL import Image
 
@@ -1044,28 +872,9 @@ class NativeToolComputerAgent:
                 quantized = bytes(pixel // 32 for pixel in image.getdata())
             return hashlib.sha256(quantized).hexdigest()
         except Exception:
-            # Tests and defensive callers may supply non-image bytes. The
-            # exact digest remains safe, though less tolerant of UI clocks.
             return hashlib.sha256(bytes(screenshot)).hexdigest()
 
     def _folded_prefix(self, retained: int) -> int:
-        """How many of the retained turns lose their screenshot.
-
-        Mirrors ``qwen35vl_agent._update_folding_state``: fold in blocks of
-        ``image_fold_size`` until at most ``max_images_in_context`` images are
-        left, so the prefix only grows and the cached prompt prefix stays
-        stable between steps.  Folding in blocks means the count can undershoot
-        the cap — that is upstream's behaviour, not a rounding bug.
-
-        The cap counts *history* images only; the current screenshot is
-        appended afterwards and is never folded.  Upstream's ``image_max``
-        counts the current one too, so kimi_k3 at 20 sends 21 images where
-        upstream sends 20.  Keeping the field's v1 meaning is worth more than
-        that one screenshot: holo_3_1 / qwen3_6 sit at
-        ``history_turns == max_images_in_context``, where any other reading
-        would silently start folding turns that v1 sent intact.
-        """
-
         images = self.protocol.max_images_in_context
         fold = max(1, self.protocol.image_fold_size)
         folded = 0
@@ -1075,13 +884,6 @@ class NativeToolComputerAgent:
 
     @staticmethod
     def _fold_turn(turn: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Drop the screenshot from a history turn, keeping the turn itself.
-
-        The user/assistant/tool triple has to stay intact: an orphan ``tool``
-        message whose ``tool_call_id`` no longer resolves is a 400 from the
-        gateway, the same failure class as the empty assistant message.
-        """
-
         folded: list[dict[str, Any]] = []
         for message in turn:
             content = message.get("content")
@@ -1097,13 +899,6 @@ class NativeToolComputerAgent:
         return folded
 
     def _previous_actions_text(self, dropped: int) -> str:
-        """`Previous actions:` block for the turns that fell out of the window.
-
-        Upstream keeps this log unbounded (qwen35vl_agent.py:462) — it is the
-        only thing that survives a dropped turn, so truncating it would put the
-        agent back where it started.
-        """
-
         lines = [
             f"Step {index + 1}: {' + '.join(actions) if actions else '(no action)'}"
             for index, actions in enumerate(self._turn_actions[:dropped])
@@ -1177,12 +972,6 @@ class NativeToolComputerAgent:
     def _rejection_text(
         cls, error: str, calls: list[dict[str, Any]], *, batched: bool = False
     ) -> str:
-        """把拒绝写成可执行的指令。
-
-        Holo 的 execute-all 策略只会因参数/终止位置等问题进入这里；Qwen3.6 的
-        保守策略仍可能拒绝多交互批次，此时回显原批次并点名保留第一个真实动作。
-        """
-
         prefix = f"Rejected by the frozen DERAIL tool schema: {error}."
         if not calls:
             return (
@@ -1212,18 +1001,6 @@ class NativeToolComputerAgent:
     def _collapse_waits(
         cls, calls: list[dict[str, Any]]
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        """把连续的 wait 折叠成一个，返回 (执行, 折叠掉的)。
-
-        协议要管的是"一屏一个交互动作"，wait 放在哪一侧从来不是协议关心的事。
-        MyPCBench 逐个执行 actions（env.step 对 "WAIT" 就是 sleep），所以
-        ["WAIT", click] 本来就正确表达了"先等界面稳定再点"。此前要求 wait 必须
-        后置、且总数不超过 2，把 `wait+wait` 和 `wait+动作` 一律判为违规——v1
-        smoke 里这两种形状占了全部 schema 拒绝的三分之一，全是形式噪声。
-
-        这里只折叠重复 wait，不重排顺序、不丢掉唯一的 wait，被折叠的 call 由
-        调用方记进 interventions，保持 scaffold 干预可审计。
-        """
-
         executed: list[dict[str, Any]] = []
         collapsed: list[dict[str, Any]] = []
         for call in calls:
@@ -1254,8 +1031,6 @@ class NativeToolComputerAgent:
             raise ToolCallError("模型没有返回可解析的 tool call")
 
         if self.protocol.multi_tool_policy == EXECUTE_ALL_CALLS_IN_ORDER:
-            # Holo runner：不重排、不截断，也不折叠 wait。返回列表会由 MyPCBench
-            # runner 按顺序逐个 env.step，并在每个物理动作后保存截图。
             executed, collapsed = calls, []
         else:
             executed, collapsed = self._collapse_waits(calls)
@@ -1268,14 +1043,9 @@ class NativeToolComputerAgent:
             if "answer" in names and len(executed) > 1:
                 raise BatchedToolCallError("answer 必须单独返回，不能与其他 tool call 同批")
         elif "answer" in names:
-            # env.step(DONE/FAIL) 会令 runner 立即 break；若 answer 后还有 call，承诺的
-            # “全部执行”便无法兑现。允许 [click, answer]，但拒绝 [answer, click]。
             if names.count("answer") > 1 or names[-1] != "answer":
                 raise ToolCallError("execute_all 批次中的 answer 最多一个且必须位于末尾")
 
-        # bash 必须单独成批：一次一条命令、不与 GUI 动作或 wait 混发。混批意味着
-        # 「执行 shell 的同时挪动鼠标」，两种语义都没法兑现；one_interaction 的
-        # 交互计数不认 bash（它不是屏幕交互），所以这里单独拦。
         if self.protocol.enable_bash:
             bash_count = sum(name == "bash" for name in names)
             if bash_count > 1 or (bash_count == 1 and len(executed) > 1):
@@ -1294,8 +1064,6 @@ class NativeToolComputerAgent:
             except json.JSONDecodeError as exc:
                 raise ToolCallError(f"{name} arguments 不是合法 JSON") from exc
             if str(name) == "bash" and self.protocol.enable_bash:
-                # bash 不经 SafePyAutoGUICompiler；参数校验在这里，执行在 predict
-                # 的 bash 分流（结果以 tool 消息回填后继续对话）。
                 command = arguments.get("command")
                 if not isinstance(command, str) or not command.strip():
                     raise ToolCallError("bash.command 必须是非空字符串")
@@ -1353,14 +1121,6 @@ class NativeToolComputerAgent:
     def _run_bash(
         self, call: Mapping[str, Any], arguments: Mapping[str, Any]
     ) -> tuple[str, dict[str, Any]]:
-        """在 VM 里执行一条 shell 命令，返回 (回填模型的 tool 文本, intervention)。
-
-        执行走 runner 传入的 env 控制句柄（``_execute_command(command,
-        shell=True)``，与 qwen_cuabash / openai_cuabash 同一条通道）；HTTP 层
-        自带 120s 超时与 3 次重试。任何执行层故障都转成文本回填给模型，让它
-        自己换命令或转 GUI —— bash 故障绝不让 predict 崩掉。
-        """
-
         command = str(arguments["command"])
         intervention: dict[str, Any] = {
             "type": "bash_round",
@@ -1376,7 +1136,7 @@ class NativeToolComputerAgent:
             )
         try:
             result = self._env._execute_command(command, shell=True)
-        except Exception as exc:  # noqa: BLE001 - 执行层故障回填给模型而不是崩溃
+        except Exception as exc:  # noqa: BLE001
             intervention.update({"exit_code": None, "error": str(exc)})
             return f"Error: {exc}", intervention
         raw_stdout = str(result.get("output") or "")
@@ -1410,11 +1170,9 @@ class NativeToolComputerAgent:
         if signature in {("DONE",), ("FAIL",), ("WAIT",)}:
             return None
 
-        # 空转检测：屏幕连续多少步没有任何变化。动作可以每步都不同——模型在一个
-        # 滚到底的列表上换着花样操作、界面纹丝不动，同样算空转。
         stall_limit = self.protocol.stalled_state_step_limit
         if stall_limit:
-            stalled = 1  # 当前这一步
+            stalled = 1
             for prior_digest, _ in reversed(self._state_actions):
                 if prior_digest != screenshot_digest:
                     break
@@ -1426,14 +1184,6 @@ class NativeToolComputerAgent:
         if not repeat_limit:
             return None
 
-        # 这里曾经还有一条"同画面 + 同动作在整局里累计出现 3 次"的判据，已移除。
-        # 它不要求连续，会把正常干活误判成死循环：一个列表逐条处理、每处理完一条
-        # 回到看起来一样的列表页，画面和动作都重复，但这是任务本身的形状。剩下两
-        # 条判据都要求连续，不会有这个问题。
-
-        # 模型即将连续第 repeat_limit 次发出同一个动作，且上一步没让画面产生任何
-        # 变化。要求"画面没变"是为了不误伤向导类界面——Next 按钮位置固定，但每次
-        # 点击确实翻到了看得见的下一页。
         if (
             len(self._action_batches) >= repeat_limit - 1
             and all(
@@ -1466,9 +1216,6 @@ class NativeToolComputerAgent:
         self.agent_metadata = {}
         screenshot = obs.get("screenshot")
         messages, user_message = self._messages(instruction, screenshot)
-        # The experimental intervention belongs only to the first post-prefix
-        # request.  Schema-repair retries reuse request_messages below, while
-        # later environment turns receive the ordinary task prompt.
         self._takeover_prompt = ""
         screenshot_digest = self._screenshot_fingerprint(bytes(screenshot))
         request_messages = list(messages)
@@ -1481,9 +1228,6 @@ class NativeToolComputerAgent:
             or self.protocol.stalled_state_step_limit
             else 0
         )
-        # cuabash 变体的 bash 轮预算。internal 模式：bash 不占 runner 步数，
-        # 一步内的 bash 轮数必须有界（护栏理由见 _MAX_BASH_ROUNDS_PER_STEP）。
-        # steps 模式：每轮 bash 直接返回、由 runner 计步，此预算不介入。
         bash_rounds_left = (
             _MAX_BASH_ROUNDS_PER_STEP
             if self.protocol.enable_bash and self._bash_accounting == "internal"
@@ -1559,13 +1303,6 @@ class NativeToolComputerAgent:
                 interventions.append(normalization)
             interventions.extend(clamps)
 
-            # cuabash bash 分流：decode 出的批恰为一条 bash（decode 已强制单独
-            # 成批）。internal 模式：执行后把 stdout/stderr/exit code 作为 tool
-            # 消息回填、同一 predict 内继续对话 —— 不落 signature/loop guard
-            # （bash 轮不动屏幕），也不消耗 runner 的 max_steps 步数。
-            # steps 模式（统一记账）：执行后把本轮作为完整一步返回给 runner，
-            # runner 记 TOOL_CALL 轨迹行并计入 step_idx（对齐上游 openai_cuabash
-            # 的 shell 轮语义），预算主体回到 max_steps。
             if self.protocol.enable_bash and summaries and summaries[0]["name"] == "bash":
                 if self._bash_accounting == "internal":
                     if bash_rounds_left <= 0:
@@ -1589,8 +1326,6 @@ class NativeToolComputerAgent:
                         return json.dumps(trajectory_response, ensure_ascii=False), ["FAIL"]
                     bash_rounds_left -= 1
                 bash_call = next(call for call in calls if self._call_name(call) == "bash")
-                # steps 模式的安全阀在命令执行前拦（与 internal 的先检查语义一致）：
-                # 第 N+1 轮连发请求直接判 FAIL，命令不落地。
                 if (
                     self._bash_accounting == "steps"
                     and self._consecutive_bash_steps >= _MAX_CONSECUTIVE_BASH_STEPS
@@ -1645,10 +1380,6 @@ class NativeToolComputerAgent:
                 )
                 continue
 
-            # 上游 qwen38 的 shell 分流。与上面 cuabash 那条同名工具 `bash`，但
-            # 参数 schema 不同（commands 列表 vs command 单串）、summary 形状也
-            # 不同（带 tool_call_id），故单独用 enable_shell 设门：否则 cuabash
-            # 的 summary 落到这里会在 shell["tool_call_id"] 上 KeyError。
             shell_summaries = [item for item in summaries if item["name"] == "bash"]
             if self.protocol.enable_shell and shell_summaries:
                 shell = shell_summaries[0]
@@ -1725,13 +1456,9 @@ class NativeToolComputerAgent:
             break
 
         assistant_message = self._assistant_message(visible_content, calls)
-        # 被折叠的 wait 仍然要有对应的 tool 消息：assistant 消息里保留模型原样发出的
-        # 全部 tool call（审计需要），OpenAI 的对话 contract 要求每个都有回复。
         collapsed_ids = (
             set(normalization["collapsed_tool_call_ids"]) if normalization else set()
         )
-        # 被截断的 scroll 要如实回告，否则模型只会看到「页面又滑到底了」而永远
-        # 不知道自己把格数当成了像素。
         clamped_by_id = {clamp["tool_call_id"]: clamp for clamp in clamps}
 
         def _tool_reply(call: Mapping[str, Any]) -> str:
@@ -1756,10 +1483,7 @@ class NativeToolComputerAgent:
         self._turn_actions.append(signature)
         self._action_batches.append(signature)
         self._state_actions.append((screenshot_digest, signature))
-        # GUI 动作/answer 落地：steps 模式的连发 bash 计数清零。
         self._consecutive_bash_steps = 0
-        # 保存 provider 返回的可见 content，供 EAR judge 审查；这里不访问或注入
-        # provider 私有 hidden reasoning。
         trajectory_response = {
             "content": visible_content,
             "tool_calls": calls,
@@ -1770,12 +1494,7 @@ class NativeToolComputerAgent:
 
 
 def protocol_from_config(config: AgentConfig) -> ToolAgentProtocol:
-    """把一份校验过的 yaml 配置装配成 decoder 协议。
-
-    每个字段都来自 yaml，没有代码侧默认值 —— ToolAgentProtocol 上那些 default
-    只服务于测试里直接构造的场景，正式路径上 agent_config 已经要求全部 live
-    字段present，落不到默认值上。各字段的取值理由写在 yaml 里，那里现在是权威。
-    """
+    """Build the decoder protocol from a validated yaml config."""
 
     return ToolAgentProtocol(
         agent_id=config.agent_id,
@@ -1792,9 +1511,7 @@ def protocol_from_config(config: AgentConfig) -> ToolAgentProtocol:
         alternating_action_repeat_limit=config["alternating_action_repeat_limit"],
         stalled_state_step_limit=config["stalled_state_step_limit"],
         enable_bash=config["enable_bash"],
-        # 只有 qwen3_8_27b 的 live spec 声明了 enable_shell，其余 agent 缺键即 False。
         enable_shell=bool(config.live.get("enable_shell", False)),
-        # has_bash 默认 False：GUI-only agent 拿到的 prompt 与不传该参数时逐字节相同。
         system_prompt=compose_system_prompt(
             config["system_prompt_file"], has_bash=config["enable_bash"]
         ),

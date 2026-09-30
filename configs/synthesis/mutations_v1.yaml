@@ -1,6 +1,3 @@
-# Mutation library (execution doc v1.2 section 6.1): which type-preserving mutations apply to
-# which produce types.  Families are matched on the port-type name (value_types_v0 names and
-# the free-form names extraction produces); mutation identifiers are the schema enum.
 schema_version: mutations-config/1.0
 default_family: text
 family_patterns:

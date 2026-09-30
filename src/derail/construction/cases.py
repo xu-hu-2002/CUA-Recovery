@@ -31,16 +31,6 @@ def eligible_depths(
     *,
     require_error_explicit: bool = True,
 ) -> Tuple[Tuple[int, ...], Dict[int, str]]:
-    """The single depth-eligibility rule (paper App. C "Takeover at six depths").
-
-    Depth ``d`` is skipped when fewer than ``d`` actions follow the root cause
-    (``t_r + d > last``) or when the takeover point falls after the step where the error becomes
-    explicit (``t_r + d > t_e``, i.e. ``d > h_e``).  A failure whose error never becomes explicit
-    (``t_e`` unobserved) yields no depth while ``require_error_explicit`` holds.  All indices are
-    source ``action_index_global`` values; prefix repair only drops actions before ``t_r``, so the
-    rule gives the same answer on the repaired prefix.  Returns ``(available, {depth: reason})``.
-    """
-
     root = int(root_cause_action_index)
     available = []
     skipped: Dict[int, str] = {}
@@ -197,8 +187,6 @@ def build_case_plan(
         raise CaseConstructionError("prefix audit case/root 与 adjudication 不一致")
     if prefix_audit.source_trajectory_sha256 != source_trajectory_sha256:
         raise CaseConstructionError("prefix audit source trajectory hash 不一致")
-    # The human prefix audit covers every depth the suffix length allows; the error-horizon rule
-    # then only narrows which of those depths become cases.
     audited, _ = eligible_depths(root, len(steps) - 1, None, require_error_explicit=False)
     available, unavailable = eligible_depths(
         root,
@@ -209,16 +197,12 @@ def build_case_plan(
     if not available:
         raise CaseConstructionError("轨迹没有任何可用 depth instance: %s" % unavailable)
     audit_end = root + max(audited)
-    # Repair only touches actions before the root cause (PrefixAudit enforces audit end >= root),
-    # so a review window that stops short of the deepest depth still covers every repaired action.
     if prefix_audit.audit_end_action_index > audit_end:
         raise CaseConstructionError(
             "prefix audit end 超出最大可用 depth 边界: %d" % audit_end
         )
     prefix_audit.validate_patches(patches)
 
-    # Only failure prefixes survive construction. Dropped actions disappear, while every retained
-    # action keeps its source action_index_global so depth remains anchored to the raw trajectory.
     repaired = apply_repair_patches(steps[: audit_end + 1], patches)
     repaired_by_id = {step.action_index_global: step for step in repaired}
     if root not in repaired_by_id or repaired_by_id[root].action != steps[root].action:

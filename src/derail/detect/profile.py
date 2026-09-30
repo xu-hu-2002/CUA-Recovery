@@ -1,16 +1,3 @@
-"""Task-level latent-horizon profile and bucket membership (execution doc v1.2 section 6.6).
-
-``latent-profile/1.0``: node count, per-class counts, semantic-step horizon max / median,
-share of nodes whose class is ``cross_app`` or ``verifier_only``, the number of
-``verifier_only`` nodes before the first R3 node, the sampling bucket, and the three v1.0
-structural quantities (dependency depth, independent component ratio, decorative-carry
-violations) computed with the v0.2 modules.
-
-Bucket labels come from the sampling configuration (``latent_horizon_semantic_bucket_targets``
-keys such as ``"1"``, ``"2-3"``, ``">=4"``, ``"verifier_only"``) so the grid can change without
-a schema bump.
-"""
-
 from __future__ import annotations
 
 import statistics
@@ -26,9 +13,6 @@ CLASSES = ("required_next", "required_later", "incidental_only", "verifier_only"
 
 
 def bucket_for(horizon: Optional[int], observability_class: str, buckets: Sequence[str]) -> str:
-    """Map a node's horizon to a configured bucket label; ``verifier_only``/``silent`` nodes
-    go to the ``verifier_only`` bucket when it exists."""
-
     if horizon is None:
         return "verifier_only" if "verifier_only" in buckets else "none"
     for label in buckets:
@@ -47,8 +31,6 @@ def bucket_for(horizon: Optional[int], observability_class: str, buckets: Sequen
 
 
 def _independent_component_ratio(dag: DagIndex) -> float:
-    """Share of nodes outside the largest weakly connected component."""
-
     nodes = list(dag.order)
     if not nodes:
         return 0.0

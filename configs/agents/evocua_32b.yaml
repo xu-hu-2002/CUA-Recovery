@@ -1,67 +1,23 @@
-# 走 EvoCUA 官方实现（third_party/EvoCUA/mm_agents/evocua/evocua_agent.py），由
-# factory._create_evocua() 构造。DERAIL 只在外面包一层 _OfficialMyPCBenchAdapter
-# 做输出校验，不经过 SafePyAutoGUICompiler。
-#
-# GUI-only（论文 05:12）：上游 EvoCUA 只有 pyautogui 动作空间，没有命令行工具面，
-# 所以这里没有 enable_bash 旋钮。
-#
-# 标 `# live` 的字段由 agent_config.load_agent_config() 读取并逐项传给上游 agent；
-# 拼错、缺字段、取值越界一律 hard fail。
-#
-# 注意 coordinate_protocol 用的是上游词汇表，不要拿去对照 tool_agent.py 的枚举；
-# 上游真正读的是下面的 coordinate_type。
 agent_id: evocua_32b
 family: evocua
 scaffold: upstream_official
 agent_type: derail_evocua
 checkpoint: meituan/EvoCUA-32B-20260105
-# 00_tmux_serve_open_source.sh 用 --served-model-name EvoCUA，与 checkpoint 不同。
 served_model_name: EvoCUA
 revision: ce0553438b5f329959b4e740791b580402bbc73e
 live_adapter: derail.mypcbench.factory.create_mypcbench_agent
 upstream_agent_commit: 4a0ad5fd4eb1d5b65966e1c7cc3feaa3b534eadd
-# 对应上游 coordinate_type="relative"，adjust_coordinates() 按 original_width/999
-# 缩放。这一行是可读描述，不参与执行。
 coordinate_protocol: normalized_0_999
-# 每个 endpoint 占几张卡。VM 并发度 = 可用 GPU 数 / 这个数，由
-# scripts/lib/collection_config.sh 在起服务时算，不写死在配置里。
 tensor_parallel_size: 2
-# live —— 上游只接受 "S1" / "S2"（evocua_agent.py:64 自己也 assert）。
 prompt_style: S2
-# live —— 上游只接受 "relative" / "absolute"；relative 即上面的 0..999 网格。
 coordinate_type: relative
-# live —— 截图预处理按 32 对齐 resize。
 resize_factor: 32
-# live —— 上游 loop 内保留的历史轮数，对齐全局的 image_max=20。
-#
-# EvoCUA 只有这一个旋钮：_build_s2_messages() 用同一个数切 self.responses 和
-# self.screenshots，所以「20 轮」同时意味着「20 张图」，拿不到 qwen 那种
-# history_n=100 / image_max=20 的分离。窗口之外的动作它自己会压成 Previous
-# Actions 文本（evocua_agent.py:202），所以 20 是这套 scaffold 最接近对齐的取值。
 max_history_turns: 20
-# live —— 采样参数。曾经是三个未写进 env.example.yaml 的环境变量，run manifest 里
-# 看不出实际用了什么；现在只认这里。
-# live —— 补全预算，不是上下文预算。2026-09-11 由 32768 降为 4096。
-# 32768 是 OSWorld wrapper 原样抄来的。服务端 max-model-len 是 49152，所以只要
-# 输入超过 16384 token，32768 + 输入就必然爆窗，vLLM 直接回 HTTP 400。外层重试
-# 把这个确定性错误当临时故障退避重发，试满 10 次全败，单次周期白耗约 2 分钟；
-# 深度 15 的 long_horizon 已累计触发 113 次，并在轨迹里留下丢步。
-# 4096 的依据：已采 9792 条真实回复，中位 130 token，p99 577，最长 1147，无一
-# 接近 4096，故此改动不改变任何一次生成的内容，深度 0-15 与后续深度仍可比。
-# 同一问题在 qwen3_5_35b_a3b 上的先例见 configs/models.lock.yaml 的
-# probe_overrides.max_tokens: 4096（"4096 是补全预算而非上下文预算，仍然保留"）。
 max_tokens: 4096
 top_p: 0.9
 temperature: 0.01
-# 不再声明 max_steps：所有 agent 统一取 configs/collection/mypcbench_runtime.yaml
-# 的 150。2026-08-11 曾为省墙钟把本 agent 降到 120，代价是跨 agent 分差里混进了
-# 「步数预算不同」；v1 数据就是在 120 下采的，重采前旧轨迹仍是 120。
-# live —— runner 的 DERAIL_AGENT_MAX_STEPS 始终是权威上限，上游 guard 取它 +1。
-# EvoCUA 会把第 N 个有效动作替换成 FAIL，guard 与 runner 同值就会污染最后一步。
 step_budget_policy: runner_authoritative_upstream_guard_plus_one
-# live —— 仅当 runner 没有导出 DERAIL_AGENT_MAX_STEPS 时才会用到。
 upstream_max_steps_fallback: 50
-# 01_collect_all.sh 预估时长用；不影响采集行为。
 eta_step_seconds: 9.7
 eta_step_seconds_source: smoke20 实测单步中位
 status: smoke20_task_completed_step16_visual_download_evidence

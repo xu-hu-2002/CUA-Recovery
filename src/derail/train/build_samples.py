@@ -1,14 +1,3 @@
-"""Training samples from analysed rollouts (paper 03:28, 05:176, 05:218, appendix B Alg.1).
-
-- ``recovery_cases``: one case per failed training-split rollout and depth ``d`` in
-  ``DEPTH_GRID`` with ``c = t_r + d`` inside the rollout -- instruction ``l``, the history
-  ``H_c`` (actions ``0..c``, reasoning stripped) and the program-verified references the
-  hints are built from.  ``scripts/recovery_gen_v1.py`` turns a case into ``(l, H_c, r*)``.
-- ``success_samples`` / ``token_matched``: the successful-trajectory control of the ablation.
-- ``base`` / ``detection`` / ``verification`` / ``negative``: the execution doc v1.2 10A
-  step-level samples (``format: steps``), not used by the paper.
-"""
-
 from __future__ import annotations
 
 import functools
@@ -74,9 +63,6 @@ class BuildConfig:
 
     @property
     def loss_weights(self) -> Dict[str, float]:
-        """Per-part weights: the paper's NLL on r* (input 0, every target part 1), or the
-        v1.2 weighted scheme (``check_min`` is the floor of the class-balanced marker)."""
-
         if self.objective == "weighted":
             return dict(self.weighted)
         return {"input": 0.0, "action": 1.0, "thought": 1.0, "ledger": 1.0, "check_min": 1.0}
@@ -89,9 +75,6 @@ class BuildConfig:
 
 
 def split_function(section: Mapping[str, Any], repository: Union[str, Path]) -> Callable:
-    """``function(workflow_id)`` from the config's ``split`` section, bound to its file.
-    The file is read on the first lookup, so a config loads without the frozen split."""
-
     function = _resolve(section["function"])
     if not section.get("file"):
         return function
@@ -106,7 +89,6 @@ def split_function(section: Mapping[str, Any], repository: Union[str, Path]) -> 
     return lambda workflow_id: function(workflow_id, table())
 
 
-# ------------------------------------------------------------------------------ ledger
 def _param_values(step: Mapping[str, Any]) -> List[str]:
     out = []
     for param in step.get("params", ()):
@@ -134,8 +116,6 @@ def ledger_upto(
     config: BuildConfig,
     gold_facts: Sequence[Tuple[str, str, str]] = (),
 ) -> List[Dict[str, Any]]:
-    """Facts read at steps <= ``upto`` that are used by a later parameter or are gold reads."""
-
     steps = [s for s in trace["steps"] if int(s["action_index"]) <= upto]
     later: Dict[int, List[str]] = {}
     for step in trace["steps"]:
@@ -169,7 +149,6 @@ def ledger_upto(
     return entries
 
 
-# ------------------------------------------------------------------------------ samples
 def _history(trace: Mapping[str, Any], upto: int) -> List[Dict[str, Any]]:
     return [
         {
@@ -234,8 +213,6 @@ def _sample(
 def base_samples(
     trace: Mapping[str, Any], config: BuildConfig, gold_facts: Sequence[Tuple[str, str, str]] = ()
 ) -> List[Dict[str, Any]]:
-    """Every step of a successful trace after state-neutral segment elimination."""
-
     last = max(int(s["action_index"]) for s in trace["steps"])
     removed = {
         i
@@ -279,10 +256,6 @@ def evidence_refs(
     cut: int,
     ledger: Sequence[Mapping[str, Any]],
 ) -> Dict[str, Any]:
-    """The three program-verified references at truncation point ``cut``: the fact of the
-    evidence step that contradicts the carried value, the carried value (ledger entry or the
-    typed parameter of the root step) and the first write between the root and ``cut``."""
-
     evidence_step = analysis.get("earliest_identifiable_action_index")
     root = analysis.get("root_cause_action_index")
     detail = (analysis.get("provenance") or {}).get("root_detail") or {}
@@ -308,7 +281,6 @@ def evidence_refs(
         ) == str(normalize_value(entry["value"])):
             carried = dict(entry)
     if carried is None and detail.get("wrong_value") is not None:
-        # the wrong value was typed, not read: cite the parameter itself
         for s in trace["steps"]:
             if int(s["action_index"]) == root:
                 for param in s.get("params", ()):
@@ -351,10 +323,6 @@ def detection_samples(
     gold_facts: Sequence[Tuple[str, str, str]] = (),
     gold_action: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    """One sample per truncation point at or after the evidence step, each with the three
-    program-verified references (contradiction fact, carried value, affected write).  With
-    ``gold_action`` (D-046) the target action is the programme-derived node-level action."""
-
     evidence_step = analysis.get("earliest_identifiable_action_index")
     root = analysis.get("root_cause_action_index")
     if evidence_step is None or root is None:
@@ -413,10 +381,6 @@ def verification_samples(
     profile: Optional[Mapping[str, Any]],
     config: BuildConfig,
 ) -> List[Dict[str, Any]]:
-    """For a failure with no evidence step: before the first irreversible write after the
-    root, verify the source the root value came from (only when the upstream lineage has a
-    verifier_only / cross_app node, section 10A.2)."""
-
     if not analysis.get("horizon_censored") or analysis.get("root_cause_action_index") is None:
         return []
     root = int(analysis["root_cause_action_index"])
@@ -470,9 +434,6 @@ def negative_samples(
     count: int,
     rng: random.Random,
 ) -> List[Dict[str, Any]]:
-    """Steps whose ledger agrees with the observation: before the root cause of a failure,
-    or anywhere in a success."""
-
     limit = (
         int(analysis["root_cause_action_index"])
         if analysis and analysis.get("root_cause_action_index") is not None
@@ -503,7 +464,6 @@ def negative_samples(
     return out
 
 
-# ------------------------------------------------------------------------ paper format
 def _instruction(trace: Mapping[str, Any]) -> str:
     return str(
         trace.get("instruction")
@@ -513,9 +473,6 @@ def _instruction(trace: Mapping[str, Any]) -> str:
 
 
 def stripped_history(trace: Mapping[str, Any], upto: int) -> List[Dict[str, Any]]:
-    """``H_c``: the actions ``0..upto`` and their observation refs, reasoning removed (the
-    takeover history-injection format, 02_formulation:10)."""
-
     return [
         {
             "action_index": int(s["action_index"]),
@@ -528,8 +485,6 @@ def stripped_history(trace: Mapping[str, Any], upto: int) -> List[Dict[str, Any]
 
 
 def target_loss_weights(config: BuildConfig) -> Dict[str, float]:
-    """Weights of a trajectory sample: ``input`` covers ``l`` and ``H_c``."""
-
     weights = config.loss_weights
     return {k: weights[k] for k in ("input", "thought", "action")}
 
@@ -540,9 +495,6 @@ def recovery_cases(
     config: BuildConfig,
     gold_facts: Sequence[Tuple[str, str, str]] = (),
 ) -> List[Dict[str, Any]]:
-    """Alg.1 lines 45-53 (training side): one case per depth ``d`` in ``DEPTH_GRID`` with
-    ``c = t_r + d`` inside the rollout, for a failed rollout of a training-split workflow."""
-
     root = analysis.get("root_cause_action_index")
     workflow = str(trace["task_id"])
     split = config.split_of(workflow)
@@ -581,9 +533,6 @@ def recovery_cases(
 
 
 def success_samples(trace: Mapping[str, Any], config: BuildConfig) -> List[Dict[str, Any]]:
-    """The ablation control (05:218): a successful rollout of a training workflow from a
-    clean state, supervised on every step."""
-
     workflow = str(trace["task_id"])
     split = config.split_of(workflow)
     if split != "train" or (trace.get("outcome") or {}).get("final_verifier") is not True:
@@ -614,9 +563,6 @@ def success_samples(trace: Mapping[str, Any], config: BuildConfig) -> List[Dict[
 
 
 def token_estimate(sample: Mapping[str, Any], config: BuildConfig) -> float:
-    """Tokens of a trajectory sample: characters / ``chars_per_token`` plus
-    ``tokens_per_image`` per screenshot, at most ``max_images_per_sample`` screenshots."""
-
     control = config.success_control
     steps = list(sample["target"]["steps"])
     parts = [str(s.get("thought") or "") + json.dumps(s.get("action"), default=str) for s in steps]
@@ -638,10 +584,6 @@ def token_matched(
     recovery: Sequence[Mapping[str, Any]],
     config: BuildConfig,
 ) -> Tuple[List[Mapping[str, Any]], Dict[str, Any]]:
-    """Success samples of the recovery set's workflows whose token total matches the
-    recovery set's (``match: global``) or each workflow's (``per_workflow``) within
-    ``tolerance``; seeded random order."""
-
     settings = config.success_control
     tolerance = float(settings.get("tolerance", 0.02))
     per_workflow = settings.get("match", "global") == "per_workflow"
@@ -684,11 +626,7 @@ def token_matched(
     }
 
 
-# ----------------------------------------------------------------------------- dataset
 def balance_check_weights(samples: List[Dict[str, Any]], config: BuildConfig) -> Dict[str, float]:
-    """Inverse-frequency weight of the <check> marker, computed once over the dataset
-    (``loss.objective: weighted`` only; the NLL objective keeps every weight at 1)."""
-
     counts = Counter(s["target"]["check"] for s in samples)
     total = sum(counts.values()) or 1
     weights = {}

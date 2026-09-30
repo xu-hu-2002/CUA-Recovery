@@ -1,84 +1,31 @@
-# ⚠ 不是论文里 Kimi-K3 的配置。论文的 Kimi-K3 开放命令行（05:12、F 表），实际
-# 采集与接管都走 kimi_k3_cuabash.yaml（enable_bash: true）：clean-start 用
-# AGENT_ID=kimi_k3_cuabash，接管时 scripts/10_run_takeover_rollout.py 把实验 ID
-# kimi_k3 解析成 kimi_k3_cuabash 的 live 配置。本文件只是 GUI-only 对照组（F3 批次），
-# 仍被 derail.mypcbench.agent_config / factory / 金标测试引用，所以保留不删。
-#
-# kimi-k3 没有原生 computer-use 协议（routify 实测：Responses API 不挂载、无原生
-# CUA 工具，见 docs/ROUTIFY_API_MATRIX.md），这里显式使用 DERAIL general-VLM
-# scaffold，不能在论文中写成 native CUA baseline。
-#
-# 标 `# live` 的字段由 agent_config.load_agent_config() 读取，经
-# tool_agent.protocol_from_config() 装配成 ToolAgentProtocol —— 与 qwen3_6 /
-# holo_3_1 走完全同一条装配路径，代码侧不再为 kimi 单独持有任何取值。
-#
-# 网关协议约束（2026-08-09 实测）：
-#   - 推理模型，拒绝 temperature 参数 -> temperature: null 表示请求体省略该字段。
-#   - reasoning tokens 计入 max_tokens 预算，所以 max_tokens 比另两个 scaffold 大。
-#   - tool_call_id 确定性命名（click_0 等），多轮可能重复；history 回放实测可用。
-#   - 上游校验拒绝 content 为空的 assistant 消息（即使携带 tool_calls），
-#     tool_agent._assistant_message 统一补占位符。
 agent_id: kimi_k3
 family: kimi
 scaffold: derail_tool_agent
 agent_type: derail_kimi_k3
-model: kimi-k3                    # routify 裸名；/models 端点不可用，无法枚举校验
+model: kimi-k3
 api_gateway: routify_openai_compatible
 output_format: openai_compatible_function_calling
 scaffold_origin: derail_general_vlm
 live_adapter: derail.mypcbench.factory.create_mypcbench_agent
-# VM 并发度。托管 API 不占卡，上限是配额而非显存 —— 网关侧 rpm_limit 实测 60，
-# 按 24s/步算 4 个 VM 约 10 rpm，留有余量。
 num_vms: 4
 observed_rpm_limit: 60
-# live —— SafePyAutoGUICompiler 的枚举值。1280x800 是 VM 显示分辨率，由 runner
-# 传入 screen_size，不是协议名的一部分。
 coordinate_protocol: absolute_pixels
-# live —— prompts/agents/ 下的文件名，由 tool_agent._read_frozen_prompt() 读取。
 system_prompt_file: kimi_k3_mypcbench_system.txt
-# live —— null = 请求省略 temperature（显式传参会 400）。
 temperature: null
-# live —— 4096 而不是另两个 scaffold 的 2048：reasoning tokens 计入这个预算，
-# 实测每步思考链约 35-90 tokens，预算不足会返回空 content + finish_reason=length。
 max_tokens: 4096
-# live —— 上下文策略对齐上游 qwen35vl_agent（history_n=100 / image_max=20 /
-# fold_size=10 + Previous actions）。四个 derail_tool_agent 统一到这一套。
-#
-# 这一套取代了 v1 smoke 的「只留最近 3 步」：hard_app-f010 曾在第 68-74 步逐个
-# 确认完四个频道、写下 "All four channels confirmed"，11 步之后又整套重做一遍
-# —— 那句结论早已滑出窗口。同一任务上走 100 步窗口的 qwen3_5 用 87 步收尾拿到
-# judge 85 分。这不是模型能力差异，是上下文策略差异。
 max_images_in_context: 20
-# live —— 保留完整消息的 turn 数（上游 history_n）。超出的 turn 整组丢掉，动作由
-# previous_action_log 兜住。
 history_turns: 100
-# live —— 折叠图片的粒度（上游 fold_size）。成块折叠让前缀只增不减，prompt cache
-# 才不会每步失效。
 image_fold_size: 10
-# live —— 窗口外 turn 的动作压成 `Previous actions:` 附在当前 user 消息上。日志
-# 取编译后的 pyautogui 串而非模型 content：kimi-k3 有 33% 的步返回空 content。
 previous_action_log: true
-# live
 tool_choice: auto
-# live —— 四个 derail_tool_agent 必须同值，否则失败分布不可比。
 schema_repair_attempts: 2
-# live —— 保守单交互，与 qwen3_6 同口径；Holo 那边是 execute_all_calls_in_order。
 multi_tool_policy: one_interaction_plus_collapsed_waits
-# live —— 0 = 停用，与另三个 derail_tool_agent 同口径。
 alternating_action_repeat_limit: 0
-# live
 stalled_state_step_limit: 0
-# live —— GUI-only 对照组；bash 面见 kimi_k3_cuabash.yaml。
 enable_bash: false
 
-# ⚠ scroll 单位理解错误：把 delta_y 当像素发。2026-08-09 smoke 实测 120 次 scroll
-# 只有 8.3% 落在 30 格以内，中位数 400，最大 1500 —— 每次都把页面顶到首尾。
-# hard_app-f014 因此在 100 步里烧掉 44 次 scroll + 48 次 moveTo。tool_agent.py 的
-# _MAX_SCROLL_NOTCHES=30 截断 + schema 单位说明修复这一点；重采前必须确认采集容器
-# 跑的是带 clamp 的版本。对照：qwen3_5 95.2% / claude_opus_4_8 100% 不受影响。
 scroll_unit_understanding: pixels_mistaken_for_notches_requires_clamp
 
-# 01_collect_all.sh 预估时长用；不影响采集行为。
 eta_step_seconds: 24.0
 eta_step_seconds_source: 估算（按网关 60 rpm 配额与 4 VM 反推），未做全量实测
 status: gui_only_ablation_not_paper_config

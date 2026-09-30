@@ -1,14 +1,4 @@
-"""Local compatibility bridge for ROCK Sandbox Proxy endpoints.
-
-DERAIL 移植自 Long_horizon-MCUA/src/runtime/rock_proxy.py（aiohttp）。
-agent 代码只连 127.0.0.1，本 bridge 把本地端口映射到 ROCK Proxy 的
-路径前缀端点（沙箱内 gateway :8080 再转发到 guest），沙箱永不回连 Nebula。
-原注释保留如下：
-
-OSWorld expects ordinary ``host:port`` endpoints, while ROCK exposes sandbox
-services below an authenticated path prefix.  This module maps local ports to
-those path-prefixed HTTP and WebSocket endpoints without changing OSWorld.
-"""
+"""Local compatibility bridge for ROCK Sandbox Proxy endpoints."""
 
 from __future__ import annotations
 
@@ -45,8 +35,6 @@ def sandbox_api_root(base_url: str) -> str:
 
 
 def proxy_url(base_url: str, sandbox_id: str, port: int | None, raw_path: str) -> str:
-    # port=None 是 MCUA 已验的 gateway 路由形态：直打沙箱默认服务口（:8080），
-    # 由沙箱内 guest gateway 按路径前缀转发。
     path = raw_path if raw_path.startswith("/") else "/" + raw_path
     root = sandbox_api_root(base_url)
     target = f"{root}/sandboxes/{quote(sandbox_id)}/proxy"
@@ -93,10 +81,6 @@ class RockProxyBridge:
         self._session: ClientSession | None = None
 
     async def start(self) -> None:
-        # ROCK proxy connections can be closed by the control plane between
-        # consecutive guest requests. Reusing such a socket turns an otherwise
-        # healthy collection into a peer-reset stall. We force fresh upstream
-        # connections but never retry ambiguous non-idempotent GUI actions.
         connector = TCPConnector(force_close=True, enable_cleanup_closed=True)
         self._session = ClientSession(
             connector=connector,
@@ -142,11 +126,6 @@ class RockProxyBridge:
 
     async def _proxy_http(self, request: web.Request, route: ProxyRoute) -> web.StreamResponse:
         assert self._session is not None
-        # Buffer the body so it rides with Content-Length. Streaming
-        # request.content makes aiohttp switch to Transfer-Encoding: chunked,
-        # which the platform proxy cannot pump (rung-1 run 33f40485: every
-        # bridged request hung the full 300s client timeout while the same
-        # Content-Length probes from the eval chain sailed through).
         body = await request.read()
         async with self._session.request(
             request.method, self._target(request, route), data=body or None,

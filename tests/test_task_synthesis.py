@@ -363,7 +363,7 @@ class SynthesisPipelineTests(unittest.TestCase):
 class SynthesisCliTests(unittest.TestCase):
     def test_cli_writes_auditable_stage_outputs(self) -> None:
         modules, skeleton, config = _fixtures()
-        script_path = REPOSITORY / "scripts" / "synthesize_long_horizon_tasks.py"
+        script_path = REPOSITORY / "scripts" / "synthesis" / "synthesize_long_horizon_tasks.py"
         spec = importlib.util.spec_from_file_location("derail_task_synthesis_cli", script_path)
         script = importlib.util.module_from_spec(spec)
         assert spec.loader is not None

@@ -1,56 +1,13 @@
-# MyPCBench 采集运行时的超参数（scripts/01_collect_trajectories.sh 读取）。
-#
-# 和 configs/judges/mypcbench_rubric.yaml 同样的动机：这些值原本只是脚本里的
-# `"${VAR:-默认}"`，谁在命令行上 export 了什么不会留下任何痕迹。v1 的判官侧已经
-# 因此漂过三套配置，采集侧同样没有防线 —— 一次 MAX_STEPS=50 的临时试跑和正式
-# 采集在产物里长得一模一样。
-#
-# 这里只放"协议参数"（会改变轨迹长什么样、因而改变分数的）。纯调度参数
-# （PORT_BASE、DRY_RUN、AGENTS）留在脚本里，它们换个值不影响结果可比性。
-#
-# 覆盖方式：config 优先；环境变量要生效必须同时设 ALLOW_CONFIG_OVERRIDE=1（会打进
-# banner）。正式跑数请改这个文件。
-
 collection_id: mypcbench_v1_runtime
 
-# ── 协议参数：改这些会让新旧数据不可比 ──────────────────────────────────
-# 下面五项是论文的统一评测协议，所有 agent 相同（02:12、05:15、F:11）。
-# 01_collect_trajectories.sh、scripts/rock/derail_rock_driver.py、
-# scripts/run_rollout_v1.py 都从这里取默认值，不再各自写数字。
-#
-# 每个 agent 采集几轮（02:12 "We run each evaluation three times"，Pass@3）。
-# 落盘为 <agent>/repeat_<k>/，k 从 REPEAT_START_INDEX（默认 1）起。v1 只跑了
-# repeat_1，旧目录结构不变，补跑 repeat_2/3 时设 REPEAT_START_INDEX=2 REPEATS=2。
 repeats: 3
-# 单个 episode 的步数上限（05:15 "limited to 150 steps"）。某个 agent 要单独
-# 覆盖时在 configs/agents/<agent_id>.yaml 写 max_steps，会打进 manifest 的
-# max_steps_per_agent。
 max_steps: 150
-# 单个 task 的墙钟上限（秒，05:15 "3,600 seconds"）。按 agent 覆盖同理写
-# task_timeout，记进 manifest 的 task_timeout_per_agent。
-task_timeout: 3600
-# 上下文里保留的最近截图张数 K（02:12、F:11，K=20）。01 把它导出成上游 agent
-# 读的 OPENAI_ZDR_KEEP_IMAGES（gpt 的 ZDR 回放，上游默认只留 4 张）和
-# MYPCBENCH_QWEN_IMAGE_MAX（qwen_cuabash）。走 DERAIL factory 的 agent 在各自
-# yaml 里声明同名旋钮（max_images_in_context / max_history_turns /
-# max_image_history_length），tests/test_rollout_protocol.py 锁定它们都等于这里。
+task_timeout: 3600  # seconds per task
 context_images: 20
-# 任务来源，取 configs/collection/sources.yaml 里的 source_benchmark：
-# mypcbench = MyPCBench 原始 184 任务；rerail_workflows = ReRail 组合 workflow。
 task_source: mypcbench
-# 屏幕分辨率从 environment config 取，避免和那份文件各写各的。
-# 之前脚本里是硬编码的 --screen-width 1280 --screen-height 800，
-# 而 configs/environments/mypcbench_1280x800.yaml 里另有一份同样的声明。
 environment: mypcbench_1280x800
 
-# ── 调度参数：只影响吞吐和资源占用，不改变轨迹 ──────────────────────────
-# 这里没有 num_vms：并发度是 agent 的属性而不是采集批次的属性。本地 serving 的
-# agent 由「可用 GPU 数 / configs/agents/<agent_id>.yaml 的 tensor_parallel_size」
-# 现算（换台卡数不同的机器自动跟着变），托管 API 的 agent 由该 yaml 的 num_vms
-# 显式声明（上限是配额而非显存）。临时压低用 NUM_VMS_OVERRIDE。
-# qemu（默认，需要 /dev/kvm）或 docker。
 backend: qemu
-# 单个 VM 处理完它那批任务的总上限（秒）。必须大于 task_timeout。
-timeout_per_vm: 259200
+timeout_per_vm: 259200  # seconds per VM
 
 status: pinned_2026_09_30_paper_protocol

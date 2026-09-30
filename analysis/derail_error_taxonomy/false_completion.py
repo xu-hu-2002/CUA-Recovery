@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""False-completion (premature_completion) prevalence and co-occurrence.
-
-Reads the frozen trajectory_labels.csv produced by analyze.py and reports how
-often the agent stops and declares success while requirements are unmet, and
-which error types travel with it.
-"""
 
 from __future__ import annotations
 

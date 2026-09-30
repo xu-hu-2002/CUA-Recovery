@@ -34,8 +34,6 @@ class ClaudeTakeoverTarget:
 
     @staticmethod
     def _strip_null_tool_use_caller(messages: Sequence[Mapping[str, Any]]) -> None:
-        """Drop recorded `tool_use.caller: null`, which the gateway rejects."""
-
         for message in messages:
             content = message.get("content")
             if not isinstance(content, list):

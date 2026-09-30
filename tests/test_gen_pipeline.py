@@ -1,5 +1,4 @@
-"""Phase 4 driver on the miniworld: seeds -> composed candidates -> gold gate -> mutation test
--> selection -> hazards -> realization dry run -> bundle."""
+"""Phase 4 driver on the miniworld, from seeds to bundle."""
 
 from __future__ import annotations
 
@@ -53,8 +52,6 @@ def _config(**overrides):
         (REPOSITORY / "configs/synthesis/hazards_v1.yaml").read_text(encoding="utf-8")
     )
     search = SearchConfig.from_sampling(sampling)
-    # The miniworld has no schema graph, so generic Text grafts need the name-only score and
-    # ports without an identified column here.
     search = SearchConfig(
         **{
             **search.__dict__,

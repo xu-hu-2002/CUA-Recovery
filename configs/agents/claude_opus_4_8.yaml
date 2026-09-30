@@ -1,11 +1,3 @@
-# scaffold: upstream_runner —— 走 MyPCBench 自带的 claude_cuabash agent
-# （Anthropic Messages API + 原生 computer_20251124 工具），不经过
-# SafePyAutoGUICompiler，也没有 DERAIL 的 loop guard / schema repair / multi-tool
-# 归一化。与 gpt_5_5 同属原生 baseline 层；和走 derail_tool_agent 的那三个 agent
-# 失败分布形状本来就不同，对比时必须写进正文。
-#
-# DERAIL 的 factory 碰不到它，本文件除身份与并发字段外是纯文档。
-# model 由 CLAUDE_OPUS_4_8_MODEL 在 resolve_agent 里冻结，缺该变量拒绝启动。
 agent_id: claude_opus_4_8
 family: anthropic_computer_use
 scaffold: upstream_runner
@@ -20,23 +12,13 @@ computer_tool_type: computer_20251124
 anthropic_beta: computer-use-2025-11-24
 prompt_caching: disabled
 
-# 实测动作形如 pyautogui.click(1131, 131) / pyautogui.scroll(-5, x=640, y=444)，
-# 是上游 agent 自己拼的 PyAutoGUI 代码，不带 button= 参数（DERAIL compiler 才会加）。
 coordinate_protocol: absolute_pixels
 
-# scroll 单位理解正确，不需要 clamp。v1 实测 811 次 scroll 100% 落在 30 格以内
-# （中位数 5，最大 30）—— 与 qwen3_5 的 95.2% 同侧，和 kimi_k3 的 8.3% / holo 的
-# 9.6% 形成对照，是「scroll 单位歧义只打击部分模型」的证据之一。
 scroll_unit_understanding: notches_native
 
-# 工具轮（traj.jsonl 里 action=TOOL_CALL 的行）占约 14.6%。这些行的 response 是
-# 空字符串，判官只看到一行 "Action: TOOL_CALL"，见 configs/harness/mypcbench.yaml
-# 的 known_defects.tool_call_payload_empty。占比远低于 gpt_5_5 的 50.5%。
 tool_turn_ratio_observed: 0.146
 
-# VM 并发度。托管 API 不占卡，上限是配额而非显存。
 num_vms: 4
-# 01_collect_all.sh 预估时长用；不影响采集行为。
 eta_step_seconds: 60.0
 eta_step_seconds_source: v1 全量采集步间间隔中位（docs/ROUTIFY_API_MATRIX.md §9.3）
 status: collected_f2_complete

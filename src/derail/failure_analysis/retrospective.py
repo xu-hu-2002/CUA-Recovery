@@ -1,16 +1,3 @@
-"""Retrospective analysis of the existing failures (execution doc v1.2 section 9.6).
-
-The 680 labelled failures were collected without a change log or a page log; their
-``traj.jsonl`` files keep the PyAutoGUI action, the agent's response and a screenshot per
-step.  That is enough for the *parameter* detector (typed values vs gold slots) and for the
-first automatic-vs-human agreement numbers (E4).  The omission and state detectors need
-ledgers the old runs do not have and are not applied.
-
-``trace_from_traj`` converts one ``traj.jsonl`` into a minimal ``rollout-trace/1.0`` (actions,
-parameters, thoughts; empty delta / observations); ``retrospective_row`` runs the parameter
-detector for one failure and compares with the human root cause (exact, within one action).
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -27,8 +14,6 @@ RUNTIME_CONFIG = Path(__file__).resolve().parents[3] / "configs/collection/mypcb
 
 
 def clean_start_step_budget(path: Path = RUNTIME_CONFIG) -> int:
-    """Clean-start step budget (paper 05:15), ``max_steps`` of the collection runtime config."""
-
     return int(yaml.safe_load(path.read_text(encoding="utf-8"))["max_steps"])
 
 
@@ -50,8 +35,6 @@ def trace_from_traj(
     instruction: str = "",
     step_budget: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Minimal rollout-trace/1.0 from a legacy ``traj.jsonl`` (0-based action indices)."""
-
     builder = TraceBuilder(
         rollout_id=rollout_id,
         task_id=task_id,

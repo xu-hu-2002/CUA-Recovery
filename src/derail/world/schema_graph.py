@@ -1,22 +1,3 @@
-"""Entity-relation graph over the application databases (execution doc v1.2 section 2.1).
-
-Nodes are tables (entity types), edges are relations between columns.  Explicit foreign keys
-come from ``PRAGMA foreign_key_list``; because the MyPCBench applications declare almost
-none, relations are also *inferred* from column names under configurable rules
-(``configs/synthesis/schema_graph_v1.yaml``): ``<prefix>_id`` columns, e-mail columns that
-point at the database's principal table, and ``(scope_type, scope_id)`` polymorphic pairs.
-Every inferred edge names its rule so an audit can drop a rule wholesale.
-
-The graph is what typed compatibility (doc 7.1), the OSM inverse map and hazard injection
-consume; it is built once per image digest and stored as ``schema-graph/1.0``.
-
-Entry points
-------------
-``SchemaGraphConfig.from_yaml(path)``
-``build_schema_graph(sources, config, graph_id, ...) -> dict``   ``{app: db_path}`` in
-``SchemaGraph.from_record(record)``                              query helpers
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -113,8 +94,6 @@ def _table_record(conn: sqlite3.Connection, table: str) -> Dict[str, Any]:
 
 
 def _candidate_tables(prefix: str, tables: Sequence[str]) -> Optional[Tuple[str, str]]:
-    """``(table, rule)``: ``channel`` -> ``channels`` (plural rule) or an exact table name."""
-
     lowered = {table.lower(): table for table in tables}
     if prefix.lower() in lowered:
         return lowered[prefix.lower()], "id_suffix_exact"
@@ -218,8 +197,6 @@ def build_schema_graph(
     progress: Optional[Callable[[int, int, str], None]] = None,
     provenance: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Build ``schema-graph/1.0`` over ``{app: sqlite_path}``; apps are processed in name order."""
-
     databases: List[Dict[str, Any]] = []
     relations: List[Dict[str, Any]] = []
     excluded = set(config.exclude_tables)
@@ -281,8 +258,6 @@ def build_schema_graph(
 
 @dataclass
 class SchemaGraph:
-    """Query helpers over a ``schema-graph/1.0`` record."""
-
     record: Mapping[str, Any]
     _tables: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     _outgoing: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
@@ -315,9 +290,6 @@ class SchemaGraph:
     def references(
         self, table: str, column: Optional[str] = None, min_confidence: float = 0.0
     ) -> List[Dict[str, Any]]:
-        """Relations leaving ``table`` (optionally only from ``column``) with confidence >=
-        ``min_confidence``; generation passes ``record["min_confidence_for_generation"]``."""
-
         out = self._outgoing.get(table, [])
         return [
             r
@@ -334,16 +306,12 @@ class SchemaGraph:
         ]
 
     def generation_relations(self) -> List[Dict[str, Any]]:
-        """Relations trusted for typed compatibility (explicit + high-confidence inferred)."""
-
         threshold = float(self.record.get("min_confidence_for_generation", 0.7))
         return [r for r in self.record["relations"] if float(r.get("confidence", 1.0)) >= threshold]
 
     def foreign_key_path(
         self, source: str, target: str, max_hops: int = 3
     ) -> Optional[List[Dict[str, Any]]]:
-        """Shortest chain of relations from ``source`` to ``target`` (either direction), or None."""
-
         frontier: List[Tuple[str, List[Dict[str, Any]]]] = [(source, [])]
         seen = {source}
         while frontier:

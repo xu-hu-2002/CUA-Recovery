@@ -1,10 +1,4 @@
-"""Canonical desktop actions.
-
-设计原则：
-1. 这里的 typed record 是唯一真值；summary、PyAutoGUI 和 native history 都是派生物。
-2. canonical 坐标是截图/环境的真实像素，不使用某个模型私有的 0--1000 网格。
-3. 所有坐标在构造对象时立即验证，错误不能拖到真实桌面执行阶段才暴露。
-"""
+"""Canonical desktop actions."""
 
 from __future__ import annotations
 
@@ -17,7 +11,7 @@ VALID_MOUSE_BUTTONS = frozenset({"left", "right", "middle"})
 
 
 class CanonicalActionError(ValueError):
-    """输入不能无损解释为 DERAIL canonical action。"""
+    """Input cannot be losslessly interpreted as a canonical action."""
 
 
 def _validate_frame(width: int, height: int) -> None:
@@ -265,11 +259,7 @@ class TerminateAction:
 
 @dataclass(frozen=True)
 class SequenceAction:
-    """One source runner action composed of multiple executable primitives.
-
-    It remains one global action for depth/horizon counting because MyPCBench executes the whole
-    script in one ``env.step`` and records only one post-action observation.
-    """
+    """One source runner action composed of multiple executable primitives."""
 
     kind: str
     actions: Tuple[Any, ...]
@@ -319,13 +309,7 @@ Action = Union[
 
 
 def reframe_action(action: Action, frame_width: int, frame_height: int) -> Action:
-    """Reproject pointer coordinates into a different screenshot frame.
-
-    MyPCBench's frozen Qwen3.8 scaffold runs at 1280x800, while a small
-    subset of source trajectories was recorded at 1024x768. Endpoint-aware
-    scaling keeps the replayed pointer location and the injected native tool
-    call consistent with the current screenshot.
-    """
+    """Reproject pointer coordinates into a different screenshot frame."""
 
     _validate_frame(frame_width, frame_height)
 
@@ -387,7 +371,7 @@ _ACTION_TYPES: Dict[str, Type[Any]] = {
 
 
 def action_to_dict(action: Action) -> Dict[str, Any]:
-    """把 action 转为 JSON-friendly dict；tuple keys 显式转为 list。"""
+    """Convert an action to a JSON-friendly dict."""
 
     if isinstance(action, SequenceAction):
         return {"kind": "sequence", "actions": [action_to_dict(item) for item in action.actions]}
@@ -400,11 +384,7 @@ def action_to_dict(action: Action) -> Dict[str, Any]:
 
 
 def action_from_dict(raw: Mapping[str, Any]) -> Action:
-    """严格解析 canonical action，拒绝未知字段而不是静默丢弃。
-
-    严格模式很重要：字段拼写错误如果被忽略，可能把一个合法动作变成另一个动作，
-    并在真实桌面上产生不可恢复的状态差异。
-    """
+    """Strictly parse a canonical action, rejecting unknown fields."""
 
     data = dict(raw)
     kind = data.get("kind")

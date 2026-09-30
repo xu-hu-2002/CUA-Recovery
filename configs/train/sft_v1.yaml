@@ -1,29 +1,13 @@
-# WATCHDOG training set and ReRail SFT.  Defaults follow the paper (03:28, 05:176, 05:218,
-# appendix B Alg.1, appendix F:45-63 and F:97-101); every value can be overridden here.
 schema_version: sft-build-config/2.0
 
-# Sample format built by scripts/build_training_v1.py:
-#   recovery        (l, H_c, r*) per failed training-split rollout and depth d (Alg.1 45-53):
-#                   H_c = actions 0..t_r+d with reasoning stripped, d in derived.layout
-#                   DEPTH_GRID; r* comes from scripts/recovery_gen_v1.py; no hint in the input.
-#   success_control successful trajectories of the same workflows, token-matched to a
-#                   recovery set (05:218, appendix F "Ablation study").
-#   steps           execution doc v1.2 10A step-level samples (detection / verification /
-#                   negative with ledger and <check> marker); not used by the paper.
 format: recovery
 
 split:
-  # Only training-split workflows contribute (03:25, Alg.1 line 36).  ``function`` is
-  # "module:function" called as function(workflow_id, <loaded file>) -> train | test | ...;
-  # with ``file: null`` it is called as function(workflow_id).
   function: derail.gen.splits:split_of
   loader: derail.gen.splits:load_workflow_splits
   file: data/synthesis/workflow_splits.json
 
 loss:
-  # nll: L = -log pi(r* | l, H_c) (05:176): input (l and H_c) weight 0, every part of r*
-  # weight 1, no class balancing.  weighted: the v1.2 10A.3 scheme below, with the <check>
-  # marker class-balanced by inverse frequency over the built dataset (D-013).
   objective: nll
   weighted:
     input: 0.0
@@ -33,7 +17,6 @@ loss:
     check_min: 1.0
 
 training:
-  # F:45-63 Table "Training setting of Qwen3.5-35B-A3B".
   base_model: Qwen3.5-35B-A3B
   epochs: 1
   global_batch_size: 256
@@ -43,34 +26,18 @@ training:
   max_images_per_sample: 20
 
 recovery:
-  # F:97-101: base model, three hint levels, eight attempts each, then one teacher attempt
-  # with l3; the first continuation accepted by the fixed final verifier is r*.
   base_agent: qwen3_5_35b_a3b
   hint_levels: [l1_step, l2_evidence, l3_state_diff]
   attempts_per_level: 8
   teacher:
-    # The paper does not name the teacher; A_cost prices a teacher attempt at the Claude
-    # Opus 4.8 takeover-episode cost (1.41 USD).  null disables the fallback.
     agent: claude_opus_4_8
     attempts: 1
     hint_level: l3_state_diff
-  # Post-takeover step budget of a continuation.  Not stated in the paper; equal to the
-  # evaluation takeover limit (configs/takeover/takeover.yaml max_steps).
   max_recovery_steps: 100
-  # Final-state verdict (derail.gen.verifiers.verify_final_state): nodes re-derived on the
-  # agent's world; the rest of V is the gold lineage.
   observation_ops: [confirm, verify]
   leak_filter:
-    # F:101: r* must not use information that only the hint carried.
-    #   drop     the case contributes no sample
-    #   resample the leaky continuation is rejected and the hint schedule continues
-    #   redact   the leaking sentences are removed from the thoughts of r*
-    #   off      no check
     policy: drop
-    # Words copied from the hint: any run of this many hint words in a thought that the
-    # instruction and H_c do not contain.
     ngram: 5
-    # Meta references to the hint (case-insensitive regexes on the thoughts).
     patterns:
       - '\bhint\b'
       - 'takeover diagnosis'
@@ -78,29 +45,18 @@ recovery:
       - 'root[- ]cause (evidence|is recorded)'
 
 success_control:
-  # 05:218 / F "Ablation study": successful trajectories of the same training workflows,
-  # token-matched to the recovery set.
-  #   global        total tokens of the control ~= total tokens of the recovery set
-  #   per_workflow  the same, workflow by workflow
   match: global
-  # Accept a control whose token total lies within this relative distance of the target.
-  tolerance: 0.02
-  # Token estimate: characters / chars_per_token for text, tokens_per_image per screenshot
-  # (at most training.max_images_per_sample per sample).  counted: input+target | target.
+  tolerance: 0.02  # relative distance to the target token total
   counted: input+target
   chars_per_token: 4.0
   tokens_per_image: 0
   seed: 20260930
 
 steps:
-  # format: steps only (execution doc v1.2 section 10A).
   ratios:
     detection_plus_recovery: 0.10
     verification: 0.05
     negative_per_detection: 2.5
-  # Offsets after the evidence step at which a failure is cut (10A.2b); clipped to the trace.
   offsets_after_evidence: [0, 2, 5, 9]
   ledger:
-    # A fact read at step k enters the ledger when its value is used by a parameter at a
-    # later step, or when it is a gold read of the task.
     min_value_chars: 3

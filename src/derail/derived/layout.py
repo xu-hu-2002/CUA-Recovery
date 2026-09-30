@@ -1,9 +1,4 @@
-"""Filesystem contract for a DERAIL derived build.
-
-Raw MyPCBench collections are source evidence and are never edited.  A build stores only
-content-addressed references to raw files plus canonical, annotation, repair, replay, case and
-evaluation artifacts under a separate root.
-"""
+"""Filesystem contract for a DERAIL derived build."""
 
 from __future__ import annotations
 
@@ -15,9 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Tuple
 
-# Must stay equal to ``depths`` in configs/benchmark/derail_v1.yaml (and the two
-# configs/synthesis grids).  DepthGridConsistencyTests guards all four against drift; the
-# rationale for the values lives in configs/synthesis/precheck_v0.2.yaml.
 DEPTH_GRID: Tuple[int, ...] = (0, 5, 10, 15, 20, 25)
 BUILD_SCHEMA_VERSION = "0.2.0"
 
@@ -40,8 +32,6 @@ def sha256_json(value: Any) -> str:
 
 
 def tree_fingerprint(root: Path) -> str:
-    """Hash relative paths, sizes, and file hashes without following symlinks."""
-
     root = root.resolve()
     if not root.is_dir():
         raise DerivedBuildError("collection root 不存在或不是目录: %s" % root)

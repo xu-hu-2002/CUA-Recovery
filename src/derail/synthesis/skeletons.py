@@ -24,13 +24,6 @@ def _port_type(node: Mapping[str, Any], direction: str, port_id: str) -> str:
 
 
 def canonical_structural_signature(fragment: Mapping[str, Any]) -> Dict[str, Any]:
-    """Return a node-ID-, entity-, and app-invariant graph signature.
-
-    Iterative neighborhood hashing preserves operation, typed ports,
-    dependency kinds, branch predicates, and effect placement.  The resulting
-    representation is deterministic for the small semantic DAGs used here.
-    """
-
     validate_task_fragment(fragment)
     nodes = {str(node["node_id"]): node for node in fragment["nodes"]}
     incoming = defaultdict(list)
@@ -69,8 +62,6 @@ def canonical_structural_signature(fragment: Mapping[str, Any]) -> Dict[str, Any
             refined[node_id] = _digest(
                 {
                     "self": labels[node_id],
-                    # Sort on a JSON rendering: two neighbours with equal labels would
-                    # otherwise make Python compare the edge-label dicts and fail.
                     "incoming": sorted(
                         ((labels[source], edge_label) for source, edge_label in incoming[node_id]),
                         key=lambda item: json.dumps(item, sort_keys=True),
@@ -163,8 +154,6 @@ def _rules_for_modules(modules: Sequence[Mapping[str, Any]]) -> List[Dict[str, A
 def extract_observed_skeletons(
     modules: Iterable[Mapping[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """Group isomorphic source fragments into reviewable observed skeletons."""
-
     module_list = [dict(module) for module in modules]
     for module in module_list:
         validate_grounded_module(module)
@@ -193,7 +182,6 @@ def extract_observed_skeletons(
                 "support_task_count": len(source_task_ids),
                 "empirical_probability": len(members) / float(total),
                 "complexity_prior": 1.0,
-                # A fragment may have several roots with the same op; the schema wants a set.
                 "anchor_ops": sorted(set(roots)),
                 "composition_rules": rules,
                 "canonical_signature": signature_hash,

@@ -1,5 +1,3 @@
-# v0.2 synthesis configuration.  Superset of mypcbench_v0.yaml: the v0.1 pipeline reads the
-# shared keys, ``derail.longhorizon`` reads the additional ones.  Frozen per generation batch.
 schema_version: synthesis-config/0.2
 generation_version: mypcbench-task-synthesis-v0.2
 target_count: 100
@@ -16,7 +14,6 @@ dependency_depth: [5, 9]
 cross_app_dependencies: [2, 5]
 max_independent_component_ratio: 0.25
 required_delayed_reuse: true
-# Section 8.4: value edges with carry distance >= this need a second lineage.
 carry_threshold: 3
 max_irreversible_actions: 1
 allowed_irreversible_actions: [send_message, create_event]
@@ -32,14 +29,9 @@ reversibility_sampling:
   classes: [R0, R1, R2, R3]
   min_pilot_per_available_class: 10
   force_uniform_distribution: false
-# Error-depth ladder for case instantiation (section 14A.4).  Hyper-parameter; must match
-# configs/benchmark/derail_v1.yaml and ``derail.derived.layout.DEPTH_GRID``.
-# Rationale for 0/5/10/15/20/25 lives in configs/synthesis/precheck_v0.2.yaml.
 depth_grid: [0, 5, 10, 15, 20, 25]
 ontology_config: configs/synthesis/ontology_v0.2.yaml
 failure_taxonomy_config: configs/synthesis/failure_taxonomy_v0.1.yaml
-# Generated from configs/synthesis/value_types_v0.yaml (ValueTypeRegistry.type_system_config);
-# a test asserts the two agree.
 type_system:
   parents:
     ActionResult:

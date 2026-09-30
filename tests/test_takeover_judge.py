@@ -18,17 +18,17 @@ from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-LAUNCHER = REPOSITORY / "artifacts" / "takeover" / "run_takeover_judge.sh"
-RUN_JUDGE = REPOSITORY / "scripts" / "run_judge.sh"
-CSV_SCRIPT = REPOSITORY / "scripts" / "12_takeover_rubric_csv.py"
-ARCHIVE_SCRIPT = REPOSITORY / "scripts" / "13_archive_takeover_judge.py"
-SHIP_SCRIPT = REPOSITORY / "scripts" / "14_ship_takeover_judge_archive.py"
-SELECTION_SCRIPT = REPOSITORY / "scripts" / "takeover_judge_selection.py"
-REGISTRY_SCRIPT = REPOSITORY / "scripts" / "judge_model_registry.py"
+LAUNCHER = REPOSITORY / "scripts" / "judge" / "run_takeover_judge.sh"
+RUN_JUDGE = REPOSITORY / "scripts" / "judge" / "run_judge.sh"
+CSV_SCRIPT = REPOSITORY / "scripts" / "judge" / "rubric_csv.py"
+ARCHIVE_SCRIPT = REPOSITORY / "scripts" / "judge" / "archive.py"
+SHIP_SCRIPT = REPOSITORY / "scripts" / "judge" / "ship_archive.py"
+SELECTION_SCRIPT = REPOSITORY / "scripts" / "judge" / "takeover_judge_selection.py"
+REGISTRY_SCRIPT = REPOSITORY / "scripts" / "judge" / "judge_model_registry.py"
 REGISTRY_CONFIG = REPOSITORY / "configs" / "judges" / "routify_model_registry.json"
-PREFIX_SCRIPT = REPOSITORY / "scripts" / "14_takeover_bundle_prefix.py"
-JUDGE_WRAPPER = REPOSITORY / "scripts" / "30_full_traj_judge.py"
-HARD_TIMEOUT = REPOSITORY / "scripts" / "31_run_with_timeout.py"
+PREFIX_SCRIPT = REPOSITORY / "scripts" / "takeover" / "bundle_prefix.py"
+JUDGE_WRAPPER = REPOSITORY / "scripts" / "judge" / "full_traj_judge.py"
+HARD_TIMEOUT = REPOSITORY / "scripts" / "judge" / "run_with_timeout.py"
 JUDGE_CONFIG = REPOSITORY / "configs" / "judges" / "default.yaml"
 OSS_ROOT = "oss://example-bucket/derail/judge/takeover/failure_prefix_v1/"
 os.environ["JUDGE_OSS_ROOT"] = OSS_ROOT
@@ -99,7 +99,6 @@ STUB_JUDGE = textwrap.dedent("""\
             }))
     """)
 
-# OSSUTIL points to Python, which runs local cp/ls scripts without chmod or a network client.
 STUB_OSSUTIL = textwrap.dedent("""\
     import json
     import os
@@ -217,7 +216,6 @@ class TakeoverJudgeTests(unittest.TestCase):
             module.write_csv([row], out)
             with out.open(newline="", encoding="utf-8") as handle:
                 written = next(csv.DictReader(handle))
-            # ρ and V recomputed per criterion: the judge's rounded 100/passed is not a pass.
             self.assertEqual(written["rubric_score"], "99.9")
             self.assertEqual(written["perfect_pass"], "0")
             self.assertEqual(written["R2"], "0")
@@ -370,7 +368,6 @@ class TakeoverJudgeTests(unittest.TestCase):
         self.assertEqual(self._events(root), [])
 
     def test_both_layers_reject_every_model_but_the_configured_judge(self):
-        """One judge on the formal path: configs/judges/default.yaml (gpt-5.6-terra)."""
         root, env = self._shell_fixture()
         for value in ("claude-opus-4-8", "openai.gpt-5.5", "openai.gpt-5.6-luna",
                       "anthropic.claude-sonnet-4-6", "gpt-4o", "../gpt-5.6-terra"):

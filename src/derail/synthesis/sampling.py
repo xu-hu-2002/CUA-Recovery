@@ -22,13 +22,6 @@ def compute_skeleton_weights(
     adjustment_max: float = 2.0,
     excluded_model_id: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
-    """Return normalized skeleton weights and their auditable components.
-
-    Failure statistics are accepted only when they are explicitly marked as
-    human-adjudicated.  ``excluded_model_id`` implements leave-one-model-out
-    weighting for evaluations of a model that contributed source failures.
-    """
-
     skeleton_list = [dict(item) for item in skeletons]
     by_structure = defaultdict(lambda: {"exposures": 0, "failures": 0})
     by_family = defaultdict(lambda: {"exposures": 0, "failures": 0})

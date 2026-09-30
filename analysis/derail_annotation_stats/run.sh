@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Wrapper that pins the analysis interpreter and the two required path variables.
-# Nothing here is a personal path fallback: DERAIL_ROOT must already be exported,
-# or be passed as the first argument.
 set -euo pipefail
 
 DERAIL_ROOT="${DERAIL_ROOT:-${1:-}}"

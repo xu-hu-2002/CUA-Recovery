@@ -1,10 +1,3 @@
-"""Intrinsic long-horizon metrics, v0.2 (manual section 2 and 2.1).
-
-The v0.1 metrics from ``derail.synthesis.graph.compute_complexity`` are kept verbatim; this
-module overrides the two reversibility-based fields with the R-class definitions and adds the
-profile, the high-consequence prerequisite depth, lineage depth and decorative-carry findings.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional
@@ -29,8 +22,6 @@ def compute_complexity_v02(
     anchor_module_id: Optional[str] = None,
     carry_threshold: int = 3,
 ) -> Dict[str, Any]:
-    """Return the full v0.2 metric dictionary for a validated fragment."""
-
     validate_fragment_effects(fragment, ontology)
     metrics = compute_complexity(fragment, anchor_module_id)
     dag = DagIndex.from_fragment(fragment)

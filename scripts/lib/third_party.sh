@@ -1,29 +1,11 @@
-# 被 setup_third_party.sh 和 01_collect_trajectories.sh 共同 source 的
-# third_party 获取逻辑。没有可执行语句，只有变量声明和函数。
-#
-# 为什么要有这个文件：`third_party/` 在 .gitignore 里，所以 clone 下来的仓库是空
-# 的——这是刻意的，三个上游各自带 .git，直接收录只会记成 gitlink，别人 clone 到手
-# 的还是空目录，而 MyPCBench 那 16.5G 的 qcow2 也不该进 git 历史。代价是"怎么把
-# third_party 建起来"必须有个显式入口，否则新人只能靠跑一遍采集脚本来触发它。
-#
-# 抽出来的第二个原因和 collection_config.sh 一样：pin 住的 commit 曾经只写在
-# 01_collect_trajectories.sh 里，任何第二个需要这些仓库的脚本都得把三组
-# repository/commit/root 再抄一遍，而抄错 commit 是不会报错的——实验协议会静默
-# 漂移。现在真源在这里。
-
-# 冻结官方 runner 版本。若要升级，先审计 prompt/runner diff，再显式更新该 commit。
 MYPCBENCH_REPOSITORY="${MYPCBENCH_REPOSITORY:-https://github.com/ljang0/MyPCBench.git}"
 MYPCBENCH_COMMIT="${MYPCBENCH_COMMIT:-caf9c754ffe0b41c7e629e17fff19299774af1cb}"
 
-# EvoCUA/OpenCUA 的 prompt、history 和 action parser 直接来自各自官方仓库。
-# 固定 commit 是为了避免上游更新悄悄改变实验协议。
 EVOCUA_REPOSITORY="${EVOCUA_REPOSITORY:-https://github.com/meituan/EvoCUA.git}"
 EVOCUA_COMMIT="${EVOCUA_COMMIT:-4a0ad5fd4eb1d5b65966e1c7cc3feaa3b534eadd}"
 OPENCUA_OSWORLD_REPOSITORY="${OPENCUA_OSWORLD_REPOSITORY:-https://github.com/xlang-ai/OSWorld.git}"
 OPENCUA_OSWORLD_COMMIT="${OPENCUA_OSWORLD_COMMIT:-091f5ef1d5544bc74953c77875d5feb5bed30108}"
 
-# 根据 repo 根目录推导三个 checkout 位置和 patch 路径。调用方先定好 REPO_ROOT
-# 再调用；env 显式指定的位置优先，便于把 checkout 放到别的盘。
 third_party_paths() {
   local repo_root="$1"
   MYPCBENCH_ROOT="${MYPCBENCH_ROOT:-${repo_root}/third_party/MyPCBench}"
@@ -43,7 +25,6 @@ third_party_paths() {
   MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_fail_on_errors.patch"
 }
 
-# 已有目录不会被覆盖或自动 checkout，只校验 commit 是否就是 pin 住的那个。
 clone_frozen_repo() {
   local repository="$1"
   local expected_commit="$2"
@@ -62,9 +43,6 @@ clone_frozen_repo() {
     "${label} commit 不匹配：期望 ${expected_commit}，实际 ${actual_commit}"
 }
 
-# 对冻结的 MyPCBench 只加很小的 factory hook。patch 可逆、可审计，adapter 实现
-# 仍全部保留在 DERAIL 自己的 src/ 中。幂等：已打过的 patch 会被 reverse-check
-# 识别并跳过，不会重复应用也不会报错。
 apply_mypcbench_patch() {
   local patch_path="$1"
   local label="$2"
@@ -81,9 +59,6 @@ apply_mypcbench_patch() {
   fi
 }
 
-# 后续 patch 会改动前一个 patch 新增的行，因此完整 patch 链打完后，前一个 patch
-# 未必还能单独通过 --reverse --check。先检查链尾；链尾存在就说明它依赖的前序状态
-# 也已经存在。否则再按顺序逐个幂等应用。
 apply_mypcbench_patch_series() {
   local base_patch="$1"
   local base_label="$2"
@@ -98,8 +73,6 @@ apply_mypcbench_patch_series() {
   apply_mypcbench_patch "$tail_patch" "$tail_label"
 }
 
-# agents patch 是采集必需的；judge patch 服务于 02_judge_rubrics.sh，两者改的文件
-# 不重叠，一起打不会冲突。
 setup_mypcbench() {
   clone_frozen_repo \
     "$MYPCBENCH_REPOSITORY" "$MYPCBENCH_COMMIT" "$MYPCBENCH_ROOT" "MyPCBench"
@@ -156,12 +129,6 @@ setup_mypcbench_judge() {
     "$MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH" "judge fail on errors"
 }
 
-# proxy patch 只服务 ROCK proxy 拓扑（agent loop 在 Nebula 侧）的 full 阶段：
-# runner 跳过本地起 VM / 端口滑窗，env.py 的 reset 改走 driver 的 lifecycle
-# 端点。本地直连采集（agents/judge 路径）不设 MYPCBENCH_REMOTE_ATTACH 时行为
-# 完全不变，所以一起打也无副作用。注意：该 patch 的基线是"已含 DERAIL 本地
-# 适配"的 harness——即版本化 OSS takeover harness tar 恢复出的那份；对
-# pristine caf9c754 HEAD 打不上（适配改动已在基线里）。
 setup_mypcbench_proxy() {
   apply_mypcbench_patch "$MYPCBENCH_PROXY_PATCH" "DERAIL proxy"
 }

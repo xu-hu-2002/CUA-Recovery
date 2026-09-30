@@ -1,18 +1,3 @@
-# MyPCBench 官方 rubric judge（full-trajectory per-rubric）的全部超参数。
-#
-# 为什么要有这个文件：这些参数原本只存在于 third_party 的默认常量和调用者 shell
-# 的环境变量里，仓库中没有任何记录。结果是 v1 collection 的 552 个任务跑在三套
-# 不同的判官配置下（max_images 200/50、concurrency 4/2），事后只能从每个
-# osworld_full_traj_result.json 里反推才发现。判分参数会直接改变分数，必须进
-# git、必须能 diff。
-#
-# 与 default.yaml 的分工：judge 模型只在 default.yaml（clean-start / takeover / EAR
-# 共用的唯一真源）；这里只放 scripts/02_judge_rubrics.sh 传给上游 judge 的超参数。
-# 本文件不再接受 model 键（02 的白名单会报错），防止两处各写一个模型。
-#
-# 覆盖方式：脚本里每个键都是 "${ENV:-来自本文件}"，所以显式设置环境变量仍然优先，
-# 便于临时试验。但正式跑数请改这个文件而不是 export，否则又会漂。
-
 judge_id: mypcbench_rubric_full_traj
 provider: openai
 api_key_env: OPENAI_API_KEY
@@ -23,20 +8,11 @@ max_image_mb: 50.0
 image_format: png
 image_quality: 85
 
-# ── 生成与重试 ──────────────────────────────────────────────────────────
-# reasoning token 计入 completion 预算，effort 放开会烧光预算并返回空内容。
 reasoning_effort: low
 max_completion_tokens: 16384
-# 429/5xx/超时的重试次数（指数退避）。注意：对 project_spend_limit_exceeded
-# 这类分钟级封锁，4 次重试只覆盖十几秒，扛不住。
 max_retries: 4
-# 单个 task 内并发多少条 rubric 调用。曾漂到 2。
-concurrency: 4
+concurrency: 4  # parallel rubric calls per task
 
-# ── 调度 ────────────────────────────────────────────────────────────────
-# 单 task 墙钟上限（秒），覆盖该 task 全部 rubric 调用含退避。实测最重的 task
-# （17 条 rubric / 121 张截图）约 60-75 秒。超时的代价是该 task 已付费的调用
-# 全部作废要重跑重付，调大没有成本。曾用 300，导致 4 个长轨迹任务判分超时。
-timeout_seconds: 1000
+timeout_seconds: 1000  # per-task wall clock, retries included
 
 status: pinned_2026_08_08

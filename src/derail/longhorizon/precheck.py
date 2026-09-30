@@ -1,15 +1,3 @@
-"""Phase 0 pre-check: post-error continuation on the existing failure corpus (manual v0.2 §17).
-
-Before any generator is trusted to fix the deep-depth sample size, the manual asks a factual
-question about the 680 human-labelled MyPCBench failures: after the root cause, how many steps
-does the agent keep executing, how often does it loop, how often does it stop early -- per agent
-and per paper category -- and how many candidates does that leave at each depth?  This module
-answers it from the frozen label index and the canonical trajectories and writes the report the
-manual names (``post_error_continuation_report.md``).
-
-Inputs are the artefacts the taxonomy analysis already uses; nothing is re-annotated here.
-"""
-
 from __future__ import annotations
 
 import csv
@@ -61,7 +49,6 @@ class PrecheckConfig:
         if not isinstance(raw, Mapping):
             raise ValueError("precheck config must be a YAML mapping")
         loop_raw = raw.get("loop_detection", {})
-        # The primary grid is the hyper-parameter; comparison grids are reported alongside.
         grids = {PRIMARY_GRID: tuple(int(depth) for depth in raw["depth_grid"])}
         for name, grid in (raw.get("comparison_depth_grids") or {}).items():
             if str(name) == PRIMARY_GRID:
@@ -125,16 +112,12 @@ class FailureRecord:
 
 
 def read_failure_rows(labels_csv: Path) -> List[Dict[str, str]]:
-    """Read the frozen label index with the csv module (fields contain commas)."""
-
     with Path(labels_csv).open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     return [row for row in rows if row.get("state") == FAILURE_STATE]
 
 
 def load_task_horizons(task_dir: Optional[Path]) -> Dict[str, str]:
-    """Map MyPCBench task id -> ``horizon`` bucket from the per-bucket rubric files."""
-
     if task_dir is None:
         return {}
     horizons: Dict[str, str] = {}
@@ -281,8 +264,6 @@ def _candidates_for_grid(
 
 
 def _string_depths(table: Mapping[str, Mapping[int, int]]) -> Dict[str, Dict[str, int]]:
-    """JSON turns integer depth keys into strings; use strings everywhere for stable rendering."""
-
     return {
         key: {str(depth): count for depth, count in counts.items()} for key, counts in table.items()
     }
@@ -372,8 +353,6 @@ def _md_table(headers: Sequence[str], rows: Iterable[Sequence[Any]]) -> str:
 
 
 def _grid_order(names: Iterable[str]) -> List[str]:
-    """Primary grid first, comparison grids in sorted order."""
-
     ordered = sorted(names)
     if PRIMARY_GRID in ordered:
         ordered.remove(PRIMARY_GRID)
@@ -526,12 +505,6 @@ def run_precheck(
     command: str = "",
     schema_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    """Build every record, write the report bundle and return the stage manifest.
-
-    ``schema_root`` is the repository holding ``schemas/``; it defaults to this checkout so tests
-    can point ``repo_root`` at a temporary corpus.
-    """
-
     schema_root = schema_root or Path(
         os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[3])
     )

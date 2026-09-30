@@ -1,5 +1,3 @@
-"""Evidence pattern -> paper type (execution doc v1.2 section 9.3)."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -37,12 +35,6 @@ class TypingRules:
     def classify(
         self, evidence_pattern: Optional[str], outcome: Mapping[str, Any]
     ) -> Tuple[Optional[str], Optional[str], Optional[str], float, List[Dict[str, Any]]]:
-        """``(paper_type, category, group, confidence, alternatives)``.
-
-        Without a root-cause pattern the outcome decides: budget exhaustion or a premature
-        completion claim (section 8.2); otherwise nothing (residual).
-        """
-
         pattern = evidence_pattern
         if pattern is None:
             if outcome.get("budget_exhausted"):

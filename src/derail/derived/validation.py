@@ -1,8 +1,4 @@
-"""Strict parsing helpers for evidence-bearing JSON records.
-
-Python's ``bool("false")`` is true.  Evidence gates must therefore reject JSON values with the
-wrong type instead of coercing them.
-"""
+"""Strict parsing helpers for evidence-bearing JSON records."""
 
 from __future__ import annotations
 

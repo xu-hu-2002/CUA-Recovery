@@ -1,15 +1,3 @@
-"""Automatic prefix repair: state-neutral segment elimination (doc v1.2 section 10.1).
-
-A contiguous segment ``[a, b]`` of actions before the root cause can be removed when its
-net database change is empty (the composition of its change-log rows leaves every touched
-row as it was) and the page after ``b`` equals the page before ``a``.  That covers misclicks
-that were undone, detours and typed-then-deleted input.  A pre-root segment whose net
-change is not empty and not part of ``Writes_gold`` is an unrelated *non-neutral* error: the
-prefix is ``PREFIX_UNREPAIRABLE`` (no human repair, per the doc).
-
-Output: ``prefix-repair/1.0``.
-"""
-
 from __future__ import annotations
 
 import json
@@ -44,9 +32,6 @@ def _row_state(
 def net_change(
     steps: Sequence[Mapping[str, Any]], volatile: Optional[VolatileColumns] = None
 ) -> Dict[Tuple[str, str, int], Tuple[Any, Any]]:
-    """``{(db, tbl, rowid): (state before, state after)}`` over the segment, rows whose
-    before and after states agree dropped.  ``None`` means the row did not exist."""
-
     first: Dict[Tuple[str, str, int], Any] = {}
     last: Dict[Tuple[str, str, int], Any] = {}
     for step in steps:
@@ -73,10 +58,6 @@ def _typed_values(steps: Sequence[Mapping[str, Any]]) -> List[str]:
 def _feeds_later_change(
     window: Sequence[Mapping[str, Any]], later: Sequence[Mapping[str, Any]]
 ) -> bool:
-    """Typed text of the window that appears in a later change-log row: the segment set up a
-    state change (a message typed, then sent), so it is not neutral even though its own
-    net change is empty."""
-
     typed = _typed_values(window)
     if not typed:
         return False
@@ -93,8 +74,6 @@ def neutral_segments(
     root_cause_action_index: int,
     volatile: Optional[VolatileColumns] = None,
 ) -> List[Dict[str, Any]]:
-    """Maximal state-neutral segments strictly before the root cause."""
-
     steps = [s for s in trace["steps"] if int(s["action_index"]) < root_cause_action_index]
     pages_before: Dict[int, Optional[str]] = {}
     previous = None
@@ -145,8 +124,6 @@ def non_neutral_pre_root(
     writes_gold: Sequence[Mapping[str, Any]],
     volatile: Optional[VolatileColumns] = None,
 ) -> List[Dict[str, Any]]:
-    """Pre-root net changes that are not gold writes: unrelated, non-neutral errors."""
-
     steps = [s for s in trace["steps"] if int(s["action_index"]) < root_cause_action_index]
     gold = {("%s" % w["table"], w["entity"]) for w in writes_gold}
     out = []

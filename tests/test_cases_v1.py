@@ -40,8 +40,6 @@ def _trace(name):
 
 
 def _with_detour(trace):
-    """Insert a misclick + back (no delta, same page) before the root cause and shift indices."""
-
     trace = copy.deepcopy(trace)
     steps = trace["steps"]
     base = steps[0]
@@ -164,7 +162,7 @@ class InstantiateTests(unittest.TestCase):
         )
         self.assertEqual(
             [c["error_depth"] for c in cases], [0]
-        )  # root 5, last 8: only d=0 fits {0,5,...}
+        )
         self.assertTrue(all(d in skipped for d in DEPTHS if d > 3))
         case = cases[0]
         validate_schema(case, "derail_case.schema.json", REPOSITORY)
@@ -176,7 +174,6 @@ class InstantiateTests(unittest.TestCase):
             self.profile["provenance"]["node_horizons"]["n3"]["observability_class"],
         )
         self.assertEqual(case["prefix_modality"], "gui")
-        # root=5, d=0 covers only step 5 (the typing), before the DM insert at 6: reversible
         self.assertEqual(case["reversibility_stratum"], "reversible")
         effects = effects_within(trace, self.gold, 5, 6)
         self.assertEqual(effects[0]["reversibility_class"], "R3")

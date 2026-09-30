@@ -1,5 +1,4 @@
-"""Verifier bundle, mutation values and the mutation test on the miniworld (doc 6.3, 7.5), and
-the final-state verdict on real composed workflows of final_v1."""
+"""Verifier bundle, mutation values and the mutation test on the miniworld."""
 
 from __future__ import annotations
 
@@ -99,29 +98,25 @@ class VerifierTests(unittest.TestCase):
         )
         by_key = {(o.node_id, o.mutation): o for o in outcomes}
         date = by_key[("n2", "date_plus_minus_day")]
-        self.assertEqual(date.caught_by, "final")  # no downstream node re-reads the date
+        self.assertEqual(date.caught_by, "final")
         self.assertEqual(date.observability_class, "verifier_only")
         entity = by_key[("n1", "entity_other")]
-        self.assertIsNotNone(entity.caught_by)  # v-n1 expects 545; downstream verifiers or final
+        self.assertIsNotNone(entity.caught_by)
         self.assertGreaterEqual(rejection_rate(outcomes), 0.5)
         self.assertTrue(all(o.to_dict()["mutated_value"] is not None for o in outcomes))
 
 
 FINAL_V1 = REPOSITORY / "data" / "synthesis" / "generation" / "final_v1"
-VM_DB_DIR = os.environ.get("DERAIL_VM_DB_DIR")  # e.g. the offline VM image extract
+VM_DB_DIR = os.environ.get("DERAIL_VM_DB_DIR")
 VM_FILES_DIR = os.environ.get("DERAIL_VM_FILES_DIR")
-# (workflow, kind of its final verifier, targeted tamper of the gold end state)
 REAL_TASKS = (
-    # conditionalized composition: all_of(A.final, B.final) over confirm nodes
     (
         "gen-04648f234f",
         "all_of",
         ("dinoco-airlines", "UPDATE flights SET status = 'scheduled' WHERE rowid = 2"),
     ),
-    # the saved report is read back from the file tree
     ("gen-033574ebd2", "derived", ("file", "Documents/Morning_Brief.odt")),
     ("gen-cb32e220e8", "sql", ("mail", "DELETE FROM sent WHERE rowid = 1")),
-    # the final predicate reads a decide node that aggregates confirm nodes
     ("gen-9ef0c5efd1", "derived", ("mail", "DELETE FROM drafts WHERE rowid = 1")),
 )
 
@@ -131,8 +126,6 @@ REAL_TASKS = (
     "needs DERAIL_VM_DB_DIR / DERAIL_VM_FILES_DIR (VM databases and home tree)",
 )
 class FinalStateVerdictTests(unittest.TestCase):
-    """Gold end state -> True; untouched start state and a tampered end state -> False."""
-
     def test_real_workflows(self):
         extractor = yaml.safe_load(
             (REPOSITORY / "configs/synthesis/task_ir_v1_extractor.yaml").read_text()

@@ -1,63 +1,40 @@
 #!/usr/bin/env bash
-# Versioned takeover rollout launcher. Defaults may be overridden by CLI flags or environment variables.
 set -euo pipefail
 
-SOURCE_AGENT="${SOURCE_AGENT:-evocua_32b}"       # 产生失败轨迹、将被接管的 source agent
-TARGET_AGENT="${TARGET_AGENT:-qwen3_8_27b}"     # 从失败 prefix 继续执行的 takeover agent
-ANNOTATOR_ID="${ANNOTATOR_ID:-Jinxin}"           # 使用哪位人工标注者的 failure annotation
-BUILD_DIR="${BUILD_DIR:-artifacts/derail_builds/evocua32b_jinxin_traj}"
+SOURCE_AGENT="${SOURCE_AGENT:-}"
+TARGET_AGENT="${TARGET_AGENT:-}"
+ANNOTATOR_ID="${ANNOTATOR_ID:-}"
+BUILD_DIR="${BUILD_DIR:-}"
 HUMAN_LABELS_DIR="${HUMAN_LABELS_DIR:-artifacts/derail_builds/human_labels}"
-# 留空=自动跑该 source agent 的全部有效 failure；只用于单条调试，不是正式筛选条件。
 TRAJECTORY_ID_FILTER="${TRAJECTORY_ID_FILTER:-}"
-# Optional newline-delimited frozen cohort shared by every depth/condition.
 TRAJECTORY_ID_FILE="${TRAJECTORY_ID_FILE:-}"
-# Space-separated exact IDs. Intended only for a RUN_JUDGE=0 recovery after
-# live token preflight has identified inputs that the current endpoint cannot fit.
 TRAJECTORY_ID_EXCLUDES="${TRAJECTORY_ID_EXCLUDES:-}"
 QCOW2="${QCOW2:-third_party/MyPCBench/mypcbench-vm/mypcbench.qcow2}"
 QCOW2_SHA256="${QCOW2_SHA256:-}"
 QCOW2_HASH_PREVERIFIED="${QCOW2_HASH_PREVERIFIED:-0}"
 RUN_TAG="${RUN_TAG:-takeover_v1}"
-# 协议参数的唯一来源；下面留空的变量取这里的值（默认与论文一致）。
 TAKEOVER_CONFIG="${TAKEOVER_CONFIG:-configs/takeover/takeover.yaml}"
-# Prompt 条件：unaware=不提示错误；notified=只通知出错；diagnosed=给出根因位置和类型证据。
-# 可用空格或 / 分隔多个值；all 代表全部三个条件。默认取配置 conditions（论文：unaware）。
 CONDITIONS="${CONDITIONS:-}"
-# 接管深度：0=失败根因后立即接管；N=source agent 再走 N 步后接管。
-# 可用空格或 / 分隔多个值；all 代表 0/5/10/15/20/25。默认取配置 depths。
 DEPTHS="${DEPTHS:-}"
-# 每个 state 的独立运行次数（Pass@3）；结果写到 repeat_<r>/。默认取配置 repeats。
 REPEATS="${REPEATS:-}"
-# 接管后最多步数与墙钟上限；默认取配置 max_steps / timeout_seconds。
 MAX_STEPS="${MAX_STEPS:-}"
 TIMEOUT="${TIMEOUT:-}"
-# 修复后前缀：留空取配置 prefix.*；REPAIRED_PREFIX_DIR 覆盖 <BUILD_DIR>/<prefix.repaired_dir>。
 PREFIX_SOURCE="${PREFIX_SOURCE:-}"
 REPAIRED_PREFIX_DIR="${REPAIRED_PREFIX_DIR:-}"
 ON_MISSING_REPAIRED="${ON_MISSING_REPAIRED:-}"
 NUM_WORKERS="${NUM_WORKERS:-1}"
-# External fleet sharding is independent from the number of endpoints in this process.
 SHARD_COUNT="${SHARD_COUNT:-$NUM_WORKERS}"
 SHARD_OFFSET="${SHARD_OFFSET:-0}"
-# Keep NUM_WORKERS as the stable shard count.  Set WORKER_INDICES to a
-# space-separated subset (for example "1") when resuming only dead workers.
 WORKER_INDICES="${WORKER_INDICES:-}"
 PORT_BASE="${PORT_BASE:-24000}"
-# 逗号分隔的 OpenAI-compatible endpoint；每个 worker 固定使用一个 endpoint。
 TARGET_BASE_URLS="${TARGET_BASE_URLS:-}"
-# Optional exact-tokenizer endpoint. Defaults to the first inference endpoint
-# for vLLM deployments; hosted APIs must provide a compatible service explicitly.
 TOKENIZE_BASE_URL="${TOKENIZE_BASE_URL:-}"
 TOKENIZE_MODE="${TOKENIZE_MODE:-vllm}"
-# none = 只做离线 history 校验，不做 live token 计数（托管 API 如 gpt_5_5）。
 EXPERIMENT_CONTEXT_CAP="${EXPERIMENT_CONTEXT_CAP:-0}"
 RUN_JUDGE="${RUN_JUDGE:-1}"
 FORCE_JUDGE="${FORCE_JUDGE:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 RETRY_FAILED_ONLY="${RETRY_FAILED_ONLY:-0}"
-# A cold VM can occasionally boot at the fallback 1024x768 mode.  The harness
-# rejects that state because agent coordinates assume 1280x800; restart the VM
-# and retry the one job instead of killing its entire worker shard.
 JOB_MAX_ATTEMPTS="${JOB_MAX_ATTEMPTS:-3}"
 JOB_RETRY_DELAY="${JOB_RETRY_DELAY:-10}"
 
@@ -125,6 +102,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 resolve_path() {
   if [[ "$1" = /* ]]; then printf '%s\n' "$1"; else printf '%s/%s\n' "$REPO_ROOT" "$1"; fi
 }
+[[ -n "$SOURCE_AGENT" && -n "$TARGET_AGENT" ]] || { echo "FATAL: --source-agent and --target-agent are required" >&2; exit 1; }
+[[ -n "$BUILD_DIR" ]] || { echo "FATAL: BUILD_DIR is required" >&2; exit 1; }
 BUILD_DIR="$(resolve_path "$BUILD_DIR")"
 HUMAN_LABELS_DIR="$(resolve_path "$HUMAN_LABELS_DIR")"
 QCOW2="$(resolve_path "$QCOW2")"
@@ -259,7 +238,7 @@ done
 
 mkdir -p "$OUTPUT_ROOT"
 selection=(
-  python3 "$REPO_ROOT/scripts/09_select_takeover_failures.py"
+  python3 "$REPO_ROOT/scripts/benchmark/select_takeover_failures.py"
   --build-dir "$BUILD_DIR"
   --human-labels-dir "$HUMAN_LABELS_DIR"
   --source-agent "$SOURCE_AGENT"
@@ -274,11 +253,8 @@ if [[ -n "$TRAJECTORY_ID_FILE" ]]; then
 fi
 "${selection[@]}"
 
-# Fail before booting any VM if a selected prefix cannot be rendered as
-# schema-valid history or its live-tokenized prompt plus completion budget
-# exceeds the endpoint's max_model_len.
 preflight=(
-  python3 "$REPO_ROOT/scripts/10_preflight_takeover_history.py"
+  python3 "$REPO_ROOT/scripts/takeover/preflight_history.py"
   --selection-list "$SELECTION_LIST"
   --target-agent "$TARGET_AGENT"
   --depths "${DEPTH_VALUES[@]}"
@@ -301,9 +277,6 @@ if [[ -n "$TRAJECTORY_ID_EXCLUDES" ]]; then
   done
 fi
 if [[ "$DRY_RUN" != "1" && "$TOKENIZE_MODE" != "none" ]]; then
-  # Use the live serving tokenizer on the fully rendered initial request.
-  # This runs before any worker is spawned, so an oversized prefix cannot
-  # burn VM time before vLLM rejects it.
   preflight+=(--tokenize-base-url "${TOKENIZE_BASE_URL:-${ENDPOINT_VALUES[0]}}")
   preflight+=(--tokenize-mode "$TOKENIZE_MODE")
   if [[ "$EXPERIMENT_CONTEXT_CAP" != "0" ]]; then
@@ -334,15 +307,10 @@ output_path.write_text(payload, encoding="utf-8")
 PY
 if [[ "$DRY_RUN" != "1" ]]; then
   rm -f "$OUTPUT_ROOT/.takeover_paused_at"
-  # Lets the dashboard distinguish this controller's launches from partial
-  # directories left by an earlier interrupted run.
   date +%s > "$OUTPUT_ROOT/.takeover_active_run_started_at"
 fi
 
-# Progress dashboard timestamps. They are observational only and never affect resume/retry.
 if [[ "$DRY_RUN" != "1" ]]; then
-  # A selective worker recovery is part of the same run, so keep the original
-  # start time and the dashboard's elapsed-time/ETA baseline.
   if [[ ! -f "$OUTPUT_ROOT/.takeover_started_at" ]]; then
     date +%s > "$OUTPUT_ROOT/.takeover_started_at"
   fi
@@ -400,7 +368,6 @@ run_worker() {
           '$1 == trajectory && $2 == depth && $3 == condition { print $4; exit }' \
           "$PREFLIGHT_EXCLUSIONS")"
       if [[ -n "$exclusion_reason" ]]; then
-        # e.g. reason=token_overflow report=... or reason=repaired_prefix_missing
         printf 'PROTOCOL_EXCLUSION: worker=%s job=%s repeat=%s depth=%s condition=%s reason=%s report=%s\n' \
           "$worker_index" "$trajectory_id" "$repeat" "$depth" "$condition" \
           "$exclusion_reason" "$HISTORY_PREFLIGHT_REPORT" >&2
@@ -408,7 +375,7 @@ run_worker() {
         continue
       fi
       command=(
-        python3 "$REPO_ROOT/scripts/10_run_takeover_rollout.py"
+        python3 "$REPO_ROOT/scripts/takeover/run_rollout.py"
         --source-agent "$SOURCE_AGENT"
         --target-agent "$TARGET_AGENT"
         --condition "$condition"
@@ -453,8 +420,6 @@ run_worker() {
             status=$?
           fi
           if (( status == 3 )); then
-            # Protocol exclusion (replay_mismatch / repaired prefix missing): recorded in
-            # protocol_exclusion.json, never retried.
             printf 'PROTOCOL_EXCLUSION: worker=%s job=%s repeat=%s depth=%s condition=%s see=%s\n' \
               "$worker_index" "$trajectory_id" "$repeat" "$depth" "$condition" \
               "$result_dir" >&2
@@ -512,14 +477,11 @@ else
 fi
 
 if [[ "$RUN_JUDGE" == "1" ]]; then
-  # The judge sees only runner-clean episodes of every repeat (result.txt=1.0 and no
-  # protocol_exclusion.json): scripts/takeover_judge_selection.py links them into one
-  # staging dir per cell, the same staging artifacts/takeover/run_takeover_judge.sh uses.
   staging_dirs=()
   for cell in "${JUDGE_CELLS[@]}"; do
     read -r repeat depth condition <<< "$cell"
     staging="$OUTPUT_ROOT/repeat_${repeat}/_judge_d${depth}_${condition}_ok"
-    if [[ "$DRY_RUN" == "1" ]] || python3 "$REPO_ROOT/scripts/takeover_judge_selection.py" \
+    if [[ "$DRY_RUN" == "1" ]] || python3 "$REPO_ROOT/scripts/judge/takeover_judge_selection.py" \
         "$OUTPUT_ROOT/repeat_${repeat}" "$depth" "$condition" "$staging" > /dev/null; then
       staging_dirs+=("$staging")
     else
@@ -527,10 +489,9 @@ if [[ "$RUN_JUDGE" == "1" ]]; then
         "$repeat" "$depth" "$condition" >&2
     fi
   done
-  judge=(bash "$REPO_ROOT/scripts/run_judge.sh" "${staging_dirs[@]}")
+  judge=(bash "$REPO_ROOT/scripts/judge/run_judge.sh" "${staging_dirs[@]}")
   [[ "$FORCE_JUDGE" == "1" ]] && judge+=(--force)
-  # 11 expands the repeat_<k>/ roots itself and reports Pass@k once.
-  summarize=(python3 "$REPO_ROOT/scripts/11_summarize_takeover_judges.py"
+  summarize=(python3 "$REPO_ROOT/scripts/judge/summarize_takeover.py"
     --output-root "$OUTPUT_ROOT" --depths "${DEPTH_VALUES[@]}" --conditions "${CONDITION_VALUES[@]}")
   if [[ "$DRY_RUN" == "1" ]]; then
     printf '[dry-run]'

@@ -1,16 +1,3 @@
-"""Build SQLite databases from ``miniworld-seed/1.0`` files.
-
-A seed file carries, per table, the verbatim ``CREATE TABLE`` statement of the source database
-and a list of rows.  Building from a seed instead of committing binary ``.sqlite`` files keeps
-the fixture reviewable in diffs and reproducible on every machine.
-
-Entry points
-------------
-``load_seed(path) -> dict``
-``build_database(seed, path) -> Path``          one database file from one seed
-``build_world(seeds, out_dir) -> Dict[str, Path]``  ``{app: db_path}`` for several seeds
-"""
-
 from __future__ import annotations
 
 import json
@@ -32,8 +19,6 @@ def load_seed(path: Union[str, Path]) -> Dict[str, Any]:
 
 
 def build_database(seed: Mapping[str, Any], path: Union[str, Path]) -> Path:
-    """Create ``path`` from ``seed``; an existing file is replaced."""
-
     target = Path(path)
     if target.exists():
         target.unlink()
@@ -53,7 +38,6 @@ def build_database(seed: Mapping[str, Any], path: Union[str, Path]) -> Path:
                 [list(row) for row in table["rows"]],
             )
         conn.commit()
-        # Rebuild from a single, deterministic page layout so digests are stable across runs.
         conn.execute("VACUUM")
     finally:
         conn.close()
@@ -63,8 +47,6 @@ def build_database(seed: Mapping[str, Any], path: Union[str, Path]) -> Path:
 def build_world(
     seeds: Mapping[str, Union[str, Path]], out_dir: Union[str, Path]
 ) -> Dict[str, Path]:
-    """Build every seed into ``out_dir/<database>.sqlite`` and return ``{app: path}``."""
-
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     built: Dict[str, Path] = {}

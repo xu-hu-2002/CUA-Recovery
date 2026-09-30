@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Platform shim: mdl launcher 只吃裸 .py entry，这里转发到同目录 .sh。"""
+"""Entry shim that forwards to the sibling .sh script."""
 import os
 import subprocess
 import sys

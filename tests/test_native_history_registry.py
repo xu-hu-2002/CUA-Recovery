@@ -245,7 +245,6 @@ class NativeHistoryRegistryTests(unittest.TestCase):
         self.assertNotIn("minimum", history_delta)
         self.assertNotIn("maximum", history_delta)
         self.assertIn("bash", {item["function"]["name"] for item in adapter.tool_definitions()})
-        # 冻结 prompt 必须存在且是 kimi 自己的，不能隐式复用 qwen 的文件。
         self.assertIn("Kimi", adapter.system_prompt())
 
     def test_qwen38_uses_hybrid_gui_shell_scaffold(self) -> None:

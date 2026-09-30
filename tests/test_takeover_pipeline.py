@@ -27,7 +27,7 @@ from derail.takeover.source_logs import load_public_trajectory_log
 def _load_stage_module():
     import importlib.util
 
-    path = Path(__file__).resolve().parents[1] / "scripts/14_stage_takeover_inputs.py"
+    path = Path(__file__).resolve().parents[1] / "scripts/takeover/stage_inputs.py"
     spec = importlib.util.spec_from_file_location("stage_takeover_inputs", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -263,7 +263,7 @@ class ProductionBundleDefaultsTests(unittest.TestCase):
         self.assertIn("setup_evocua", driver)
         self.assertIn("evocua-4a0ad5f.tar.gz", driver)
 
-        preflight = (repo / "scripts/10_preflight_takeover_history.py").read_text()
+        preflight = (repo / "scripts/takeover/preflight_history.py").read_text()
         self.assertIn('args.target_agent == "evocua_32b"', preflight)
         self.assertIn('"EVOCUA_MODEL"', preflight)
         self.assertIn("EvoCUA target has no native request preflight API", preflight)

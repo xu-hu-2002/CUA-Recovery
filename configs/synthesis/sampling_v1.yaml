@@ -1,9 +1,7 @@
-# Sampling targets for generated tasks (execution doc v1.2 section 6.6).  Bucket labels are
-# semantic steps of static latent horizon; they are data (latent-profile/1.0 carries them).
 schema_version: sampling-config/1.0
-target_count: 700  # researcher 2026-09-08: 400-500 long-horizon composed tasks; quotas by bucket below
+target_count: 700
 latent_horizon_semantic_bucket_targets:
-  "1": 0.20              # required_next, control group
+  "1": 0.20
   "2-3": 0.35
   ">=4": 0.30
   "verifier_only": 0.15
@@ -19,48 +17,25 @@ secondary_constraints:
   dependency_depth: [5, 9]
   cross_app_dependencies: [2, 5]
   max_independent_component_ratio: 0.25
-  # A composed task an agent could plausibly run in one episode; also bounds the mutation
-  # test (three grafts of 20-node seeds gave 69-node tasks with 150 mutation runs each).
   max_nodes: 24
-  # A composed task must be long-horizon: about 50 GUI steps at 4-7 steps per node
-  # (measured on the collected rollouts, D-045).  Seeds are not subject to it.
   min_nodes_composed: 10
   required_second_lineage_for_carry_ge_3: true
   carry_threshold: 3
-# Researcher decision 2026-09-05 (D-023): every task needs at least two world variants.
 min_variants_per_task: 2
-# Beam search (derail.gen.graft.SearchConfig.from_sampling) and the driver gates
-# (derail.gen.pipeline).  One beam per seed against the whole accepted pool.
-# Paper appendix B: the beam keeps 16 states and spends at most 48 gold executions per seed
-# and round (gen_v1_run_02; gen_v1_run_03 used width 32 / 96).
 beam:
   width: 16
   max_grafts: 3
-  # Gold executions spent per seed and round on candidates that passed the static gates
-  # (each is a world copy + interpreter run); the rest of the round is GATE_BUDGET_EXHAUSTED.
   max_gate_checks_per_round: 48
 gates:
-  # Composed tasks whose verifier bundle rejects fewer mutations than this are not selected
-  # (execution doc v1.2 section 6.3 verifier coverage).  Applied only when the mutation test ran.
   min_mutation_rejection_rate: 0.5
-  # Mutations whose re-execution raised (caught_by execution_error): exclude (paper: R is
-  # aggregated over the mutations that executed) | caught | not_caught.
   execution_errors: exclude
-# Composition (derail.gen.graft).  final_verifier: all_of concatenates both parents' final
-# validators for grafts and conditionalization (paper appendix B); receiver keeps only the
-# receiving task's.  The composed rubric merges the source rubrics; an unquoted source literal
-# of at least min_literal_chars characters is also rewritten to the composed gold value.
 composition:
   final_verifier: all_of
   rubric:
     min_literal_chars: 4
 mutation_test:
   max_per_node: 4
-# Typed compatibility (derail.gen.compat.CompatConfig).  Generic scalar types match on the
-# type name alone only at generic_same_type_score (below min_score): they need a cell or
-# foreign-key path from the schema graph to graft (D-039).
 compat:
-  # A port whose schema column cannot be identified is not eligible (paper appendix B).
   require_cell: true
   max_fk_hops: 2
   allow_cross_app: true

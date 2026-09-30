@@ -78,7 +78,7 @@ class ContinuationTests(unittest.TestCase):
         self.assertTrue(stats.loop_detected)
         self.assertEqual(stats.loop_repeat_count, 3)
         self.assertEqual(stats.loop_start_offset, 1)
-        self.assertEqual(stats.loop_established_offset, 4)  # wait is excluded but keeps its offset
+        self.assertEqual(stats.loop_established_offset, 4)
         self.assertFalse(stats.early_stop)
 
     def test_budget_exhaustion_and_early_stop(self):
@@ -161,7 +161,7 @@ class CaseTests(unittest.TestCase):
         )
         kept, removed = dedup_cases(a + b + c + far)
         kept_ids = sorted(case.case_id for case in kept)
-        self.assertEqual(len(kept), 6)  # (b-cluster, c, far) x 2 depths
+        self.assertEqual(len(kept), 6)
         self.assertTrue(all(case.status == DUPLICATE_CASE for case in removed))
         keeper = next(
             case for case in kept if case.source_rollout_id == "roll_b" and case.error_depth == 0
@@ -187,8 +187,6 @@ class CaseTests(unittest.TestCase):
 
 class PrecheckTests(unittest.TestCase):
     def _write_corpus(self, root: Path):
-        """Two failures for the same task from two agents, one perfect pass, one n/a row."""
-
         actions_a = [_click(10, 10)] * 12 + [_click(700, 600)] * 4 + [_terminate()]
         actions_b = [_click(10, 10)] * 25
         rows = []
@@ -293,9 +291,7 @@ class PrecheckTests(unittest.TestCase):
             self.assertEqual(overall["depth_candidates"]["primary"]["8"]["candidates"], 1)
             self.assertEqual(overall["loop_detected"], 2)
             self.assertEqual(overall["terminated_explicitly"], 1)
-            # Both failures resolve to primary type scope_error (planning beats termination).
             self.assertEqual(report["primary_type_counts"], {"scope_error": 2})
-            # Same task, roots 10/11, same type, same click cell -> dedup merges at d=0 and d=2.
             self.assertEqual(report["case_level"]["primary"]["dedup_removed"], 2)
             records = [
                 json.loads(line)

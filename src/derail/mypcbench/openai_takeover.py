@@ -1,9 +1,4 @@
-"""Responses-API history injection for MyPCBench's ``openai_cuabash`` (GPT-5.5) agent.
-
-Upstream keeps a stateful ``previous_response_id`` chain unless ``OPENAI_ZDR_STATELESS`` is on;
-a provider-side chain cannot carry an injected prefix, so the takeover target always runs the
-stateless client-side history (``_history``), seeded with rendered Responses input items.
-"""
+"""Responses-API history injection for MyPCBench's ``openai_cuabash`` (GPT-5.5) agent."""
 
 from __future__ import annotations
 
@@ -94,8 +89,6 @@ class OpenAITakeoverTarget:
             raise ValueError("predict instruction differs from seeded GPT task")
         screenshot = observation.get("screenshot")
         if self._condition_prompt and isinstance(screenshot, bytes):
-            # Upstream only attaches the screenshot to its own "Continue" turn, so the
-            # condition turn carries it explicitly.
             self._target.pending_items.append({
                 "role": "user",
                 "content": [

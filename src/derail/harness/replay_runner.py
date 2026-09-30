@@ -1,16 +1,3 @@
-"""Replay a repaired prefix + d steps and compare ledgers (execution doc v1.2 section 10.2).
-
-For each requested depth the runner restores the snapshot, replays the prefix actions through
-the wrapped env, and compares, action by action, the change-log rows and the page sequence
-with the original trace.  Three consistent replays make the depth pass; any mismatch marks it
-``PREFIX_REPLAY_MISMATCH`` and it is not instantiated.  The comparison is on ledgers, not
-screenshots: (table, rowid, op, new_json minus volatile columns) for changes, (app, route)
-for pages.
-
-The env, control client and restore callable are injected; ``tests/test_harness_rollout.py``
-exercises the comparison with fakes.  Output is the ``replay-verification/1.0`` branch.
-"""
-
 from __future__ import annotations
 
 import json
@@ -24,8 +11,6 @@ VERIFICATION_VERSION = "replay-verification/1.0"
 
 
 def change_signature(row: Mapping[str, Any], volatile: Optional[VolatileColumns] = None) -> tuple:
-    """Order-free identity of a change-log row: volatile columns are dropped from new_json."""
-
     new = json.loads(row["new_json"]) if row.get("new_json") else {}
     table = "%s.%s" % (row["db"], row["tbl"])
     if volatile is not None:
@@ -53,8 +38,6 @@ def compare_steps(
     replayed: Sequence[Mapping[str, Any]],
     volatile: Optional[VolatileColumns] = None,
 ) -> Dict[str, Any]:
-    """First mismatching action index (None when identical) and per-ledger verdicts."""
-
     changelog_match = page_match = True
     first_mismatch: Optional[int] = None
     for index, (before, after) in enumerate(zip(original, replayed)):
@@ -79,9 +62,6 @@ def compare_steps(
 
 @dataclass
 class ReplayRunner:
-    """``restore()`` returns the snapshot to its initial state; ``make_wrapper()`` builds a fresh
-    wrapped env whose trace builder we read back after the replay."""
-
     restore: Callable[[], None]
     make_wrapper: Callable[[], DerailEnvWrapper]
     volatile: Optional[VolatileColumns] = None

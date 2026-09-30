@@ -1,14 +1,3 @@
-"""World graph ``W`` from the frozen MyPCBench seed (manual v0.2 sections 4.1, 6.1, 11.1).
-
-The persona file seeds every application in the VM image, and ``variables.json`` holds the
-ground-truth reference values the rubrics cite.  This module turns both into a ``world-graph/0.1``
-record: entities with stable ids, the applications where each fact is observable, whether the
-fact is mutable, and provenance back to the seed path.  What to extract is configuration
-(``configs/synthesis/world_sources_*.yaml``); this module only walks the seed.
-
-Ids are ``seed_derived`` until a per-app check confirms the in-VM store exposes the same key.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -29,12 +18,6 @@ class WorldError(ValueError):
 
 
 def slugify(value: Any) -> str:
-    """Lower-case, non-alphanumerics folded to ``_``; used for stable id segments.
-
-    Dots are folded too: ``entity_id.attribute`` groundings split on the first dot, so an id
-    must never contain one.
-    """
-
     if isinstance(value, (list, tuple)):
         value = "_".join(str(item) for item in value)
     text = re.sub(r"[^a-z0-9-]+", "_", str(value).lower()).strip("_")
@@ -43,7 +26,7 @@ def slugify(value: Any) -> str:
 
 @dataclass(frozen=True)
 class AppAliases:
-    canonical: Mapping[str, str]  # any spelling (lower-cased) -> canonical id
+    canonical: Mapping[str, str]
 
     @classmethod
     def from_config(cls, raw: Mapping[str, Sequence[str]]) -> "AppAliases":
@@ -78,12 +61,6 @@ def _walk(root: Mapping[str, Any], path: str) -> Any:
 
 
 def _scalar_attributes(item: Mapping[str, Any], nested: Sequence[str] = ()) -> Dict[str, Any]:
-    """Keep scalars and lists of scalars; nested objects are kept only when listed in ``nested``.
-
-    Nested structures that are neither children nor listed are dropped, so a section must opt
-    in explicitly to carry, say, a trip's ``generates`` block into the entity.
-    """
-
     attributes: Dict[str, Any] = {}
     for key, value in item.items():
         if isinstance(value, _SCALARS) or value is None:
@@ -96,10 +73,7 @@ def _scalar_attributes(item: Mapping[str, Any], nested: Sequence[str] = ()) -> D
 
 
 def _collect_path(value: Any, parts: Sequence[str]) -> List[Any]:
-    """Walk ``parts`` through dicts and lists, collecting every leaf value."""
-
     if not parts:
-        # A leaf list contributes its elements, not the list object.
         return list(value) if isinstance(value, list) else [value]
     if isinstance(value, Mapping):
         return _collect_path(value.get(parts[0]), parts[1:]) if parts[0] in value else []
@@ -139,7 +113,6 @@ class _Builder:
     ) -> str:
         entity_id = _entity_id(entity_type, item, id_fields, fallback)
         if entity_id in self.entities:
-            # Two seed rows collapsing onto one id is a real ambiguity; keep both by suffixing.
             entity_id = "%s.%s" % (entity_id, slugify(source_path))
         self.entities[entity_id] = {
             "entity_id": entity_id,
@@ -168,13 +141,6 @@ class _Builder:
 def _surfaces_for(
     section: Mapping[str, Any], item: Mapping[str, Any], aliases: AppAliases
 ) -> List[str]:
-    """Union of static surfaces, a (possibly nested) spelling field and key-derived surfaces.
-
-    ``surfaces_field`` may be a dotted path such as ``affected.app``; lists along the path are
-    traversed.  ``surfaces_from_keys`` maps the keys of a nested block (for example a trip's
-    ``generates``) to applications through ``key_apps``.
-    """
-
     found: List[str] = list(_static_surfaces(section.get("surfaces", ()), aliases))
     field = section.get("surfaces_field")
     if field:
@@ -190,8 +156,6 @@ def _surfaces_for(
 
 
 def _static_surfaces(raw: Any, aliases: AppAliases) -> List[str]:
-    """``surfaces: all`` means every canonical application; otherwise resolve the list."""
-
     if raw == "all":
         return list(aliases.app_ids)
     return aliases.resolve_all(str(value) for value in raw)
@@ -248,8 +212,6 @@ def build_world_graph(
     *,
     provenance: Mapping[str, str],
 ) -> Dict[str, Any]:
-    """Build the world-graph record from the persona seed, reference variables and config."""
-
     aliases = AppAliases.from_config(sources["app_aliases"])
     builder = _Builder(aliases=aliases, entities={}, relations=[])
     persona_cfg = sources["persona"]
@@ -300,8 +262,6 @@ def build_world_graph(
 
 
 def subgraph_for_apps(world: Mapping[str, Any], app_ids: Iterable[str]) -> Dict[str, Any]:
-    """Entities observable in any of ``app_ids`` plus the relations among them (§6.1 W_sub)."""
-
     wanted = set(app_ids)
     entities = [
         entity for entity in world["entities"] if wanted & set(entity["observation_surfaces"])

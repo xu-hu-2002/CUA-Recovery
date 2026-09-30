@@ -1,14 +1,3 @@
-"""``analyze_failure(trace, gold, task_ir, config) -> failure-analysis/1.0``.
-
-Paper §3 "Constructing erroneous states" and Alg. 1 ``AnalyzeFailure``: the recorded execution
-is compared with the gold lineage to locate ``t_r``, the error type and ``t_e``.
-``annotation_proposal`` turns the result into a record with the human annotation fields
-(``derail.annotation.records.HumanAnnotation``) so annotators verify it in the annotation UI;
-a failure whose root is unresolved or whose type confidence is below the configured threshold
-(``residual_threshold`` in ``configs/synthesis/typing_rules_v1.yaml``, paper 0.7) is routed to
-human annotation instead of verification.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -78,7 +67,6 @@ def analyze_failure(
         residual = "ROOT_CAUSE_RESIDUAL"
     root_index = root.action_index if root else None
     if root is None and paper_type is not None:
-        # termination failures without a state or parameter trace: the root is the terminal action
         root_index = last_index
     return {
         "schema_version": "failure-analysis/1.0",
@@ -125,16 +113,6 @@ def annotation_proposal(
     taxonomy_version: str,
     confidence_threshold: float,
 ) -> Dict[str, Any]:
-    """An automatic failure label in the human annotation layout, for human verification.
-
-    The fields shared with ``HumanAnnotation.to_dict`` keep their names and meaning (0-based
-    action indices, ``identifiable_at = root + horizon``); ``annotator_role`` is ``auto`` so the
-    record never passes for a human label.  ``reversibility`` is left for the annotator.
-    ``review_route`` is ``human_verify`` when the root is resolved and the type confidence
-    reaches the threshold, else ``human_annotate`` (Alg. 1 drops such failures from the automatic
-    path).
-    """
-
     root = record.get("root_cause_action_index")
     confidence = record.get("type_confidence")
     resolved = root is not None and record.get("paper_type") is not None

@@ -1,19 +1,3 @@
-"""Schema-derived typed compatibility between Task IR ports (execution doc v1.2 section 7.1).
-
-An output port of IR ``A`` can feed an input port of IR ``B`` when
-
-- the port types unify in the registry (``ValueTypeRegistry`` / v0.1 ``TypeSystem``), or
-- both ports are grounded in the same ``(table, column)`` or in columns joined by a
-  foreign-key path of the schema graph (generation relations only, D-015), or
-- a registered deterministic converter maps one type to the other;
-
-and the v0.2 pairwise checks hold (identity scope, time scope, cardinality, side-effect
-conflicts).  Literal input ports are the graft targets: replacing a literal by an upstream
-value is what turns two seed tasks into one long task.
-
-``compat-edge/1.0`` records are emitted for every acceptable (output, input) pair.
-"""
-
 from __future__ import annotations
 
 import re
@@ -49,9 +33,6 @@ def _split_top_level(text: str) -> List[str]:
 
 
 def sql_scalar_cell(query: str, app: str) -> Optional[Tuple[str, str]]:
-    """``(app.table, column)`` when the query projects exactly one bare column (optionally
-    aliased) from one table; aggregates and expressions carry no cell."""
-
     select, source = _SQL_SELECT.search(query or ""), _SQL_FROM.search(query or "")
     if not select or not source:
         return None
@@ -66,11 +47,9 @@ def sql_scalar_cell(query: str, app: str) -> Optional[Tuple[str, str]]:
 
 
 def sql_param_cell(query: str, app: str, param: str) -> Optional[Tuple[str, str]]:
-    """``(app.table, column)`` of the column a query compares with ``:param``."""
-
     source = _SQL_FROM.search(query or "")
     match = re.search(
-        r"(?:[A-Za-z_][A-Za-z0-9_]*\s*\(\s*)?"  # optional wrapping function, lower(col)
+        r"(?:[A-Za-z_][A-Za-z0-9_]*\s*\(\s*)?"
         r"(?:[A-Za-z_][A-Za-z0-9_]*\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\)?\s*"
         r"(?:=|LIKE|IN\s*\()\s*(?:'%%'\s*\|\|\s*)?(?:lower\s*\(\s*)?:%s\b" % re.escape(param),
         query or "",
@@ -84,10 +63,6 @@ def sql_param_cell(query: str, app: str, param: str) -> Optional[Tuple[str, str]
 def _grounding_cell(
     task_ir: Mapping[str, Any], node_id: str, name: str
 ) -> Optional[Tuple[str, str]]:
-    """``(table, column)`` a produce refers to: the read/write entry whose entity_ref is
-    derived:<node>:<name>, else a read of the node with a matching column name, else the single
-    bare column its SQL derivation projects."""
-
     ref = "derived:%s:%s" % (node_id, name)
     node = next((n for n in task_ir["nodes"] if n["node_id"] == node_id), None)
     if node is None:
@@ -108,9 +83,6 @@ def _grounding_cell(
 
 
 def _input_cell(node: Mapping[str, Any], port_id: str) -> Optional[Tuple[str, str]]:
-    """``(table, column)`` a literal input is compared against: a read with the port's name,
-    else the column a SQL derivation of the node compares with ``:<port_id>``."""
-
     for entry in node.get("reads", ()):
         if str(entry.get("column")) == port_id:
             return str(entry["table"]), str(entry["column"])
@@ -159,9 +131,6 @@ def output_ports(task_ir: Mapping[str, Any]) -> List[PortRef]:
 def literal_input_ports(
     task_ir: Mapping[str, Any], excluded_literals: Sequence[Any] = ()
 ) -> List[PortRef]:
-    """Input ports that carry an instruction constant: the graft targets.  Persona identity
-    literals (the signed-in user's name / e-mail) are excluded: they are not task inputs."""
-
     excluded = {str(v).strip().lower() for v in excluded_literals}
     out = []
     for node in task_ir["nodes"]:
@@ -187,15 +156,9 @@ class CompatConfig:
     max_fk_hops: int = 2
     allow_cross_app: bool = True
     min_score: float = 0.5
-    # Types whose name alone says nothing about meaning (a count is not a number of months):
-    # a same-type match on them scores ``generic_same_type_score`` unless a cell or foreign
-    # key path backs it (D-039).
     generic_types: Tuple[str, ...] = ()
     generic_same_type_score: float = 0.4
-    # Literals that never are graft targets (persona identity, D-009).
     excluded_literals: Tuple[Any, ...] = ()
-    # A port whose schema column cannot be identified is not eligible for composition
-    # (paper appendix B, typed compatibility).
     require_cell: bool = True
 
 
@@ -206,8 +169,6 @@ def port_compatibility(
     graph: Optional[SchemaGraph],
     config: CompatConfig,
 ) -> Optional[Dict[str, Any]]:
-    """Score and reason when ``source`` may feed ``target``; None when it may not."""
-
     if source.cardinality != target.cardinality and not (
         source.cardinality == "one" and target.cardinality == "optional"
     ):
@@ -231,12 +192,9 @@ def port_compatibility(
             score = config.generic_same_type_score if unified_name in generic else 0.9
     if source.cell and target.cell and graph is not None:
         if source.cell == target.cell:
-            # Same table and column: the strongest evidence, whatever the type names say.
             reasons.append("same_cell")
             score = max(score, 1.0)
         elif typed and graph.foreign_key_path(source.cell[0], target.cell[0], config.max_fk_hops):
-            # A key path between the tables backs a type match (also a generic one); a path
-            # alone (an id fed into a name port) is not evidence.
             reasons.append("foreign_key_path")
             score = max(score, 0.8)
     if not reasons:
@@ -271,8 +229,6 @@ def build_compat_index(
     graph: Optional[SchemaGraph] = None,
     config: Optional[CompatConfig] = None,
 ) -> List[Dict[str, Any]]:
-    """All acceptable (output of IR A -> literal input of IR B, A != B) edges."""
-
     config = config or CompatConfig()
     outputs = [(ir, p) for ir in irs for p in output_ports(ir)]
     inputs = [(ir, p) for ir in irs for p in literal_input_ports(ir, config.excluded_literals)]

@@ -1,13 +1,3 @@
-"""Milestone rubrics, dependency-consistent scoring and the root-cause hint (manual §13, §9.2).
-
-A milestone is one semantic node of the Task IR with its verifier.  Scoring never assumes access
-to the agent's private state: a milestone whose observability is ``unobservable`` carries no
-automatic credit.  ``earliest_identifiable_hint`` implements exactly the two automatable steps of
-section 9.2 and nothing more: it proposes the *end* of the error horizon and, for data-dependent
-failures, restricts the root-cause search to the upstream lineage.  It never proposes a root
-cause and never uses the window between the last passed and first failed milestone.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,8 +11,6 @@ CREDIT_POLICY = "no_credit_if_prerequisite_value_is_wrong"
 
 
 def derive_milestones(fragment: Mapping[str, Any], ontology: Ontology) -> Dict[str, Any]:
-    """Compile one milestone per node in topological order (section 13.2 fields)."""
-
     dag = DagIndex.from_fragment(fragment)
     milestone_by_node: Dict[str, str] = {}
     milestones: List[Dict[str, Any]] = []
@@ -83,13 +71,6 @@ class MilestoneScore:
 def score_milestones(
     rubric: Mapping[str, Any], results: Mapping[str, Optional[bool]]
 ) -> MilestoneScore:
-    """Score verifier outcomes (``True``/``False``/``None`` = not automatically checkable).
-
-    ``dependency_consistent_completion`` credits a milestone only when every prerequisite
-    milestone (transitively) also passed.  The completion curve is the cumulative weighted
-    dependency-consistent completion in topological order; its mean is ``milestone_auc``.
-    """
-
     milestones = list(rubric["milestones"])
     weights = {item["milestone_id"]: float(item["weight"]) for item in milestones}
     total = sum(weights.values())
@@ -136,14 +117,6 @@ def earliest_identifiable_hint(
     results: Mapping[str, Optional[bool]],
     fragment: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    """Automatic *hint* for annotators (section 9.2): horizon end and lineage restriction.
-
-    Returns the first failed critical milestone as the candidate ``earliest_identifiable`` point
-    and, when that milestone is data-dependent, the upstream node ids that bound the root-cause
-    search.  Annotators still search earlier for an identifiable observation and, for
-    cross-lineage errors, the whole trajectory.  The hint never names a root cause.
-    """
-
     dag = DagIndex.from_fragment(fragment)
     for item in rubric["milestones"]:
         if not item["critical"] or item["observability"] == "unobservable":

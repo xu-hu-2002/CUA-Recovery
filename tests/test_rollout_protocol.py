@@ -1,5 +1,3 @@
-"""Clean-start 采集协议：统一预算 / K / 任务来源 / 环境钩子（论文 02:6、02:12、05:15）。"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -15,7 +13,6 @@ from derail.rollout.tasks import load_source_tasks
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 RUNTIME = yaml.safe_load((REPOSITORY / "configs/collection/mypcbench_runtime.yaml").read_text())
-# 各 scaffold 里「上下文保留几张截图」的旋钮名。
 IMAGE_KNOBS = ("max_images_in_context", "max_history_turns", "max_image_history_length")
 
 
@@ -73,7 +70,7 @@ class TaskSourceTests(unittest.TestCase):
                     source["rubrics_dir"] = str(root / "rubrics")
             config = root / "sources.yaml"
             config.write_text(yaml.safe_dump(spec))
-            with self.assertRaises(ValueError):  # gen-c has no composed rubric
+            with self.assertRaises(ValueError):
                 load_source_tasks("rerail_workflows", tasks_file, config)
             for source in spec["sources"]:
                 source["on_missing_rubric"] = "skip"
@@ -140,7 +137,7 @@ class EnvironmentHookTests(unittest.TestCase):
             traj = Path(tmp) / "task-1" / "traj.jsonl"
             for index in range(2):
                 env.step("pyautogui.click(1, 1)")
-                with traj.open("a") as handle:  # runner 在 step 返回后才写这一行
+                with traj.open("a") as handle:
                     handle.write("{}\n")
             lines = [json.loads(line) for line in (Path(tmp) / "task-1/state_probes.jsonl").open()]
         self.assertEqual([line["traj_index"] for line in lines], [-1, 0, 1])

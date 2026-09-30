@@ -79,8 +79,6 @@ class OpenCUAActionHistoryAdapter:
                 code = _CODE_BLOCK.search(response_text, match.end(), end)
                 if code and _code_action_kind(code.group("code")) == action_kind:
                     complete_matches.append(match)
-            # OpenCUA may return its accumulated Step history in one response.
-            # The upstream executor runs the last complete matching Code block.
             selected = complete_matches[-1:]
         if len(selected) != 1 or not selected[0].group("action").strip():
             raise ValueError("OpenCUA source response has no unique public Action block")

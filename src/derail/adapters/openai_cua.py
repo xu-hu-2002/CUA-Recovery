@@ -1,12 +1,4 @@
-"""History renderer for GPT-5.5 on MyPCBench's ``openai_cuabash`` (Responses API).
-
-The live agent keeps its conversation client-side as Responses input items when it runs
-stateless (``_history``: user message, ``computer_call`` / ``computer_call_output``,
-``shell_call`` / ``shell_call_output``).  Takeover history is rendered into exactly those
-items from the canonical actions and the replay observations, so no provider-issued
-``previous_response_id`` is needed.  Source reasoning is never rendered: the history is the
-observations and actions only.
-"""
+"""History renderer for GPT-5.5 on MyPCBench's ``openai_cuabash`` (Responses API)."""
 
 from __future__ import annotations
 
@@ -37,7 +29,6 @@ class OpenAIResponsesHistoryAdapter:
 
     capabilities = AgentCapabilities(
         agent_id="gpt_5_5",
-        # key_down/key_up and mouse_down/up have no built-in computer action.
         action_kinds=frozenset(
             {
                 "click", "double_click", "type", "hotkey", "scroll", "horizontal_scroll",
@@ -46,7 +37,6 @@ class OpenAIResponsesHistoryAdapter:
         ),
         coordinate_protocol="absolute_pixels_1280x800",
         history_format="openai_responses_input_items",
-        # GPT ends a run with a DONE message, not a tool call: terminate renders nothing.
         silent_action_kinds=frozenset({"terminate"}),
     )
     history_starts_with_system_message = False
@@ -68,7 +58,6 @@ class OpenAIResponsesHistoryAdapter:
                 return [{"type": "double_click", "x": action.x_px, "y": action.y_px}]
             return [{"type": "click", "button": action.button, "x": action.x_px, "y": action.y_px}]
         if isinstance(action, TypeAction):
-            # Same key sequence replay.executor runs for clear_existing / press_enter.
             return (
                 ([{"type": "keypress", "keys": ["ctrl", "a"]}] if action.clear_existing else [])
                 + [{"type": "type", "text": action.text}]
@@ -98,12 +87,6 @@ class OpenAIResponsesHistoryAdapter:
 
     @staticmethod
     def _shell_outputs(tool_result: str, count: int) -> List[List[Dict[str, Any]]]:
-        """Per shell call, the replayed ``shell_call_output.output`` entries, in order.
-
-        The VM replay always returns ``{"shell_results": [...]}``; any other text (the
-        offline preflight's recorded ``tool_result``) is carried as stdout for shape checks.
-        """
-
         try:
             payload = json.loads(tool_result)
         except json.JSONDecodeError:
@@ -174,5 +157,4 @@ class OpenAIResponsesHistoryAdapter:
         return items
 
     def tool_definitions(self) -> List[Dict[str, Any]]:
-        # Built-in computer/shell tools: no function schema to validate against.
         return []

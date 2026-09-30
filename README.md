@@ -1,75 +1,186 @@
-# CUA-Recovery
+# CUA-Recovery: Benchmarking Error Recovery in Long-Horizon Computer-Use Agents
 
-Code for **CUA-Recovery**, a benchmark for error detection and recovery in long-horizon computer use, and **ReRail**, the pipeline that builds it.
+**A benchmark and a data pipeline for detecting and recovering from policy-induced errors in long, stateful computer-use workflows.**
 
-ReRail composes MyPCBench tasks into long multi-application workflows with executable ground truth, collects verifier-confirmed failures from several agents, and turns them into two suites:
+## 📢 News
 
-- **Test suite**: human-verified erroneous states. An agent takes over each state at depth *d* ∈ {0, 5, 10, 15, 20, 25} steps after the root cause, without being told that an error occurred.
-- **Training suite**: verified recovery trajectories `(l, H_c, r*)` for supervised fine-tuning.
+- **[2026/09]** Code released.
 
-This repository contains code only. Rollouts, annotations, and judge outputs are not included.
+## 📖 Overview
 
-## Setup
+Computer-use agents increasingly run long workflows across several applications. An early wrong action is written into files, spreadsheets, or databases, stays hidden for many steps, and surfaces only after the step that caused it has left the agent's context.
+
+**CUA-Recovery** measures whether an agent notices an inherited error and repairs it. It has two suites:
+
+- **CUA-Recovery-Test**: 2,250 human-verified erroneous states over 100 tasks. An agent takes over each state *d* ∈ {0, 5, 10, 15, 20, 25} steps after the root cause, without an error warning.
+- **CUA-Recovery-Train**: 8.6K verified recovery trajectories over 377 tasks.
+
+Both suites are built with **ReRail**, which:
+
+1. composes MyPCBench tasks into long multi-application workflows, each with a gold lineage that fixes the correct value at every step;
+2. collects verifier-confirmed failures from several agents and locates each root cause against the gold lineage;
+3. repairs unrelated earlier mistakes and replays each failure to controlled takeover depths;
+4. generates recovery continuations under hints of increasing specificity and keeps only those the verifier accepts. Hints are removed from the training input.
+
+Fine-tuning Qwen3.5-35B-A3B on CUA-Recovery-Train gives **ReRail-35B-A3B**.
+
+## 🛠️ Installation
+
+### Prerequisites
+
+- Python 3.9 or higher
+- Git and KVM to run the MyPCBench virtual machine (the image is about 16.5 GB)
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/xu-hu-2002/CUA-Recovery.git
+cd CUA-Recovery
+```
+
+2. Run the setup script. It creates a virtual environment, installs dependencies, fetches MyPCBench into `third_party/` at a pinned commit, applies `patches/`, and creates `.env`:
+```bash
+bash setup.sh
+source .venv/bin/activate
+```
+
+3. Fill in `.env` with the API keys and endpoints you use.
+
+## Quick Start
+
+Every stage runs through `main.py`:
 
 ```bash
-pip install -e ".[collection,dev]"
-make setup        # clone MyPCBench into third_party/ at the pinned commit and apply patches/
-make setup-all    # also fetch EvoCUA and OpenCUA-OSWorld
+python main.py --help                    # list all stages and commands
+python main.py <stage> <command> --help  # arguments of one command
 ```
 
-`third_party/` is not version-controlled. `scripts/setup_third_party.sh` clones each upstream at a pinned commit and applies the patches in `patches/`. The MyPCBench VM image is about 16.5 GB.
+### 1. Build workflows (ReRail)
 
-Credentials are read from environment variables and are never stored in the repository. Deployment-specific locations must also be set as environment variables before running the corresponding scripts:
+```bash
+python main.py synthesis generate_tasks_v1 --ir-dir <accepted_ir_dir> --tasks <mypcbench_tasks.json> --out <bundle_dir>
+python main.py synthesis freeze_source_splits
+```
 
-| Variable | Used by |
-|---|---|
-| `ROCK_BASE_URL`, `ROCK_CLUSTER`, `ROCK_SANDBOX_IMAGE` | ROCK sandbox runs under `scripts/rock/` |
-| `OSS_ENDPOINT`, `OSS_BUCKET`, `OSS_PREFIX` | Object-storage staging |
-| `JUDGE_OSS_ROOT` | Shipping judge archives (`--ship`) |
+### 2. Collect rollouts
 
-## Pipeline
+```bash
+python main.py collection collect_all --confirm
+```
 
-Each stage reads its parameters from `configs/`. The defaults follow the paper.
+### 3. Judge rollouts
 
-| Stage | Entry point | Code | Config |
+```bash
+python main.py judge judge_rubrics                     # latest collection, all agents
+python main.py judge judge_rubrics v1 claude_opus_4_8  # one collection and agent
+```
+
+### 4. Build takeover states
+
+```bash
+python main.py benchmark analyze_failures_v1 --traces <traces> --ir-dir <ir_dir> --gold-dir <gold_dir> --out <analysis_dir>
+python main.py benchmark prepare_clean_prefix --build-dir <build_dir> --human-labels-dir <labels_dir>
+python main.py benchmark select_takeover_failures --build-dir <build_dir> --human-labels-dir <labels_dir> \
+    --source-agent <agent> --manifest <manifest.json> --list-file <list.tsv>
+```
+
+### 5. Take over and evaluate
+
+```bash
+BUILD_DIR=<build_dir> python main.py takeover run --source-agent claude_opus_4_8 --target-agent claude_opus_4_8
+python main.py judge run_takeover_judge --source-agent claude_opus_4_8 --takeover-agent claude_opus_4_8 --depth 0 --condition unaware
+python main.py judge summarize_takeover --output-root <takeover_output_root>
+```
+
+### 6. Build training data
+
+```bash
+python main.py train recovery_gen_v1 --cases <cases.jsonl> --gold-dir <gold_dir> --ir-dir <ir_dir> \
+    --task-dir <task_dir> --qcow2 <mypcbench.qcow2> --live-db-dir <db_dir>
+python main.py train build_training_v1 --traces <traces> --analyses <analyses> --gold-dir <gold_dir> \
+    --ir-dir <ir_dir> --out <sft_dir>
+```
+
+## Benchmark
+
+| Suite | Tasks | Examples | Labels |
 |---|---|---|---|
-| Task IR extraction and gold lineage | `scripts/extract_task_ir_v1.py`, `scripts/gold_interpret.py` | `src/derail/ir`, `src/derail/world` | `configs/synthesis/task_ir_v1_extractor.yaml` |
-| Workflow composition, frozen verifiers, mutation test, composed rubrics | `scripts/generate_tasks_v1.py` | `src/derail/gen` | `configs/synthesis/sampling_v1.yaml` |
-| Workflow-level train/test split | `scripts/freeze_source_splits.py` | `src/derail/gen/splits.py` | `configs/synthesis/workflow_splits_v1.yaml` |
-| Rollout collection (clean start; per-step state probes) | `scripts/01_collect_all.sh`, `scripts/run_rollout_v1.py` | `src/derail/rollout` | `configs/collection/`, `configs/environments/` |
-| Rubric judging | `scripts/02_judge_rubrics.sh`, `scripts/run_judge.sh` | `scripts/30_full_traj_judge.py` | `configs/judges/default.yaml` |
-| Root-cause analysis against gold lineage | `scripts/analyze_failures_v1.py` | `src/derail/failure_analysis` | `configs/synthesis/typing_rules_v1.yaml` |
-| Human annotation, double annotation, adjudication | `scripts/serve_annotation_ui.py` | `src/derail/annotation`, `analysis/derail_annotation_stats` | `analysis/derail_annotation_stats/config/field_mapping.yaml` |
-| Prefix repair (one root cause per prefix) | `scripts/prepare_clean_prefix.py` | `src/derail/construction` | `configs/benchmark/derail_v1.yaml` |
-| Takeover-state selection | `scripts/09_select_takeover_failures.py`, `scripts/export_error_depth_slices.py` | `src/derail/construction/cases.py` | `configs/benchmark/derail_v1.yaml` |
-| Takeover with replay-state verification | `scripts/rock/run_takeover.sh` | `src/derail/takeover`, `src/derail/mypcbench`, `src/derail/replay` | `configs/takeover/takeover.yaml` |
-| Error Awareness Rate, Rubric Score, Pass@3 | `artifacts/takeover/run_takeover_judge.sh`, `scripts/13_takeover_error_awareness.py`, `scripts/11_summarize_takeover_judges.py` | `src/derail/evaluation/metrics.py` | `configs/judges/default.yaml` |
-| Recovery trajectory generation (hint schedule, teacher fallback) | `scripts/recovery_gen_v1.py` | `src/derail/train/recovery_gen.py` | `configs/train/sft_v1.yaml` |
-| SFT samples and success-only control | `scripts/build_training_v1.py` | `src/derail/train/build_samples.py` | `configs/train/sft_v1.yaml` |
-| Error-type and horizon statistics | `analysis/derail_error_taxonomy/analyze.py` | | `configs/synthesis/failure_taxonomy_v0.1.yaml` |
+| CUA-Recovery-Test | 100 | 2,250 erroneous states (602 / 443 / 373 / 328 / 273 / 231 at *d* = 0–25) | Human-verified |
+| CUA-Recovery-Train | 377 | 8,577 verified recovery trajectories | Verifier-confirmed |
 
-## Repository layout
+Rollouts are collected from GPT-5.5, Claude Opus 4.8, Kimi-K3, Qwen3.5-35B-A3B, EvoCUA-32B, and OpenCUA-72B. The dataset release is coming soon.
 
-```text
-src/derail/   Python package
-scripts/      entry points; scripts/rock/ runs on ROCK sandboxes
-configs/      agents, environments, collection, synthesis, takeover, judges, training
-prompts/      verbatim agent and judge prompts
-schemas/      JSON Schemas for released data formats
-analysis/     annotation and error-taxonomy statistics
-infra/        in-VM state digest, change-log triggers, control-API patch
-patches/      patches applied to MyPCBench by scripts/setup_third_party.sh
-tests/        unit tests
+## Configuration
+
+All parameters live in `configs/`. The defaults follow the paper.
+
+| File | Controls |
+|---|---|
+| `configs/collection/mypcbench_runtime.yaml` | Clean-start budget (150 steps, 3,600 s), repeats (3), screenshots in context (20) |
+| `configs/takeover/takeover.yaml` | Takeover budget (100 steps), depths, repeats, prefix repair, replay-state verification |
+| `configs/environments/mypcbench_1280x800.yaml` | Determinism commands and per-step state probes |
+| `configs/judges/default.yaml` | Judge model, Error Awareness Rate settings, Pass@k aggregation |
+| `configs/synthesis/sampling_v1.yaml` | Workflow composition, mutation-test gate, dependency-length buckets |
+| `configs/synthesis/workflow_splits_v1.yaml` | Train/test split (377 / 100) |
+| `configs/train/sft_v1.yaml` | Hint schedule, teacher, leak filter, SFT objective and hyperparameters |
+| `configs/agents/*.yaml` | Per-agent model, action space, and context settings |
+
+Deployment-specific locations for ROCK sandboxes (`ROCK_*`) and object storage (`OSS_*`, `JUDGE_OSS_ROOT`) are read from the environment. See `.env.example`.
+
+## File Structure
+
 ```
+CUA-Recovery/
+├── main.py                 # Entry point for every stage
+├── src/derail/             # Core package
+│   ├── gen/                # Workflow composition, frozen verifiers, splits
+│   ├── ir/, world/         # Task IR and gold-lineage interpreter
+│   ├── rollout/            # Collection harness and state probes
+│   ├── failure_analysis/   # Root-cause analysis against gold lineage
+│   ├── construction/       # Prefix repair and takeover-state selection
+│   ├── takeover/, replay/  # Takeover protocol and replay verification
+│   ├── mypcbench/          # Agent scaffolds for MyPCBench
+│   ├── adapters/           # Native-history rendering per agent
+│   ├── evaluation/         # Rubric Score, Pass@k, Error Awareness Rate
+│   └── train/              # Recovery generation and SFT samples
+├── scripts/                # Stage scripts called by main.py
+│   ├── synthesis/  collection/  judge/  benchmark/
+│   ├── takeover/   train/       analysis/
+│   └── rock/  phase5/  lib/
+├── configs/                # All configuration
+├── prompts/                # Agent and judge prompts
+├── schemas/                # JSON Schemas for data formats
+├── analysis/               # Annotation and error-taxonomy statistics
+├── infra/                  # In-VM state digest and change-log triggers
+├── patches/                # Patches applied to MyPCBench
+└── tests/
+```
+
+## Evaluation Metrics
+
+- **Error Awareness Rate (EAR)**: whether the agent explicitly recognizes a problem in the inherited work.
+- **Rubric Score**: weighted fraction of rubric criteria satisfied.
+- **Pass@3**: whether the task is fully completed in at least one of three runs. A run passes only if every criterion is satisfied.
 
 ## Tests
 
 ```bash
-PYTHONPATH=src python3 -m pytest -q tests
+PYTHONPATH=src python -m pytest -q tests
 ```
 
 Tests that need rollout data or local VM database copies are skipped when that data is absent.
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
+
+## 📣 Citation
+
+```bibtex
+@misc{cuarecovery2026,
+  title  = {CUA-Recovery: Benchmarking Error Recovery in Long-Horizon Computer-Use Agents},
+  year   = {2026},
+  note   = {Under review}
+}
+```

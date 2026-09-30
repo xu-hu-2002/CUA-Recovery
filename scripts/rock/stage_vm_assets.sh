@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# DERAIL ROCK 资产预置：在 ROCK 工具沙箱内下载/校验/解压 MyPCBench VM 镜像。
-#
-# 输入固定在 configs/models.lock.yaml：
-#   - HF dataset ljang0/mypcbench-qemu-baseline @ aca6ec99 的 michael_scott.qcow2
-#   - published_compressed_sha256 / local_uncompressed_sha256 用于完整性校验
-# OVMF 固件取自沙箱系统包（osworld-rock:v7 的 /usr/share/OVMF/*_4M.fd），
-# 与 lock 无关（lock 只锁 qcow2）；其 sha256 记录进资产 manifest 供审计。
-#
-# 用法（沙箱内）：
-#   bash stage_vm_assets.sh            # 下载+校验+解压，落 /storage/derail-assets
-#   成功后目录内有 STAGING_DONE 标记。
 set -Eeuo pipefail
 export PATH=/usr/local/bin:/usr/bin:/bin:/sbin
 WORK="${DERAIL_ASSET_WORKDIR:-/storage/derail-assets}"

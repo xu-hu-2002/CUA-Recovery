@@ -1,10 +1,4 @@
-"""Gold interpreter on the miniworld (brief section 3 / 7).
-
-The interpreter must reproduce the hand-computed answers in ``tests/miniworld/expected_gold.json``:
-gold values, ``Writes_gold`` read back from the database, which nodes change state, the
-verifier verdicts.  Digests must be reproducible, undeclared writes must abort, and read-only
-operations must not be allowed to write.
-"""
+"""Gold interpreter on the miniworld."""
 
 from __future__ import annotations
 
@@ -35,8 +29,6 @@ SEEDS = {
 }
 TASKS = ("mw-001", "mw-002", "mw-003", "mw-004")
 FILES = MINIWORLD / "files"
-# Scratch space must stay on the data disk (hard rule 3); fall back to the default only
-# when the data-disk temp root is absent on this machine.
 _TMP_ROOT = os.environ.get("DERAIL_TMP_ROOT")
 
 
@@ -116,7 +108,6 @@ class GoldInterpreterTests(unittest.TestCase):
         )
 
     def test_undeclared_write_aborts(self):
-        # A trigger in the world writes a table the IR never declares (a non-volatile column).
         with _scratch() as tmp:
             dbs = build_world(SEEDS, Path(tmp) / "world")
             conn = sqlite3.connect(str(dbs["hoolicalendar"]))
@@ -196,8 +187,6 @@ class GoldInterpreterTests(unittest.TestCase):
         self.assertIs(record["final_verifier_passed"], False)
 
     def test_gate_on_upstream_node_skips_its_dependents(self):
-        # Gate n4 (resolve the DM) instead: n5 reads n4's dm_id and must be skipped with it
-        # rather than fail on an unbound input.
         task_ir = copy.deepcopy(self.task_irs["mw-002"])
         resolve = [n for n in task_ir["nodes"] if n["node_id"] == "n4"][0]
         resolve["inputs"].append(
@@ -247,7 +236,6 @@ class FileFactTests(unittest.TestCase):
             dbs = build_world(SEEDS, Path(tmp) / "world")
             with WorldCopy.open("miniworld", dbs, Path(tmp) / "copy", files_root=FILES) as world:
                 record = GoldInterpreter(CONFIG).run(task_ir, world, REPOSITORY)
-                # a file write changes the state digest and shows up in Writes_gold
                 writing = copy.deepcopy(task_ir)
                 note = {
                     "node_id": "n5",
@@ -360,7 +348,7 @@ class FileFactTests(unittest.TestCase):
                     "</sheetData></worksheet>",
                 )
             self.assertEqual(extract_text(xlsx).splitlines()[0], "Movie\tDate")
-            fake_odt = Path(tmp) / "Morning_Brief.odt"  # task-created stand-in: plain text
+            fake_odt = Path(tmp) / "Morning_Brief.odt"
             fake_odt.write_text("Brief for Monday\nSecond line", encoding="utf-8")
             self.assertEqual(extract_text(fake_odt), "Brief for Monday\nSecond line")
             binary_odt = Path(tmp) / "broken.odt"

@@ -1,4 +1,4 @@
-# 由 scripts/dump_upstream_prompts.py 自动生成，请勿手工编辑。
+# 由 scripts/collection/dump_upstream_prompts.py 自动生成，请勿手工编辑。
 # agent_id: opencua_72b
 # 来源: mm_agents/opencua/prompts.py:build_sys_prompt(level='l2', use_random=False)，见 opencua_agent.py:295；尾部由 factory._create_opencua 追加 prompts/agents/mypcbench_shared_block.txt
 # 渲染参数: CLIENT_PASSWORD='password' screen_size=(1280, 800) CURRENT_DATE='Monday, January 01, 2024'

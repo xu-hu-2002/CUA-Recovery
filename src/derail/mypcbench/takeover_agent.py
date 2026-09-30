@@ -24,18 +24,7 @@ from derail.takeover.source_logs import load_trajectory_log
 
 
 class PrefixTakeoverAgent:
-    """Replay the (repaired) prefix through ``root+depth``, verify, inject history, delegate.
-
-    MyPCBench calls ``reset`` before its normal react loop.  Replay therefore
-    happens lazily on the first ``predict`` so the prefix and all target steps
-    share exactly the same VM session and task reset.  ``replay_verification`` is the
-    ``replay_verification`` section of the takeover config; when enabled the replayed
-    state must match the fingerprint recorded by the source rollout at the same step.
-    ``environment_hooks`` is the takeover config's ``environment_config`` (the source
-    rollout's): its determinism commands run before the replay, and its state probes and
-    ``state_probe_file`` define both sides of the comparison.  ``hinted`` injects ``hint``
-    verbatim as the takeover prompt, where ``diagnosed`` puts the human diagnosis.
-    """
+    """Replay the (repaired) prefix through ``root+depth``, verify, inject history, delegate."""
 
     def __init__(
         self,
@@ -75,7 +64,6 @@ class PrefixTakeoverAgent:
         if isinstance(depth, bool) or not isinstance(depth, int) or depth < 0:
             raise ValueError("takeover depth must be a non-negative integer")
         prefix_end = root + depth
-        # A repaired prefix may skip removed actions before the root cause.
         prefix = takeover_prefix(canonical_steps, root, depth)
         observed_sources = {step.source_agent for step in prefix}
         if observed_sources != {source_agent}:
@@ -167,15 +155,11 @@ class PrefixTakeoverAgent:
             evidence_dir=replay_dir,
             sleep_after_s=self._replay_sleep_after_s,
         )
-        # run_single_example has just reset this exact pinned image and applied
-        # the task config. Adopt that verified zero-action state instead of
-        # paying for a redundant second QEMU boot.
         backend.adopt_current_snapshot(
             str(self._qcow2_path),
             self._qcow2_sha256,
             hash_preverified=self._qcow2_hash_preverified,
         )
-        # Same guest setup as the source rollout (auto-updates / notification daemons off).
         determinism = (
             run_determinism(
                 lambda command: self._environment._execute_shell(command),
@@ -279,8 +263,6 @@ class PrefixTakeoverAgent:
         return backend.observe()
 
     def _verify_replayed_state(self, backend: MyPCBenchVMReplayBackend) -> dict[str, Any]:
-        """Gate the takeover on the replayed state matching the recorded one (C:29-31)."""
-
         config = self._replay_verification
         expected, missing_reason = recorded_state_fingerprint(
             self._steps, self._prefix_end_action_index, self._environment_hooks.probe_file

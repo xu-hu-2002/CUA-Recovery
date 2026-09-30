@@ -1,11 +1,4 @@
-"""History renderer for the frozen DERAIL kimi-k3 general-VLM scaffold.
-
-kimi-k3 has no native computer-use protocol reachable through the routify
-gateway (Responses API not mounted; see docs/ROUTIFY_API_MATRIX.md).  The live
-agent uses the DERAIL absolute-pixel OpenAI-compatible scaffold. The takeover
-target exposes the CUABash tool surface needed by the annotated August source
-collections. It must not be described as a native Kimi CUA protocol.
-"""
+"""History renderer for the frozen DERAIL kimi-k3 general-VLM scaffold."""
 
 from __future__ import annotations
 

@@ -1,15 +1,4 @@
-"""Offline preflight for hazard records: does the patch survive the guest seeder, and does it
-measurably move the rate unit the synthesis config claims to inject?
-
-Both questions used to be answered by a prediction stored in the record, which let records that
-cannot work reach the VM.  The guards below are transcribed from the generator shipped in the
-frozen guest (``/opt/generator/seed_calendar.py``, archived at SHA-256
-a29793e800adffac54b237b7f4a83847f36967c913eaf792587d492557825831):
-``_normalize_override_event`` drops an override event when summary or start is falsy, and the
-hoolicalendar write loop repeats that guard before inserting ``title`` / ``start_at``.
-
-Nothing here writes to the golden world: the database is copied to a scratch file first.
-"""
+"""Offline preflight: does a hazard patch survive the guest seeder and move its claimed rate unit."""
 
 from __future__ import annotations
 

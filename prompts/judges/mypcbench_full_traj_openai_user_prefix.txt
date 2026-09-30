@@ -1,4 +1,4 @@
-# 由 scripts/dump_upstream_prompts.py 自动生成，请勿手工编辑。
+# 由 scripts/collection/dump_upstream_prompts.py 自动生成，请勿手工编辑。
 # prompt_id: mypcbench_full_traj_openai_user_prefix
 # 来源: osworld_full_traj_judge.py:_shared_prefix_text() —— 仅 OpenAI 路径（第 827 行）。user 消息的第 1 段，其后紧跟图片块；同一 task 的各 rubric 共享此前缀以命中 prompt 缓存
 # 这是只读快照：runtime 仍从 third_party/ 的上游代码读取，改本文件不影响判分。

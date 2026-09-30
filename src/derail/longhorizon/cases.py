@@ -1,10 +1,3 @@
-"""Depth instantiation, reversibility stratum, dedup, funnel and yields (manual v0.2 14A.4-6).
-
-This module is data-level: it decides *which* ``(failure, d)`` pairs become case candidates and
-how they are counted.  Executing prefix repair and replay stays in ``derail.construction`` and
-``derail.replay``; their identifiers are passed in through ``provenance``.
-"""
-
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -24,19 +17,12 @@ CASE_STATUS_CANDIDATE = "candidate"
 STRATUM_REVERSIBLE = "reversible"
 STRATUM_IRREVERSIBLE = "irreversible"
 VERIFICATION_PATHS = ("pending", "auto", "human", "human_and_auto")
-# Higher index wins during dedup ("stronger verification path").
 VERIFICATION_STRENGTH = {path: rank for rank, path in enumerate(VERIFICATION_PATHS)}
 
 
 def depth_availability(
     post_error_steps_available: int, depth_grid: Sequence[int]
 ) -> Dict[int, str]:
-    """Map each depth to ``available`` or ``INSUFFICIENT_POST_ERROR_STEPS``.
-
-    A depth is instantiable only when at least ``d`` executed actions follow the root cause; a
-    truncated suffix is never padded.
-    """
-
     if post_error_steps_available < 0:
         raise ValueError("post_error_steps_available cannot be negative")
     return {
@@ -50,13 +36,6 @@ def depth_availability(
 def reversibility_stratum(
     effects_within_prefix: Iterable[Mapping[str, Any]], ontology: Ontology
 ) -> Tuple[str, bool]:
-    """Return ``(stratum, high_consequence)`` from the effects executed up to root + d.
-
-    The stratum is irreversible iff at least one strictly irreversible (R3) effect executed.
-    High-consequence effects (R2) set the flag but never move a case into the irreversible
-    stratum.
-    """
-
     classes = {str(effect.get("reversibility_class", "")) for effect in effects_within_prefix}
     irreversible = bool(classes & ontology.irreversible_classes)
     high = bool(classes & (ontology.high_consequence_classes - ontology.irreversible_classes))
@@ -64,8 +43,6 @@ def reversibility_stratum(
 
 
 def stratum_from_human_label(label: str) -> str:
-    """Map the human ``reversibility`` label of a source-corpus failure onto a stratum."""
-
     if label not in (STRATUM_REVERSIBLE, STRATUM_IRREVERSIBLE):
         raise ValueError("unknown reversibility label %r" % label)
     return label
@@ -73,8 +50,6 @@ def stratum_from_human_label(label: str) -> str:
 
 @dataclass(frozen=True)
 class CaseCandidate:
-    """One ``(failure, depth)`` pair before or after verification."""
-
     case_id: str
     task_id: str
     source_rollout_id: str
@@ -162,8 +137,6 @@ def instantiate_depths(
     click_cell_px: int = 40,
     case_id_prefix: str = "derail",
 ) -> Tuple[List[CaseCandidate], Dict[int, str]]:
-    """Create one candidate per available depth; return skipped depths with their code."""
-
     availability = depth_availability(source.post_error_steps_available, depth_grid)
     signature = action_signature(source.root_action, click_cell_px=click_cell_px)
     candidates = []
@@ -198,7 +171,6 @@ def instantiate_depths(
 
 
 def _keeper_key(candidate: CaseCandidate) -> Tuple[int, int, str]:
-    # Stronger verification first, then more post-error steps, then a stable id tie-break.
     return (
         VERIFICATION_STRENGTH[candidate.verification_path],
         candidate.post_error_steps_available,
@@ -209,15 +181,6 @@ def _keeper_key(candidate: CaseCandidate) -> Tuple[int, int, str]:
 def dedup_cases(
     candidates: Sequence[CaseCandidate], *, root_tolerance: int = 1
 ) -> Tuple[List[CaseCandidate], List[CaseCandidate]]:
-    """Merge near-duplicates and return ``(kept, removed)``.
-
-    Two candidates are near-duplicates when they share ``task_id``, ``error_depth``,
-    ``paper_type`` and root-action signature and their root indices differ by at most
-    ``root_tolerance``.  Closeness is chained (roots 10, 11, 12 form one cluster).  The keeper
-    is the strongest-verified, then longest-suffix candidate; every merged id is kept in
-    ``merged_from`` and the losers are marked ``DUPLICATE_CASE``.
-    """
-
     groups: Dict[Tuple[str, int, str, str], List[CaseCandidate]] = defaultdict(list)
     for candidate in candidates:
         key = (
@@ -266,8 +229,6 @@ class FunnelRow:
 
 
 def funnel_by_agent(rows: Iterable[FunnelRow]) -> Dict[str, Dict[str, int]]:
-    """Aggregate the per-agent funnel table used for the paper's Table 12 columns."""
-
     table: Dict[str, Counter] = defaultdict(Counter)
     for row in rows:
         counter = table[row.agent]
@@ -283,8 +244,6 @@ def funnel_by_agent(rows: Iterable[FunnelRow]) -> Dict[str, Dict[str, int]]:
 def case_yield(
     cases: Sequence[CaseCandidate], depth_grid: Sequence[int], *, by: str = "paper_category"
 ) -> Dict[str, Dict[int, int]]:
-    """Count cases per depth, grouped by a candidate attribute (default: paper category)."""
-
     counts: Dict[str, Dict[int, int]] = defaultdict(lambda: {int(depth): 0 for depth in depth_grid})
     for case in cases:
         counts[str(getattr(case, by))][case.error_depth] += 1
@@ -294,8 +253,6 @@ def case_yield(
 def stratum_counts(
     cases: Sequence[CaseCandidate], depth_grid: Sequence[int]
 ) -> Dict[str, Dict[str, Dict[int, int]]]:
-    """``stratum -> paper_type -> depth -> count`` (the per-stratum table missing in the paper)."""
-
     table: Dict[str, Dict[str, Dict[int, int]]] = defaultdict(
         lambda: defaultdict(lambda: {int(depth): 0 for depth in depth_grid})
     )

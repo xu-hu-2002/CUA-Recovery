@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# DERAIL wrapper for the sqlite3 CLI (execution doc v1.2 section 4.2b).
-#
-# Installed as /usr/bin/sqlite3 after the real binary is renamed to /usr/bin/sqlite3.real
-# (infra/README.md).  Records who read what: action index (from the control API's cursor
-# file), target database, the SQL (argument or stdin), and the number of output lines, as one
-# JSON line in /data/_trace/cli.jsonl; then execs the real program with the same arguments and
-# stdin so behaviour is unchanged.  Writes need no handling here: the triggers live in the
-# database file and log any client's changes.
-#
-# Environment overrides (same names as the tracer): DERAIL_TRACE_DIR, DERAIL_CURSOR_FILE,
-# DERAIL_SQLITE3_REAL.
 set -u
 REAL="${DERAIL_SQLITE3_REAL:-/usr/bin/sqlite3.real}"
 TRACE_DIR="${DERAIL_TRACE_DIR:-/data/_trace}"

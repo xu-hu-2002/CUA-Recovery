@@ -1,10 +1,4 @@
-"""Canonical trajectory action record 与 JSONL 序列化。
-
-``step_id`` 是早期 schema 留下的名称。DERAIL v0.2 将它严格定义为全局
-``action_index``，而不是模型 turn。一个 turn 可以产生多个 executed actions；因此每条
-记录还显式保存 ``turn_index`` 和 ``action_index_within_turn``。论文中的 root cause、
-error horizon 和 depth 都只能引用全局 action index。
-"""
+"""Canonical trajectory action records and JSONL serialization."""
 
 from __future__ import annotations
 
@@ -47,7 +41,7 @@ class CanonicalStep:
 
     @property
     def action_index_global(self) -> int:
-        """全局 executed-action 序号；兼容旧 ``step_id`` 字段。"""
+        """Global executed-action index; alias of the legacy ``step_id`` field."""
 
         return self.step_id
 
@@ -74,7 +68,6 @@ class CanonicalStep:
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "CanonicalStep":
-        # action_summary 是派生字段：读取时忽略传入值，写出时重新生成。
         step_id = int(raw.get("action_index_global", raw.get("step_id", -1)))
         legacy_step_id = raw.get("step_id")
         if legacy_step_id is not None and int(legacy_step_id) != step_id:

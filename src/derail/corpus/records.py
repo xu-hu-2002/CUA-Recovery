@@ -1,5 +1,3 @@
-"""进入人工 root-cause 标注队列的 candidate failure。"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

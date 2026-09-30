@@ -1,11 +1,3 @@
-"""``empirical_stratified`` reversibility sampling (manual v0.2 section 10.1).
-
-The source distribution over R0-R3 is measured on the grounded modules, then the target count is
-split across the classes that both occur in the source and are executable in the sandbox.  The
-sampler never forces a uniform distribution and never invents an R3 scenario: a missing class is
-reported as a coverage gap instead.
-"""
-
 from __future__ import annotations
 
 import random
@@ -20,8 +12,6 @@ MODE_NONE = "none"
 
 
 def module_reversibility_class(module: Mapping[str, Any], ontology: Ontology) -> str:
-    """The most consequential node class inside one grounded module's fragment."""
-
     classes = tuple(
         node_reversibility_class(node, ontology) for node in module["fragment"]["nodes"]
     )
@@ -95,8 +85,6 @@ def allocate_targets(
     config: ReversibilitySamplingConfig,
     ontology: Ontology,
 ) -> Allocation:
-    """Split ``target_count`` across available classes; report gaps for the rest."""
-
     gaps: List[Dict[str, str]] = []
     available: Dict[str, int] = {}
     for reversibility in config.classes:
@@ -123,7 +111,6 @@ def allocate_targets(
     )
     targets = _largest_remainder(target_count, weights)
     floor = min(config.min_pilot_per_available_class, target_count // max(1, len(available)))
-    # Raise starved classes to the pilot floor and take the difference from the largest class.
     for reversibility in sorted(available):
         if targets[reversibility] < floor:
             deficit = floor - targets[reversibility]
@@ -142,8 +129,6 @@ def stratified_pick(
     allocation: Allocation,
     seed: int,
 ) -> Dict[str, List[Any]]:
-    """Deterministically draw ``allocation.targets[c]`` items per class (fewer if short)."""
-
     rng = random.Random(seed)
     picked: Dict[str, List[Any]] = {}
     for reversibility in sorted(allocation.targets):

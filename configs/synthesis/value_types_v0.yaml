@@ -1,15 +1,6 @@
-# Controlled value-type vocabulary for Task-IR ports (manual v0.2 section 6.2, checklist B).
-#
-# ``types`` is the registry: each entry may name ``parents`` (subtype relation used by the
-# compatibility builder) and a short ``description``.  ``aliases`` fold the free-form names an
-# extractor produces onto registry names.  Collection spellings (``X[]``, ``XCollection``,
-# ``XList``, ``List<X>``) are parsed structurally: the element type is normalised and the port
-# cardinality becomes ``many``.  Names that resolve to nothing stay as written and are reported
-# as unregistered for review; they are never guessed.
 schema_version: value-types/0.1
 
 types:
-  # --- scalars ---
   Text: {description: free text}
   Integer: {parents: [Number]}
   Number: {}
@@ -26,7 +17,6 @@ types:
   PostalAddress: {parents: [Text]}
   FilePath: {parents: [Text]}
   ConfirmationCode: {parents: [Text]}
-  # --- references to world entities (ids from world-graph/0.1) ---
   EntityRef: {}
   PersonRef: {parents: [EntityRef]}
   TripRef: {parents: [EntityRef]}
@@ -55,7 +45,6 @@ types:
   DonationRef: {parents: [EntityRef]}
   LifeEventRef: {parents: [EntityRef]}
   ReferenceValueRef: {parents: [EntityRef]}
-  # --- derived structures ---
   Record: {description: a structured intermediate result}
   Report: {parents: [Record], description: a human-readable deliverable}
   Summary: {parents: [Record]}
@@ -65,12 +54,10 @@ types:
   VerificationResult: {parents: [Record]}
   ActionResult: {parents: [Record], description: outcome of a state-changing action}
 
-# Lossless converters usable by the compatibility builder (from -> to).
 converters:
   - {from: DateTime, to: Date, converter_id: datetime_to_local_date_v1}
   - {from: Integer, to: Number, converter_id: integer_to_number_v1}
 
-# Free-form spellings observed in extractor output -> registry names.  Case-insensitive.
 aliases:
   string: Text
   literal: Text
@@ -174,7 +161,6 @@ aliases:
   return_scope: Criterion
   workflow_step: Record
 
-# Cardinality spellings -> {one, optional, many}.
 cardinality_aliases:
   "1": one
   one: one

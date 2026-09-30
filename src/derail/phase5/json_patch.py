@@ -1,8 +1,4 @@
-"""Small RFC 6902 subset used by the Phase 5 persona injector.
-
-Only add, remove, and replace are accepted because those are the operations
-emitted by the frozen hazard records.  The input document is never mutated.
-"""
+"""Small RFC 6902 subset used by the Phase 5 persona injector."""
 
 from __future__ import annotations
 
@@ -61,8 +57,6 @@ def _remove(parent: Any, token: str) -> None:
 
 
 def apply_patch(document: Any, operations: Iterable[dict[str, Any]]) -> Any:
-    """Apply frozen Phase 5 operations and return a new JSON-compatible value."""
-
     result = deepcopy(document)
     for operation in operations:
         op = operation.get("op")

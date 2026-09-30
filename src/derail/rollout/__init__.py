@@ -1,4 +1,4 @@
-"""轨迹收集与分布式 rollout 的记录层。"""
+"""Record layer for trajectory collection and rollouts."""
 
 from .records import RolloutRecord
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 _SPEC = importlib.util.spec_from_file_location(
     "takeover_error_awareness",
-    Path(__file__).resolve().parents[1] / "scripts" / "13_takeover_error_awareness.py",
+    Path(__file__).resolve().parents[1] / "scripts" / "judge" / "error_awareness.py",
 )
 ear = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(ear)
@@ -15,7 +15,7 @@ def test_thought_of_covers_every_response_shape():
     assert ear.thought_of("I see the data is wrong.\n</think>\n\nAction: undo\n<tool_call>{}") \
         == "I see the data is wrong."
     assert ear.thought_of("<think>plain thought\nAction: click") == "plain thought"
-    assert ear.thought_of("None") == ""       # dropped step
+    assert ear.thought_of("None") == ""
     assert ear.thought_of(None) == ""
     assert ear.thought_of("just text") == "just text"
 
@@ -33,7 +33,6 @@ def test_aggregate_counts_multi_label_tasks_in_every_slice():
 
 
 def test_missing_episode_policy_is_configurable():
-    """Default excludes an episode without a verdict and reports it; the other policy keeps it as 0."""
     failures = {0: {"ran": ["a"], "never_ran": ["a"]}}
     verdicts = {(0, "ran"): True}
     row = next(r for r in ear.aggregate(failures, verdicts)

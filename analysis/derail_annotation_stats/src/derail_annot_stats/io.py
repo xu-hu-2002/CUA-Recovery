@@ -1,31 +1,9 @@
-"""Loading layer: read the raw DERAIL annotation exports into flat records.
-
-This module performs **no** interpretation beyond parsing JSON and attaching
-provenance (which file each value came from). All semantic mapping happens in
-``clean.py`` and is driven by ``config/field_mapping.yaml`` so that no logical
-field name is hard-coded here.
-
-Four independent human-label stores are produced by the annotation UI, each keyed
-by ``<trajectory_id>__<annotator_id>``:
-
-* ``human_labels/<key>.json``                     failure root cause + error taxonomy
-* ``human_labels/rubric_scores/<key>.json``       per-rubric 0/1 and task success
-* ``human_labels/cleaning_proposals/<key>.json``  clean-prefix / drop review
-* ``human_labels/rollout_flags/<key>.json``       invalid-rollout flag
-
-Plus a per-trajectory canonical record under
-``<agent_build>/canonical/<trajectory_id>/`` supplying trajectory length, task
-identity, rubric definitions and the agent's own terminate status.
-"""
-
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any, Iterator
 
-# The UI joins a trajectory id and an annotator id with this separator when it
-# names an export file. It is a file-format constant, not a tunable.
 KEY_SEP = "__"
 
 
@@ -40,12 +18,6 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def split_key(stem: str) -> tuple[str, str]:
-    """Split ``<trajectory_id>__<annotator_id>`` into its two parts.
-
-    Raises if the separator is absent, rather than silently inventing an
-    annotator, because annotator identity drives the confounding warning in the
-    report.
-    """
     if KEY_SEP not in stem:
         raise ValueError(f"export file name has no '{KEY_SEP}' separator: {stem!r}")
     traj, annot = stem.rsplit(KEY_SEP, 1)
@@ -53,11 +25,6 @@ def split_key(stem: str) -> tuple[str, str]:
 
 
 def _iter_store(directory: Path) -> Iterator[tuple[str, str, Path, dict]]:
-    """Yield ``(trajectory_id, annotator_id, path, payload)`` for one label store.
-
-    Sub-directories are skipped, so calling this on ``human_labels/`` returns only
-    the top-level failure annotations and not the nested stores.
-    """
     if not directory.is_dir():
         return
     for path in sorted(directory.glob("*.json")):
@@ -68,13 +35,6 @@ def _iter_store(directory: Path) -> Iterator[tuple[str, str, Path, dict]]:
 
 
 def load_label_store(directory: Path, store: str) -> list[dict]:
-    """Load one annotation-UI export directory into a list of flat dicts.
-
-    Every returned record carries ``_store``, ``_file`` and the parsed
-    ``_trajectory_id`` / ``_annotator_id`` taken from the file name, so that a
-    disagreement between file name and in-file id becomes detectable rather than
-    being silently resolved.
-    """
     records: list[dict] = []
     for traj, annot, path, payload in _iter_store(directory, ):
         if not isinstance(payload, dict):
@@ -89,12 +49,6 @@ def load_label_store(directory: Path, store: str) -> list[dict]:
 
 
 def discover_canonical_dirs(builds_dir: Path) -> list[Path]:
-    """Find every canonical trajectory directory under the builds root.
-
-    Agent builds normally look like ``<agent>_human_label_traj/canonical/<id>/``.
-    One agent (the Claude Opus mix) shards by VM and nests one level deeper, so
-    both depths are searched. Returns directories, sorted, deduplicated.
-    """
     found = set()
     for pattern in ("*/canonical/*", "*/*/canonical/*"):
         for path in builds_dir.glob(pattern):
@@ -104,17 +58,6 @@ def discover_canonical_dirs(builds_dir: Path) -> list[Path]:
 
 
 def load_canonical_record(traj_dir: Path) -> dict:
-    """Read one canonical trajectory directory into a flat provenance record.
-
-    Pulls together the three JSON files the builder writes plus the action stream:
-
-    * ``normalization_report.json`` -> canonical action count, task provenance
-    * ``task_config.json``          -> category, difficulty, app, rubric definitions
-    * ``annotation_task.json``      -> action list (source agent, terminate status)
-    * ``trajectory.jsonl``          -> action stream, used only to cross-check length
-
-    Missing optional files leave their fields as ``None``; nothing is imputed.
-    """
     rec: dict[str, Any] = {
         "trajectory_id": traj_dir.name,
         "_canonical_dir": str(traj_dir),
@@ -165,8 +108,6 @@ def load_canonical_record(traj_dir: Path) -> dict:
         if rec["task_id"] is None:
             rec["task_id"] = d.get("id")
         rubrics = ((d.get("grading") or {}).get("rubrics")) or []
-        # The UI numbers rubrics R1..Rn in bundle order; reproduce that ordering
-        # so rubric ids line up with the keys stored in rubric_scores exports.
         rec["rubric_ids"] = [f"R{i}" for i in range(1, len(rubrics) + 1)]
         rec["rubric_weights"] = [r.get("weight") for r in rubrics]
         rec["rubric_criteria"] = [r.get("criterion") for r in rubrics]
@@ -195,7 +136,6 @@ def load_canonical_record(traj_dir: Path) -> dict:
 
 
 def load_taxonomy(path: Path) -> dict:
-    """Load the open-coding taxonomy export (label -> category), if present."""
     if not path.is_file():
         return {"labels": {}, "deleted_labels": {}, "_present": False}
     d = _read_json(path)

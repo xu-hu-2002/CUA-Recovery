@@ -1,10 +1,3 @@
-"""configs/agents/*.yaml 的加载与校验。
-
-金标快照（GOLDEN_LIVE）钉住论文实际使用的那组数值。它的作用不是禁止改动，而是
-让改动必须是有意的：无意改坏会红，有意调整只需同步更新这里的一行，diff 里就能
-看见"这次跑的和上一版不一样"。
-"""
-
 import pathlib
 import re
 import shutil
@@ -78,9 +71,7 @@ GOLDEN_LIVE = {
     "kimi_k3": {
         "coordinate_protocol": "absolute_pixels",
         "system_prompt_file": "kimi_k3_mypcbench_system.txt",
-        # None = 请求体省略 temperature；kimi-k3 显式传参会 400。
         "temperature": None,
-        # 4096 而不是 2048：reasoning tokens 计入这个预算。
         "max_tokens": 4096,
         "max_images_in_context": 20,
         "history_turns": 100,
@@ -93,9 +84,6 @@ GOLDEN_LIVE = {
         "stalled_state_step_limit": 0,
         "enable_bash": False,
     },
-    # kimi_k3 的 GUI+bash 对照组：live 与 kimi_k3 只差 system_prompt_file 和
-    # enable_bash（由 test_kimik3_cuabash_differs_only_in_bash_surface 锁死），
-    # 跨组差异才可归因工具面而非协议参数。
     "kimi_k3_cuabash": {
         "coordinate_protocol": "absolute_pixels",
         "system_prompt_file": "kimi_k3_cuabash_mypcbench_system.txt",
@@ -176,12 +164,6 @@ class GoldenConfigTests(unittest.TestCase):
         self.assertNotEqual(qwen38["system_prompt_file"], qwen36["system_prompt_file"])
 
     def test_kimik3_cuabash_differs_only_in_bash_surface(self):
-        """对照组的公平性由构造保证：除 prompt 与工具面开关外逐项相同。
-
-        谁往 cuabash 那份 yaml 里单独调了 temperature / max_tokens 之类的协议
-        参数，跨组对比就不再可归因，这里直接红掉。
-        """
-
         gui = dict(load_agent_config("kimi_k3").live)
         bash = dict(load_agent_config("kimi_k3_cuabash").live)
         self.assertEqual(
@@ -200,8 +182,6 @@ class AgentIdResolutionTests(unittest.TestCase):
     def test_env_agent_id_is_only_a_cross_check(self):
         with mock.patch.dict("os.environ", {"DERAIL_AGENT_ID": "evocua_32b"}):
             self.assertEqual(agent_id_for_type("derail_evocua"), "evocua_32b")
-        # bash 的 resolve_agent() 和 AGENT_ID_BY_TYPE 漂移时必须炸，而不是
-        # 悄悄加载 agent_type 对应的那份配置。
         with mock.patch.dict("os.environ", {"DERAIL_AGENT_ID": "opencua_72b"}):
             with self.assertRaisesRegex(AgentConfigError, "漂移"):
                 agent_id_for_type("derail_evocua")
@@ -212,12 +192,6 @@ class AgentIdResolutionTests(unittest.TestCase):
 
 
 class ScaffoldUniformityTests(unittest.TestCase):
-    """scaffold 是分组的唯一依据，所以每一份 config 都得声明，一份都不能少。
-
-    以前 claude_* 只把它写在注释里、gpt_* 连注释都没有，"哪些 agent 属于
-    scaffold 组"这个问题没法用程序回答，只能靠人读注释。
-    """
-
     def test_every_config_declares_a_known_scaffold(self):
         for agent_id in all_agent_ids():
             with self.subTest(agent_id=agent_id):
@@ -225,19 +199,11 @@ class ScaffoldUniformityTests(unittest.TestCase):
                 self.assertIn(config.scaffold, SCAFFOLDS)
 
     def test_every_config_declares_its_runner_agent_type(self):
-        """yaml 的 agent_type 必须和 Python 侧的映射表对得上。
-
-        对得上还不够 —— bash 的 resolve_agent() 是第三张表，它与 Python 的漂移由
-        DERAIL_AGENT_ID 在运行时交叉核对（见 agent_id_for_type）。
-        """
-
         for agent_type, agent_id in AGENT_ID_BY_TYPE.items():
             with self.subTest(agent_id=agent_id):
                 self.assertEqual(load_config(agent_id).document["agent_type"], agent_type)
 
     def test_runner_owned_configs_refuse_to_load_as_execution_config(self):
-        """upstream_runner 的 yaml 是纯文档，当成执行配置加载只会制造错觉。"""
-
         for agent_id in all_agent_ids():
             if load_config(agent_id).scaffold != UPSTREAM_RUNNER:
                 continue
@@ -246,8 +212,6 @@ class ScaffoldUniformityTests(unittest.TestCase):
                     load_agent_config(agent_id)
 
     def test_only_runner_owned_configs_have_empty_live(self):
-        """反过来：有 spec 的 agent 必须真的有 live 字段，不能是空壳。"""
-
         for agent_id in all_agent_ids():
             config = load_config(agent_id)
             with self.subTest(agent_id=agent_id):
@@ -257,12 +221,6 @@ class ScaffoldUniformityTests(unittest.TestCase):
                     self.assertTrue(config.live)
 
     def test_concurrency_field_matches_serving_mode(self):
-        """本地 serving 声明 TP 尺寸，托管 API 声明 num_vms，两者互斥。
-
-        写死 num_vms 的本地 agent 换台卡数不同的机器就是错的 —— TP8 的
-        opencua_72b 曾因此以 4 个 VM 起跑。
-        """
-
         for agent_id in all_agent_ids():
             document = load_config(agent_id).document
             with self.subTest(agent_id=agent_id):
@@ -273,16 +231,12 @@ class ScaffoldUniformityTests(unittest.TestCase):
                 )
 
     def test_every_shipped_config_has_a_spec(self):
-        """新加一份 agent yaml 不能悄悄落在登记表之外。"""
-
         for agent_id in all_agent_ids():
             with self.subTest(agent_id=agent_id):
                 load_config(agent_id)
 
 
 class ValidationTests(unittest.TestCase):
-    """校验层的作用是让配错在构造 agent 之前就炸，而不是静默回退。"""
-
     def _load_patched(self, agent_id, mutate, loader=load_agent_config):
         source = config_dir()
         with tempfile.TemporaryDirectory() as tmp:
@@ -297,7 +251,6 @@ class ValidationTests(unittest.TestCase):
                 return loader(agent_id)
 
     def test_unknown_key_is_rejected(self):
-        # live 字段名拼错是最容易发生、也最容易被当成注释放过的一种错。
         with self.assertRaisesRegex(AgentConfigError, "未知字段"):
             self._load_patched(
                 "evocua_32b", lambda text: text.replace("resize_factor:", "resize_factr:")
@@ -322,7 +275,6 @@ class ValidationTests(unittest.TestCase):
             )
 
     def test_bool_is_not_accepted_as_number(self):
-        # bool 是 int 的子类；不显式挡住的话 `temperature: true` 会被收成 1.0。
         with self.assertRaisesRegex(AgentConfigError, "必须是数值"):
             self._load_patched(
                 "evocua_32b", lambda text: text.replace("temperature: 0.01", "temperature: true")
@@ -351,16 +303,11 @@ class ValidationTests(unittest.TestCase):
             )
 
     def test_num_vms_is_type_checked_even_though_bash_reads_it(self):
-        # awk 读不出数字时会静默回落；托管 API 的并发度只有这一处声明。
         with self.assertRaisesRegex(AgentConfigError, "num_vms"):
             self._load_patched(
                 "kimi_k3", lambda text: text.replace("num_vms: 4", "num_vms: four")
             )
 
-    # 这两个 patch 以前把 `tensor_parallel_size: 8` 整行当锚点写死。TP 尺寸是会随
-    # 机器可用卡数变的（2026-08-13 opencua_72b 从 8 降到 4），锚点一旦对不上，
-    # str.replace 就成了空操作、被测的非法配置根本没被造出来，assertRaises 会红在
-    # 一个与本意无关的地方。改成按字段名匹配当前声明的任意取值。
     _TP_LINE = re.compile(r"^tensor_parallel_size: \d+$", re.MULTILINE)
 
     def _patch_tp_line(self, replacement):

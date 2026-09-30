@@ -78,7 +78,6 @@ class FailureAnalysisTests(unittest.TestCase):
         self.assertEqual(
             (record["paper_type"], record["group"]), ("typing_or_parameter_error", "local")
         )
-        # The state detector also sees the wrong content land in the DM at step 6.
         self.assertEqual([c["action_index"] for c in record["detectors"]["state"]], [6])
         self.assertEqual(
             record["earliest_identifiable_action_index"],
@@ -98,7 +97,7 @@ class FailureAnalysisTests(unittest.TestCase):
     def test_termination_without_trace_is_typed_from_outcome(self):
         trace = self._trace("mw002_success")
         trace["outcome"].update({"final_verifier": False, "declared_complete": True})
-        trace["steps"] = trace["steps"][:4]  # never sends anything
+        trace["steps"] = trace["steps"][:4]
         record = analyze_failure(trace, self.gold["mw-002"], self.irs["mw-002"], self.config)
         self.assertEqual(
             (record["paper_type"], record["group"]), ("premature_completion", "termination")
@@ -122,7 +121,6 @@ class FailureAnalysisTests(unittest.TestCase):
         )
         self.assertEqual(proposal["review_route"], "human_verify")
         self.assertEqual(proposal["annotator_role"], "auto")
-        # Once the annotator fills reversibility the proposal is a legal human annotation.
         verified = HumanAnnotation.from_dict(
             {**proposal, "reversibility": Reversibility.REVERSIBLE.value}
         )

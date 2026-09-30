@@ -1,11 +1,3 @@
-"""v0.2 post-filter over ``derail.synthesis`` results (manual sections 10.3, 16.1).
-
-The v0.1 pipeline already searches compositions and applies its own targets.  Rather than fork
-it, this module re-scores every symbolic candidate with the v0.2 metrics and hard gates and moves
-failures into the rejection log with the new codes.  Candidates keep their generation-record
-shape; only ``complexity`` and ``validation`` gain fields.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -23,12 +15,6 @@ from derail.synthesis.graph import SynthesisValidationError
 def annotate_missing_reversibility(
     fragment: Mapping[str, Any], ontology: Ontology
 ) -> Dict[str, Any]:
-    """Return a copy where read-only nodes without ``reversibility_class`` get the R0 class.
-
-    Nodes that carry effects must already declare a class; v0.1 style effects (``irreversible``
-    booleans) are not translated because the effect type and commit scope cannot be inferred.
-    """
-
     result = copy.deepcopy(dict(fragment))
     for node in result["nodes"]:
         if "reversibility_class" not in node and not node.get("side_effects"):
@@ -48,8 +34,6 @@ def apply_v02_gates(
     gate_config: GateConfig,
     ontology: Ontology,
 ) -> FilteredResult:
-    """Re-evaluate v0.1 accepted candidates and split them by the v0.2 hard gates."""
-
     kept: List[Dict[str, Any]] = []
     dropped: List[Dict[str, Any]] = []
     for original in accepted:
@@ -103,8 +87,6 @@ def _reject(candidate: Mapping[str, Any], code: str, detail: str) -> Dict[str, A
 def summarize_reversibility(
     accepted: Sequence[Mapping[str, Any]], ontology: Ontology
 ) -> Dict[str, int]:
-    """Count accepted candidates per module-level reversibility class."""
-
     counts = {reversibility: 0 for reversibility in ontology.reversibility_classes}
     for candidate in accepted:
         classes = tuple(

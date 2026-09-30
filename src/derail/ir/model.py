@@ -1,20 +1,3 @@
-"""Load, validate and index ``task-ir/1.0`` records.
-
-``task-ir/1.0`` keeps the v0.2 fragment structure for nodes and edges, so the v0.2 DAG
-utilities are reused rather than re-implemented: :func:`as_fragment` returns the
-``task-fragment/0.1`` view of a Task IR and :func:`dag_index` feeds it to
-``derail.longhorizon.dag.DagIndex``.
-
-Entry points
-------------
-``load_task_ir(path, repository)``  read + JSON-schema validate + structural validate
-``validate_task_ir(task_ir, repository)``
-``as_fragment(task_ir)``            fragment view (schema_version task-fragment/0.1)
-``dag_index(task_ir)``              DagIndex over the fragment view
-``parse_entity_ref(ref)``           ``("row", table, rowid)`` | ``("derived", node, name)`` |
-                                    ``("literal",)``
-"""
-
 from __future__ import annotations
 
 import json
@@ -34,8 +17,6 @@ class TaskIRError(ValueError):
 
 
 def as_fragment(task_ir: Mapping[str, Any]) -> Dict[str, Any]:
-    """The ``task-fragment/0.1`` view: same node and edge objects, fragment envelope."""
-
     return {
         "schema_version": FRAGMENT_SCHEMA_VERSION,
         "fragment_id": str(task_ir["task_id"]),
@@ -45,8 +26,6 @@ def as_fragment(task_ir: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def find_cycle(task_ir: Mapping[str, Any]) -> List[str]:
-    """Edge ids forming one cycle (empty when the graph is acyclic)."""
-
     outgoing: Dict[str, List[Tuple[str, str]]] = {}
     for edge in task_ir.get("edges", ()):
         outgoing.setdefault(str(edge["from"]["node_id"]), []).append(
@@ -81,9 +60,6 @@ def find_cycle(task_ir: Mapping[str, Any]) -> List[str]:
 
 
 def validate_task_ir(task_ir: Mapping[str, Any], repository: Union[str, Path]) -> None:
-    """JSON-schema validation, then the v0.2 structural checks (ports, bindings, acyclicity),
-    then the v1.0 read/write consistency checks."""
-
     if task_ir.get("schema_version") != TASK_IR_SCHEMA_VERSION:
         raise TaskIRError(
             "expected %s, got %r" % (TASK_IR_SCHEMA_VERSION, task_ir.get("schema_version"))
@@ -121,13 +97,6 @@ def dag_index(task_ir: Mapping[str, Any]) -> DagIndex:
 
 
 def parse_entity_ref(ref: str) -> Tuple[str, ...]:
-    """Split an ``entity_ref``.
-
-    ``"events:530"``        -> ``("row", "events", "530")``
-    ``"derived:n2:event"``  -> ``("derived", "n2", "event")``
-    ``"literal"``           -> ``("literal",)``
-    """
-
     if ref == "literal":
         return ("literal",)
     if ref.startswith("derived:"):

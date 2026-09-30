@@ -21,7 +21,7 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 def _load_script():
-    path = REPOSITORY / "scripts" / "prepare_clean_prefix.py"
+    path = REPOSITORY / "scripts" / "benchmark" / "prepare_clean_prefix.py"
     spec = importlib.util.spec_from_file_location("derail_prepare_clean_prefix", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -93,7 +93,6 @@ class CleanPrefixConsensusTests(unittest.TestCase):
             ),
         )
         self.assertEqual(audit.audit_end_action_index, 18)
-        # Only mistakes before the root cause (3) are repaired; the candidate at 4 is rejected.
         self.assertEqual(audit.unrelated_error_action_indices, (1,))
         self.assertEqual([patch.operation for patch in patches], ["drop"])
         self.assertEqual([patch.step_id for patch in patches], [1])

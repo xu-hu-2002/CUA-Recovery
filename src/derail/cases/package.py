@@ -1,5 +1,3 @@
-"""Release bundle for cases (doc v1.2 section 10; brief ``cases/package.py``)."""
-
 from __future__ import annotations
 
 import json
@@ -10,9 +8,6 @@ from typing import Any, Dict, Mapping, Sequence, Union
 
 
 def funnel(rows: Sequence[Mapping[str, Any]]) -> Dict[str, int]:
-    """Runs -> Fail -> Auto-analyzed -> Repaired -> Cases, from per-rollout summaries
-    ``{failed, analyzed, repaired, cases}``."""
-
     out = Counter()
     for row in rows:
         out["runs"] += 1

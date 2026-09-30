@@ -1,5 +1,3 @@
-"""Holo-3.1 native function-call history 的 golden behavior。"""
-
 import json
 import unittest
 
@@ -38,8 +36,6 @@ class Holo31AdapterTests(unittest.TestCase):
             kind="drag",
             start_x_px=128,
             start_y_px=80,
-            # 1151/719 are the exact 1280x800 pixels represented by (900, 900)
-            # after the live compiler's normalized-coordinate round trip.
             end_x_px=1151,
             end_y_px=719,
         )

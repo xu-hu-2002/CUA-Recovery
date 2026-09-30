@@ -1,23 +1,3 @@
-"""Static latent horizon (execution doc v1.2 sections 2.2 and 6.2, fact-level per v1.1).
-
-For a node ``i`` the *contamination set* ``C_i`` holds the facts an error at ``i`` would
-corrupt: the facts ``i`` itself obtained (``reads(i)``: re-reading one of them later exposes a
-contradiction with the carried value), the cells written by ``i`` and by every node whose
-value derives from ``i`` along data edges.  The static latent horizon of ``i`` is the smallest
-number of semantic steps to a downstream node ``j`` whose required reads intersect ``C_i``;
-if none exists but a verifier depends on ``i``'s lineage the class is ``verifier_only``,
-otherwise ``silent``.
-
-Facts are compared at the granularity the IR gives: ``(table, column, entity)`` where entity
-is a concrete row id, ``<table>:*`` (any row: intersects every entity of that table and
-column) or ``derived:<node>:<name>`` (the row a node resolved; resolved to concrete ids when a
-gold lineage is supplied, else treated like the derived token).
-
-Entry points
-------------
-``static_latent_horizons(task_ir, gold_lineage=None) -> Dict[node_id, NodeHorizon]``
-"""
-
 from __future__ import annotations
 
 import re
@@ -26,7 +6,7 @@ from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Set, Tuple
 
 from derail.ir.model import dag_index
 
-Fact = Tuple[str, str, str]  # (app-qualified table, column, entity)
+Fact = Tuple[str, str, str]
 _V_REF = re.compile(r'V\[\s*["\']([A-Za-z0-9_-]+)["\']\s*\]')
 
 
@@ -34,8 +14,8 @@ _V_REF = re.compile(r'V\[\s*["\']([A-Za-z0-9_-]+)["\']\s*\]')
 class NodeHorizon:
     node_id: str
     latent_horizon_static: Optional[int]
-    observability_class: str  # required_next | required_later | verifier_only | silent
-    static_class: str  # immediate | same_app_later | cross_app | verifier_only
+    observability_class: str
+    static_class: str
     cross_app: bool
     visible_node_id: Optional[str]
     contamination: List[Fact] = field(default_factory=list)
@@ -57,8 +37,6 @@ class NodeHorizon:
 def _entity_sets(
     gold_lineage: Optional[Mapping[str, Any]],
 ) -> Dict[Tuple[str, str, str, str], List[str]]:
-    """``(node, table, column, entity_ref) -> concrete entity ids`` from ``resolved_reads``."""
-
     out: Dict[Tuple[str, str, str, str], List[str]] = {}
     for read in (gold_lineage or {}).get("resolved_reads", ()):
         if read.get("entity_set"):
@@ -84,8 +62,6 @@ def _facts(
 
 
 def _path_length(dag: Any, source: str, target: str) -> Optional[int]:
-    """Shortest number of edges from ``source`` to ``target`` (None when no path)."""
-
     frontier, seen, steps = [source], {source}, 0
     while frontier:
         steps += 1
@@ -102,8 +78,6 @@ def _path_length(dag: Any, source: str, target: str) -> Optional[int]:
 
 
 def facts_intersect(a: Fact, b: Fact) -> bool:
-    """Same table and column, and the entities are the same, or one of them is a wildcard."""
-
     if a[0] != b[0] or a[1] != b[1]:
         return False
     if a[2] == b[2]:
@@ -114,8 +88,6 @@ def facts_intersect(a: Fact, b: Fact) -> bool:
 def _verifier_depends_on(
     node: Mapping[str, Any], lineage: FrozenSet[str], task_ir: Mapping[str, Any]
 ) -> bool:
-    """A sql verifier on a lineage node, or a derived verifier naming a lineage node."""
-
     verifier = node.get("verifier")
     if not verifier:
         return False
@@ -159,8 +131,6 @@ def static_latent_horizons(
         app = str(nodes[node_id]["app"])
         if witness is not None:
             visible, hits = witness
-            # Semantic steps = shortest dependency path when the witness depends on i; a
-            # witness with no dependency path (an unrelated re-read) counts topological distance.
             distance = _path_length(dag, node_id, visible) or (
                 position[visible] - position[node_id]
             )

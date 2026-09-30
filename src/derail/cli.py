@@ -1,5 +1,3 @@
-"""首版 DERAIL 命令行：检查仓库和审计 canonical action。"""
-
 from __future__ import annotations
 
 import argparse
@@ -13,6 +11,7 @@ from derail.replay.executor import compile_pyautogui
 
 REQUIRED_PATHS = (
     "README.md",
+    "main.py",
     "configs/benchmark/derail_v1.yaml",
     "schemas/canonical_action.schema.json",
     "schemas/derived_build_manifest.schema.json",
@@ -34,24 +33,23 @@ REQUIRED_PATHS = (
     "src/derail/synthesis/skeletons.py",
     "src/derail/replay/executor.py",
     "src/derail/adapters/holo31.py",
-    "scripts/00_tmux_serve_open_source.sh",
-    "scripts/01_collect_all.sh",
-    "scripts/01_collect_trajectories.sh",
-    "scripts/01_watch_progress.sh",
-    "scripts/03_prepare_annotations.py",
-    "scripts/04_build_benchmark.py",
-    "scripts/05_replay_instance.py",
-    "scripts/06_build_native_history.py",
-    "scripts/07_run_evaluation.py",
-    "scripts/08_summarize_open_taxonomy.py",
-    "scripts/09_validate_benchmark.py",
-    "scripts/synthesize_long_horizon_tasks.py",
-    "scripts/build_task_synthesis_index.py",
+    "scripts/collection/serve_open_source.sh",
+    "scripts/collection/collect_all.sh",
+    "scripts/collection/collect_trajectories.sh",
+    "scripts/collection/watch_progress.sh",
+    "scripts/benchmark/prepare_annotations.py",
+    "scripts/benchmark/build_benchmark.py",
+    "scripts/benchmark/replay_instance.py",
+    "scripts/takeover/build_native_history.py",
+    "scripts/takeover/run_evaluation.py",
+    "scripts/analysis/summarize_open_taxonomy.py",
+    "scripts/benchmark/validate_benchmark.py",
+    "scripts/synthesis/synthesize_long_horizon_tasks.py",
+    "scripts/synthesis/build_task_synthesis_index.py",
 )
 
 
 def repository_root() -> Path:
-    # src/derail/cli.py → derail → src → repository root
     return Path(__file__).resolve().parents[2]
 
 

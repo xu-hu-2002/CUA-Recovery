@@ -1,13 +1,4 @@
-"""Deterministic state digests and row snapshots over a set of SQLite databases.
-
-The gold interpreter hashes the world after every node (``gold-lineage/1.0``
-``state_timeline``); replay verification compares the same digest after reset + changelog
-replay (execution doc v1.2 section 4.3).  Both must agree byte for byte, so the digest is
-defined here once: tables sorted by name, rows ordered by rowid, values JSON-encoded.
-
-Bookkeeping tables (``sqlite_sequence``, ``_changelog`` ...) are excluded through the
-``exclude_tables`` argument, which callers read from configuration.
-"""
+"""Deterministic state digests and row snapshots over a set of SQLite databases."""
 
 from __future__ import annotations
 
@@ -18,9 +9,6 @@ from typing import Tuple, Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 
 def table_names(conn: sqlite3.Connection) -> List[str]:
-    """Same rule as ``_tables`` in infra/snapshot/changelog_replay.py (SQLite < 3.37 returns no
-    rows for ``PRAGMA table_list``; fall back to ``sqlite_master`` minus virtual/shadow tables)."""
-
     try:
         rows = conn.execute("PRAGMA table_list").fetchall()
     except sqlite3.OperationalError:
@@ -59,8 +47,6 @@ def _has_rowid(conn: sqlite3.Connection, table: str) -> bool:
 def iter_rows(
     conn: sqlite3.Connection, table: str, exclude_columns: Iterable[str] = ()
 ) -> Iterable[Dict[str, Any]]:
-    """Yield rows as ``{column: value}`` with ``_rowid`` first, in rowid order."""
-
     skip = set(exclude_columns)
     columns = [c for c in table_columns(conn, table) if c not in skip]
     quoted = ", ".join('"%s"' % column for column in columns)
@@ -87,11 +73,6 @@ def database_digest(
     exclude_tables: Sequence[str] = (),
     exclude_columns: Optional[Mapping[str, Iterable[str]]] = None,
 ) -> str:
-    """sha256 over every included table's rows in canonical order.
-
-    ``exclude_columns`` maps table -> columns left out of the hash (volatile columns, D-012).
-    """
-
     excluded = set(exclude_tables)
     skip = exclude_columns or {}
     hasher = hashlib.sha256()
@@ -116,11 +97,6 @@ def state_digest(
     exclude_tables: Sequence[str] = (),
     exclude_columns: Optional[Mapping[str, Mapping[str, Iterable[str]]]] = None,
 ) -> str:
-    """Digest of a whole world: per-database digests combined in app order.
-
-    ``exclude_columns`` is ``{app: {table: columns}}`` (volatile columns, D-012).
-    """
-
     hasher = hashlib.sha256()
     per_app = exclude_columns or {}
     for app in sorted(connections):
@@ -130,8 +106,6 @@ def state_digest(
 
 
 def snapshot_row(conn: sqlite3.Connection, table: str, rowid: int) -> Optional[Dict[str, Any]]:
-    """Return ``{column: value}`` for ``rowid`` or ``None`` when the row does not exist."""
-
     columns = table_columns(conn, table)
     quoted = ", ".join('"%s"' % column for column in columns)
     row = conn.execute('SELECT %s FROM "%s" WHERE rowid = ?' % (quoted, table), (rowid,)).fetchone()
@@ -145,8 +119,6 @@ def table_digests(
     exclude_tables: Sequence[str] = (),
     exclude_columns: Optional[Mapping[str, Iterable[str]]] = None,
 ) -> Dict[str, str]:
-    """Per-table digests; lets a caller tell *which* tables changed between two points."""
-
     excluded = set(exclude_tables)
     skip = exclude_columns or {}
     digests: Dict[str, str] = {}
@@ -173,8 +145,6 @@ def database_and_table_digests(
     exclude_tables: Sequence[str] = (),
     exclude_columns: Optional[Mapping[str, Iterable[str]]] = None,
 ) -> Tuple[str, Dict[str, str]]:
-    """One pass over the rows yielding exactly ``database_digest`` and ``table_digests``."""
-
     excluded = set(exclude_tables)
     skip = exclude_columns or {}
     whole = hashlib.sha256()

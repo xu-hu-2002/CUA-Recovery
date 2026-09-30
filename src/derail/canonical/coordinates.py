@@ -1,4 +1,4 @@
-"""Canonical pixel coordinates 与模型私有坐标协议之间的变换。"""
+"""Transforms between canonical pixel coordinates and model-specific coordinate protocols."""
 
 from __future__ import annotations
 
@@ -8,11 +8,7 @@ from .actions import CanonicalActionError
 
 
 def pixel_to_normalized(value_px: int, extent_px: int, maximum: int) -> int:
-    """把真实像素转换到 `[0, maximum]`。
-
-    Holo/Qwen 常使用 1000，EvoCUA 可能使用 999。分母使用完整截图尺寸，和这些
-    agent 官方 inverse mapping 中 `x * width / maximum` 的约定一致。
-    """
+    """Convert real pixels to ``[0, maximum]``."""
 
     if extent_px <= 0 or maximum <= 0:
         raise CanonicalActionError("extent_px 和 maximum 必须为正数")
@@ -22,7 +18,7 @@ def pixel_to_normalized(value_px: int, extent_px: int, maximum: int) -> int:
 
 
 def normalized_to_pixel(value: int, extent_px: int, maximum: int) -> int:
-    """按官方常用 inverse formula 恢复像素，并钳制到屏幕内部。"""
+    """Map normalized coordinates back to pixels, clamped to the screen."""
 
     if extent_px <= 0 or maximum <= 0:
         raise CanonicalActionError("extent_px 和 maximum 必须为正数")
@@ -45,7 +41,7 @@ def point_to_normalized(
 
 
 def rescale_pixel(value_px: int, source_extent: int, target_extent: int) -> int:
-    """用于 OpenCUA smart-resize 等绝对像素协议的确定性缩放。"""
+    """Deterministically rescale absolute-pixel coordinates."""
 
     if source_extent <= 0 or target_extent <= 0:
         raise CanonicalActionError("source_extent 和 target_extent 必须为正数")

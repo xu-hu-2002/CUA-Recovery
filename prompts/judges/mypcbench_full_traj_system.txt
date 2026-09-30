@@ -1,4 +1,4 @@
-# 由 scripts/dump_upstream_prompts.py 自动生成，请勿手工编辑。
+# 由 scripts/collection/dump_upstream_prompts.py 自动生成，请勿手工编辑。
 # prompt_id: mypcbench_full_traj_system
 # 来源: osworld_full_traj_judge.py:FULL_TRAJ_JUDGMENT_SYSTEM —— 两条路径共用。OpenAI 走 messages[0] role=system，Gemini 走 GenerateContentConfig.system_instruction
 # 这是只读快照：runtime 仍从 third_party/ 的上游代码读取，改本文件不影响判分。

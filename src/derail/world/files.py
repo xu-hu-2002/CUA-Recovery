@@ -1,20 +1,3 @@
-"""File facts: the filesystem half of the world (execution doc v1.2 section 2.1).
-
-Entities are files under the user's home (``file:<relative path>``), exposed as one virtual
-table ``files.documents`` with the columns below so the fact machinery (reads, observations,
-latent horizon) needs no special case.  Text is extracted for plain text, Markdown, CSV,
-JSON, and the XML inside ``.docx`` / ``.xlsx`` (standard library only); PDFs and other
-binaries carry existence, size and hash only.
-
-Entry points
-------------
-``FileInventory.build(root, home_prefix)``     scan a copy of the home tree
-``FileInventory.load(path)`` / ``.save(path)``   ``file-inventory/1.0``
-``inventory.get(entity_or_path)``                entry lookup
-``file_facts(entry)``                            the row's cells as facts
-``extract_text(path)``                           text of one file (None for binaries)
-"""
-
 from __future__ import annotations
 
 import csv
@@ -101,8 +84,6 @@ _ODF_CELL_SEP = re.compile(r"</table:table-cell>")
 
 
 def _odf_xml_text(xml: str) -> str:
-    """Text of an ODF content XML: paragraphs / rows as lines, cells tab-separated."""
-
     xml = _ODF_CELL_SEP.sub("\t", xml)
     xml = (
         xml.replace("<text:tab/>", "\t")
@@ -127,9 +108,6 @@ _PDF_ARRAY_STR = re.compile(rb"\((.*?)(?<!\\)\)")
 
 
 def _pdf_text(data: bytes) -> Optional[str]:
-    """Best-effort text of simple PDFs (uncompressed or Flate streams, Tj / TJ operators);
-    enough for the benchmark's generated boarding passes, not a PDF parser."""
-
     import zlib
 
     lines: List[str] = []
@@ -159,9 +137,6 @@ def _pdf_text(data: bytes) -> Optional[str]:
 
 
 def _plain_text(data: bytes) -> Optional[str]:
-    """UTF-8 text when the bytes are text; a task-created "document" written by the gold
-    interpreter is plain text whatever its extension says."""
-
     if b"\x00" in data:
         return None
     try:
@@ -204,7 +179,7 @@ def extract_text(path: Union[str, Path]) -> Optional[str]:
 
 @dataclass
 class FileEntry:
-    path: str  # relative to the home directory, e.g. Documents/x.txt
+    path: str
     size: int
     sha256: str
     mime: str

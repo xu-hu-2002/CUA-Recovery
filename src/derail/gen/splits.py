@@ -1,14 +1,3 @@
-"""Train/test split of the composed workflows (paper section 3, "Constructing erroneous states").
-
-The split is by workflow: every rollout, takeover state and recovery trajectory derived from a
-workflow belongs to that workflow's split.  ``split_workflows`` is deterministic in ``seed``
-(workflows are ranked by ``sha256(seed|id)``, so input order does not matter); with
-``source_disjoint`` the test workflows' source tasks are also kept out of training (the paper
-does not require it; workflows that would share a source task across the split are
-``excluded``).  ``scripts/freeze_source_splits.py`` freezes the manifest; downstream code asks
-``split_of(item_id, load_workflow_splits(path))``.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -30,10 +19,6 @@ def split_workflows(
     test_fraction: Optional[float] = None,
     source_disjoint: bool = False,
 ) -> Dict[str, Any]:
-    """``workflows`` maps a workflow id to its source task ids.  Returns ``{"splits": {id:
-    train|test|excluded}, "counts", "source_tasks"}``; ``test_size`` wins over
-    ``test_fraction``."""
-
     ids = sorted(workflows, key=lambda w: _rank(seed, w))
     if test_size is None:
         if test_fraction is None:
@@ -44,7 +29,6 @@ def split_workflows(
         test = ids[:test_size]
         train = ids[test_size:]
     else:
-        # Grow a set of held-out source tasks until enough workflows lie entirely inside it.
         held: set = set()
         inside: List[str] = []
         for task in sorted({t for s in sources.values() for t in s}, key=lambda t: _rank(seed, t)):
@@ -83,10 +67,6 @@ def load_workflow_splits(path: Union[str, Path]) -> Dict[str, Any]:
 
 
 def split_of(item_id: str, splits: Mapping[str, Any]) -> Optional[str]:
-    """Split (``train`` / ``test`` / ``excluded``) of a workflow or of anything derived from
-    it: an id that is the workflow id, carries a ``#<variant>`` suffix (``gen-...#v0``) or
-    otherwise starts with the workflow id.  None when the id belongs to no split workflow."""
-
     table = splits.get("splits", splits)
     key = str(item_id).split("#", 1)[0]
     if key in table:

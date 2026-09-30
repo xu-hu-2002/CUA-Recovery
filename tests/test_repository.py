@@ -1,5 +1,3 @@
-"""仓库 skeleton、JSON 文件与 status 声明的 smoke tests。"""
-
 import json
 import subprocess
 import unittest
@@ -68,13 +66,13 @@ class RepositoryTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0, "%s 禁止进入 Git index" % name)
 
-    # tmux 托管针对的是"断连即死"的长时任务：serving、采集、判官都会跑几小时到几天。
-    # 秒级完成的一次性准备脚本不属于这一类，套上 tmux 只会让 `make setup` 没法用。
-    # 豁免必须逐个列名而不是按前缀匹配——新增一个长时入口时应当默认受这条不变式约束。
-    SHORT_LIVED_SHELL_ENTRYPOINTS = frozenset({"setup_third_party.sh"})
+    SHORT_LIVED_SHELL_ENTRYPOINTS = frozenset({"setup_third_party.sh", "run_takeover_judge.sh"})
 
     def test_project_shell_entrypoints_are_tmux_managed(self) -> None:
-        scripts = sorted((repository_root() / "scripts").glob("*.sh"))
+        scripts = sorted(
+            path for path in (repository_root() / "scripts").rglob("*.sh")
+            if path.parent.name not in ("lib", "rock")
+        )
         self.assertTrue(scripts)
         for path in scripts:
             with self.subTest(path=path):

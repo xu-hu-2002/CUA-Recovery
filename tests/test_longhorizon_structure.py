@@ -82,14 +82,6 @@ def _edge(edge_id, source, source_port, target, target_port, kind="data_dependen
 
 
 def _chain_fragment(with_second_lineage: bool):
-    """r1 -> f2 -> a3 -> d4 -> w5 with a long carry edge r1 -> d4 (distance 3).
-
-    With ``with_second_lineage`` a derived branch r6 -> c7 also feeds the decision d4, which is
-    the natural form of delayed reuse (the early date waits for a late derived budget).  Without
-    it the long edge is decorative.  The branches join before the terminal write so the
-    independent-component ratio stays zero.
-    """
-
     decide_inputs = ("total", "date_copy") + (("budget",) if with_second_lineage else ())
     nodes = [
         _node("r1", "retrieve", "calendar", outputs=("date", "date_copy")),
@@ -159,7 +151,6 @@ class TaxonomyTests(unittest.TestCase):
             TAXONOMY.normalize(["made_up_label"])
 
     def test_primary_type_follows_configured_priority(self):
-        # planning > termination > execution > perception (configurable in the YAML)
         self.assertEqual(
             TAXONOMY.primary_paper_type(["detail_misperception", "premature_completion"]),
             "premature_completion",
@@ -174,7 +165,6 @@ class TaxonomyTests(unittest.TestCase):
             ),
             "scope_error",
         )
-        # ineffective_action is a perception type, so execution outranks it.
         self.assertEqual(
             TAXONOMY.primary_paper_type(["ineffective_action", "grounding_failure"]),
             "grounding_failure",
@@ -228,10 +218,10 @@ class EffectTests(unittest.TestCase):
     def test_depth_metrics(self):
         fragment = _chain_fragment(True)
         dag = DagIndex.from_fragment(fragment)
-        self.assertEqual(irreversible_action_depth(dag, ONTOLOGY), 3)  # r1 -> d4 -> w5
+        self.assertEqual(irreversible_action_depth(dag, ONTOLOGY), 3)
         self.assertEqual(
             high_consequence_prerequisite_depth(dag, ONTOLOGY), 5
-        )  # longest path r1..w5
+        )
         self.assertEqual(
             reversibility_profile(fragment, ONTOLOGY), {"R0": 6, "R1": 0, "R2": 0, "R3": 1}
         )
@@ -250,7 +240,6 @@ class CarryTests(unittest.TestCase):
 
     def test_shallow_second_input_does_not_justify(self):
         fragment = _chain_fragment(True)
-        # Collapse the second lineage to a raw retrieve feeding w5 directly (depth 1).
         fragment["nodes"] = [node for node in fragment["nodes"] if node["node_id"] != "c7"]
         fragment["edges"] = [
             edge for edge in fragment["edges"] if edge["edge_id"] not in {"e6", "e7"}
@@ -325,7 +314,7 @@ class ComplexityAndGateTests(unittest.TestCase):
         legacy = copy.deepcopy(good)
         legacy["candidate_id"] = "gen_legacy"
         for node in legacy["task_ir"]["nodes"]:
-            node.pop("reversibility_class")  # v0.1 records lack the class
+            node.pop("reversibility_class")
         result = apply_v02_gates([good, bad, legacy], gate_config=self._config(), ontology=ONTOLOGY)
         self.assertEqual([item["candidate_id"] for item in result.accepted], ["gen_good"])
         self.assertEqual(result.accepted[0]["reversibility_class"], "R3")
@@ -401,6 +390,4 @@ class DepthGridConsistencyTests(unittest.TestCase):
         ):
             raw = yaml.safe_load((REPOSITORY / path).read_text())
             self.assertEqual(list(raw["depth_grid"]), list(benchmark["depths"]), path)
-        # The construction, evaluation, and derived-build code paths validate depths against this
-        # in-code constant rather than the YAML, so it has to move with them.
         self.assertEqual(list(DEPTH_GRID), list(benchmark["depths"]), "derail.derived.layout")

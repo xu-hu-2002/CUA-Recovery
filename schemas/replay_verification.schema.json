@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://derail-benchmark.org/schemas/replay_verification.schema.json",
   "title": "DERAIL replay verification (v0.2 attempt record | replay-verification/1.0)",
-  "$comment": "Two branches: the v0.2 per-attempt record consumed by scripts/05_replay_instance.py and 09_validate_benchmark.py, and the replay-verification/1.0 per-case record of execution doc v1.2 section 10.2 (three replays per depth; all must match the original changelog prefix and page sequence; a mismatching depth is PREFIX_REPLAY_MISMATCH and is not instantiated).",
+  "$comment": "Two branches: the v0.2 per-attempt record consumed by scripts/benchmark/replay_instance.py and scripts/benchmark/validate_benchmark.py, and the replay-verification/1.0 per-case record of execution doc v1.2 section 10.2 (three replays per depth; all must match the original changelog prefix and page sequence; a mismatching depth is PREFIX_REPLAY_MISMATCH and is not instantiated).",
   "oneOf": [
     {
       "$ref": "#/$defs/v0_2"

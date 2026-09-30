@@ -1,60 +1,27 @@
-# Takeover protocol: the one configuration read by scripts/rock/run_takeover.sh,
-# scripts/10_run_takeover_rollout.py and scripts/10_preflight_takeover_history.py.
-# Every default follows the paper; CLI flags / environment variables override per run.
 schema_version: takeover-protocol/1.0
 
-# 02_formulation:12 / 05_experiments:12 — each state is run three times (Pass@3).
-# Results land in <output_root>/repeat_<r>/depth_<d>/<condition>/<task_id>.
 repeats: 3
-# 05_experiments:12 — up to 100 additional steps after takeover.
 max_steps: 100
-# F_experimental_details:11 — 3,600 seconds per task.
 timeout_seconds: 3600
-# C_cua_recovery_test:36 — takeover depths after the root cause.
 depths: [0, 5, 10, 15, 20, 25]
-# 03_benchmark:38 / 05_experiments:12 — the agent continues without an error warning.
-# notified / diagnosed remain available as ablations; hinted injects a free-text takeover hint
-# (training-data continuation, scripts/recovery_gen_v1.py) where diagnosed puts its rationale.
 conditions: [unaware]
 allowed_conditions: [unaware, notified, diagnosed, hinted]
 
-# The takeover VM runs the same environment as the source rollout: the determinism commands
-# (run before the prefix replay) and the state probes (state_probes / state_probe_file, the
-# recorded side of replay_verification) come from this one file.
 environment_config: configs/environments/mypcbench_1280x800.yaml
 
 prefix:
-  # 02_formulation:16, 03_benchmark:25, C:22-25 — take over from the repaired prefix, in
-  # which unrelated mistakes before t_r are removed so the root cause is the only error.
-  source: repaired                    # repaired | original
-  # Same layout as <build_dir>/canonical: <repaired_dir>/<trajectory_id>/<trajectory_filename>.
-  # Relative paths resolve against the build dir. Kept steps keep their original
-  # action_index_global (gaps mark removed actions); steps from t_r on are unchanged.
+  source: repaired  # repaired | original
   repaired_dir: canonical_repaired
   trajectory_filename: trajectory.jsonl
-  # error = abort before any VM boots; skip = protocol exclusion for that trajectory;
-  # fallback_original = use the unrepaired prefix and mark it in every manifest.
-  on_missing_repaired: error          # error | skip | fallback_original
+  on_missing_repaired: error  # error | skip | fallback_original
 
 history:
-  # 02_formulation:10,16 — injected history H_c = (o_i, a_i): source reasoning is removed,
-  # actions and their visible output are kept. false injects the source text as recorded.
   strip_reasoning: true
-  # 02_formulation:12 — K = 20 most recent screenshots. Applied to the GPT-5.5 Responses
-  # history, whose upstream default (OPENAI_ZDR_KEEP_IMAGES) is 4.
   openai_context_screenshots: 20
-  # 02_formulation:5, C:19-20 — any agent's history can be replayed for another.
-  # EvoCUA replays its own raw completions verbatim; for other sources its S2 turns are
-  # rendered from the canonical actions. false restores the old self-takeover-only rule.
   evocua_cross_agent: true
 
 replay_verification:
-  # 03_benchmark:25, C:29-31 — keep a prefix only if the state after replay matches the
-  # state recorded at the same point of the source rollout: the last line of the source
-  # task's <state_probe_file> whose traj_index is the bound traj.jsonl row (0-based).
   enabled: true
-  on_mismatch: reject                 # reject (episode marked replay_mismatch) | warn
-  on_missing_expected: reject         # reject | warn (source step has no fingerprint)
-  # Fingerprint components whose mismatch is recorded but tolerated,
-  # e.g. "app_databases/mail.sqlite".
+  on_mismatch: reject  # reject | warn
+  on_missing_expected: reject  # reject | warn
   ignore_components: []

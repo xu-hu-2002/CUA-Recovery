@@ -1,4 +1,4 @@
-"""跨 agent 共享的 canonical trajectory 数据契约。"""
+"""Canonical trajectory data contract shared across agents."""
 
 from .actions import (
     Action,
