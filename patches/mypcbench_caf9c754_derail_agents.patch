@@ -18,7 +18,7 @@ index 92308f9..0e6fa64 100644
 +
 +# DERAIL: gateway rate-limit handling.
 +#
-+# The routify gateway caps requests per API KEY (60 RPM measured 2026-08-06),
++# The API gateway caps requests per API KEY (60 RPM measured 2026-08-06),
 +# shared across every model behind that key. A single agent loop only averages
 +# ~5 RPM, but consecutive fast steps burst far above that, and running several
 +# collection shards concurrently multiplies the burst. The upstream retry
@@ -132,7 +132,7 @@ index f311e70..fcacb51 100644
          # every call, not just ones we remember to pass `betas=[...]` for.
 +        #
 +        # DERAIL: prompt caching is opt-out via CLAUDE_PROMPT_CACHING_BETA=0.
-+        # Gateways that front Bedrock (routify's /protocol/anthropic) reject the
++        # Gateways that front Bedrock (e.g. a /protocol/anthropic proxy) reject the
 +        # COMBINATION of `computer-use-*` and the prompt-caching beta values with
 +        # `ValidationException: invalid beta flag` — each is accepted alone.
 +        # Since the computer tool is the whole point of a CUA baseline, caching
@@ -410,7 +410,7 @@ index b4831ba..0687d5f 100644
          self.tools = [COMPUTER_TOOL, SHELL_TOOL]
  
 +        # DERAIL: ZDR-stateless mode. Zero-Data-Retention orgs (e.g. the
-+        # routify gateway) reject `previous_response_id` outright, which
++        # API gateway) reject `previous_response_id` outright, which
 +        # kills every turn after the first. The documented OpenAI ZDR
 +        # pattern is: send `store: false`, ask for
 +        # `include: ["reasoning.encrypted_content"]`, and replay the FULL

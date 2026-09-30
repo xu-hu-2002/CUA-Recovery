@@ -66,12 +66,12 @@ class RepositoryTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0, "%s 禁止进入 Git index" % name)
 
-    SHORT_LIVED_SHELL_ENTRYPOINTS = frozenset({"setup_third_party.sh", "run_takeover_judge.sh"})
+    SHORT_LIVED_SHELL_ENTRYPOINTS = frozenset({"setup_third_party.sh", "run_takeover_judge.sh", "run.sh"})
 
     def test_project_shell_entrypoints_are_tmux_managed(self) -> None:
         scripts = sorted(
             path for path in (repository_root() / "scripts").rglob("*.sh")
-            if path.parent.name not in ("lib", "rock")
+            if path.parent.name != "lib"
         )
         self.assertTrue(scripts)
         for path in scripts:

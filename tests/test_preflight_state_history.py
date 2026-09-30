@@ -210,13 +210,6 @@ class TokenizeEndpointTests(unittest.TestCase):
             )
         self.assertEqual(count, 321)
 
-    def test_kimi_experiment_cap_is_frozen_in_submitter(self):
-        script = (
-            REPOSITORY / "scripts/rock/submit_takeover_kimi.sh"
-        ).read_text(encoding="utf-8")
-        self.assertIn("KIMI_EXPERIMENT_CONTEXT_CAP:-262144", script)
-        self.assertIn("takeovewr_annotation/*", script)
-
     def test_opencua_uses_the_live_served_model_alias(self):
         with mock.patch.dict("os.environ", {"OPENCUA_MODEL": "opencua-72b"}):
             model = PREFLIGHT._runtime_model_name(

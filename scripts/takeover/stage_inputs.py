@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage portable, hash-audited inputs for Nebula takeover workers."""
+"""Stage portable, hash-audited inputs for takeover workers."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def main() -> int:
     parser.add_argument(
         "--base-manifest",
         type=Path,
-        help="Previously uploaded bundle manifest used as an OSS-resident baseline.",
+        help="Previously uploaded bundle manifest used as a baseline.",
     )
     parser.add_argument("--matrix-manifest", type=Path)
     parser.add_argument("--takeover-config", type=Path, default=DEFAULT_CONFIG_PATH)

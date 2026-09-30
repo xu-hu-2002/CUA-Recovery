@@ -76,7 +76,7 @@ models:
       max_model_len_reason: "全部 scaffold 对齐 history_n=100 / image_max=20 后同批抬高。12288 下 tokenize_oldest_first_v1 会把 27429 tokens 压到 8159，名义 100/20 实跑只有三成，横比时是混淆项；49152 之后不再触发裁剪"
       max_model_len_measured: false
       max_model_len_invalidates: "12288 下采的 v1 qwen3_5 rollout 与新值不可直接合并"
-      reason: "沿用 evocua_32b 的 A6000 适配。2026-08-04 本机 A/B 实测（GPU 2,3，其余参数一致，400 token 定长生成 ×3）：--enforce-eager 11.2 tok/s，--disable-custom-all-reduce 98.7 tok/s，8.8 倍；短提示下 11.5 -> 117.2 tok/s，10.2 倍。KV cache 241824 -> 239712 tokens。直接去掉 enforce-eager 而不加 disable-custom-all-reduce 会以 custom_all_reduce.cuh:455 'invalid argument' 崩溃"
+      reason: "沿用 evocua_32b 的 GPU 适配。2026-08-04 本机 A/B 实测（GPU 2,3，其余参数一致，400 token 定长生成 ×3）：--enforce-eager 11.2 tok/s，--disable-custom-all-reduce 98.7 tok/s，8.8 倍；短提示下 11.5 -> 117.2 tok/s，10.2 倍。KV cache 241824 -> 239712 tokens。直接去掉 enforce-eager 而不加 disable-custom-all-reduce 会以 custom_all_reduce.cuh:455 'invalid argument' 崩溃"
       reproducibility_note: "贪心解码不再与 eager 模式逐字一致：实测前 705 字符相同，之后为同义改写。浮点归约顺序差异，同一配置内部仍稳定"
       formal_collection_requires_confirmation: true
   qwen3_6_27b:
@@ -101,9 +101,9 @@ models:
       enforce_eager: false
       disable_custom_all_reduce: true
       max_model_len: 49152
-      max_model_len_reason: "上下文策略对齐上游 history_n=100 / image_max=20 后单步 prompt 约 27k tokens，12288 装不下；沿用 evocua_32b 在同款 A6000 TP2 上验过的 49152。未单独实测 KV cache 余量"
+      max_model_len_reason: "上下文策略对齐上游 history_n=100 / image_max=20 后单步 prompt 约 27k tokens，12288 装不下；沿用 evocua_32b 在同款 GPU TP2 上验过的 49152。未单独实测 KV cache 余量"
       max_model_len_measured: false
-      reason: "沿用 evocua_32b 的 A6000 适配，与 qwen3_5_35b_a3b 同批改动。稠密模型，未单独做 A/B 实测；提速幅度预期小于 MoE 模型"
+      reason: "沿用 evocua_32b 的 GPU 适配，与 qwen3_5_35b_a3b 同批改动。稠密模型，未单独做 A/B 实测；提速幅度预期小于 MoE 模型"
       measured: false
       formal_collection_requires_confirmation: true
   qwen3_8_27b:
@@ -117,7 +117,7 @@ models:
       max_model_len: 98304
       max_model_len_reason: "takeover_v1 d0/unaware 已观测最长输入 58494 tokens，加 2048 completion 后超过 49152；98304 为 100-step post-takeover history 保留增长空间"
       max_model_len_measured: true
-      max_model_len_measurement: "2026-09-06：Qwen3.8 原生 max_position_embeddings=262144；A6000 TP2, gpu_memory_utilization=0.90 的 vLLM 日志报告 GPU KV cache size=126224 tokens"
+      max_model_len_measurement: "2026-09-06：Qwen3.8 原生 max_position_embeddings=262144；TP2, gpu_memory_utilization=0.90 的 vLLM 日志报告 GPU KV cache size=126224 tokens"
       reason: "Qwen3.8 takeover prefix 的真实 token 长度要求；其余 serving 参数继续复用 qwen3_6_27b"
       measured: true
       formal_collection_requires_confirmation: true
@@ -131,7 +131,7 @@ models:
       gpu_memory_utilization: 0.95
       max_num_seqs: 1
       disable_custom_all_reduce: true
-      reason: "A6000 TP2: native 262144 context required 32.00 GiB KV per GPU but only 4.19 GiB was available; custom all-reduce CUDA graph capture also failed"
+      reason: "TP2 (48 GB GPUs): native 262144 context required 32.00 GiB KV per GPU but only 4.19 GiB was available; custom all-reduce CUDA graph capture also failed"
       formal_collection_requires_confirmation: true
   opencua_72b:
     checkpoint: xlangai/OpenCUA-72B
@@ -160,8 +160,8 @@ models:
       enforce_eager: false
       disable_custom_all_reduce: true
       max_model_len: 49152
-      max_model_len_reason: "上下文策略对齐上游 history_n=100 / image_max=20 后单步 prompt 约 27k tokens，12288 装不下；沿用 evocua_32b 在同款 A6000 TP2 上验过的 49152。未单独实测 KV cache 余量"
+      max_model_len_reason: "上下文策略对齐上游 history_n=100 / image_max=20 后单步 prompt 约 27k tokens，12288 装不下；沿用 evocua_32b 在同款 GPU TP2 上验过的 49152。未单独实测 KV cache 余量"
       max_model_len_measured: false
-      reason: "沿用 evocua_32b 的 A6000 适配，与 qwen3_5_35b_a3b 同批改动。同为 35B-A3B MoE，eager 惩罚预期与 Qwen3.5 接近（截图时间戳统计显示 eager 下仅 5.0 tok/s，是五个模型里最慢的）；未单独做 A/B 实测"
+      reason: "沿用 evocua_32b 的 GPU 适配，与 qwen3_5_35b_a3b 同批改动。同为 35B-A3B MoE，eager 惩罚预期与 Qwen3.5 接近（截图时间戳统计显示 eager 下仅 5.0 tok/s，是五个模型里最慢的）；未单独做 A/B 实测"
       measured: false
       formal_collection_requires_confirmation: true

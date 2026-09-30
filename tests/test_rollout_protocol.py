@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import tempfile
 import unittest
@@ -32,18 +31,6 @@ class RuntimeProtocolTests(unittest.TestCase):
             self.assertNotIn("max_steps", config, path.name)
             self.assertNotIn("task_timeout", config, path.name)
 
-    def test_rock_driver_defaults_come_from_the_runtime_config(self) -> None:
-        path = REPOSITORY / "scripts/rock/derail_rock_driver.py"
-        spec = importlib.util.spec_from_file_location("derail_rock_driver_protocol", path)
-        driver = importlib.util.module_from_spec(spec)
-        assert spec.loader is not None
-        spec.loader.exec_module(driver)
-        if not any(driver.os.environ.get(k) for k in ("MAX_STEPS", "TASK_TIMEOUT", "REPEATS")):
-            self.assertEqual(
-                (driver.MAX_STEPS, driver.TASK_TIMEOUT, driver.REPEATS),
-                (str(RUNTIME["max_steps"]), str(RUNTIME["task_timeout"]), str(RUNTIME["repeats"])),
-            )
-        self.assertEqual(driver._runtime_default("context_images"), str(RUNTIME["context_images"]))
 
 
 class TaskSourceTests(unittest.TestCase):

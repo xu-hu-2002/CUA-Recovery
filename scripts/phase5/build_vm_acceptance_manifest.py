@@ -54,7 +54,6 @@ def build_manifest(args: argparse.Namespace) -> dict:
         "phase": "derail_phase5",
         "boot_date": args.boot_date,
         "qcow2": {"sha256": sha256_file(qcow2), "size": qcow2.stat().st_size},
-        "rock": {"cluster": args.rock_cluster, "image": args.rock_image},
         "mypcbench_commit": git_revision(mypcbench),
         "infra_commit": git_revision(REPOSITORY),
         "infra_files": files,
@@ -71,8 +70,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--qcow2", type=Path, required=True)
     parser.add_argument("--mypcbench", type=Path, required=True)
-    parser.add_argument("--rock-image", required=True)
-    parser.add_argument("--rock-cluster", required=True)
     parser.add_argument(
         "--boot-date", default=datetime.now(timezone.utc).date().isoformat()
     )

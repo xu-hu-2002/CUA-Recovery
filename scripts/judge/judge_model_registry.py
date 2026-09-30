@@ -13,7 +13,7 @@ import yaml
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-DEFAULT_REGISTRY = REPOSITORY / "configs/judges/routify_model_registry.json"
+DEFAULT_REGISTRY = REPOSITORY / "configs/judges/model_registry.json"
 DEFAULT_CONFIG = REPOSITORY / "configs/judges/default.yaml"
 AGENT_CONFIGS = REPOSITORY / "configs/agents"
 FIELDS = ("protocol", "max_images", "admission", "concurrency", "timeout_seconds")

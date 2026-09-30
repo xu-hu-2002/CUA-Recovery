@@ -15,7 +15,7 @@ HARD_TIMEOUT_PY="$REPO_ROOT/scripts/judge/run_with_timeout.py"
 REGISTRY_PY="$REPO_ROOT/scripts/judge/judge_model_registry.py"
 JUDGE_WRAPPER="$REPO_ROOT/scripts/judge/full_traj_judge.py"
 BUNDLE_PY="$REPO_ROOT/scripts/takeover/bundle_prefix.py"
-JUDGE_REGISTRY="${DERAIL_JUDGE_REGISTRY:-$REPO_ROOT/configs/judges/routify_model_registry.json}"
+JUDGE_REGISTRY="${DERAIL_JUDGE_REGISTRY:-$REPO_ROOT/configs/judges/model_registry.json}"
 
 if [[ -f "$CRED_ENV" ]]; then
   set -a; . "$CRED_ENV"; set +a
@@ -62,7 +62,7 @@ JUDGE_CONCURRENCY="${JUDGE_CONCURRENCY:-$MODEL_CONCURRENCY}"
 [[ "$JUDGE_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail "judge timeout 必须是正整数"
 [[ "$JUDGE_CONCURRENCY" =~ ^[1-9][0-9]*$ ]] || fail "judge concurrency 必须是正整数"
 export MYPCBENCH_OSWORLD_JUDGE_CONCURRENCY="$JUDGE_CONCURRENCY"
-[[ -n "${OPENAI_API_KEY:-}" ]]    || fail "OPENAI_API_KEY 为空（judge 无法调用 routify）"
+[[ -n "${OPENAI_API_KEY:-}" ]]    || fail "OPENAI_API_KEY 为空（judge 无法调用网关）"
 if [[ -z "${OPENAI_BASE_URL:-}" ]]; then
   unset OPENAI_BASE_URL
   echo "[run_judge] OPENAI_BASE_URL 未设，judge 走 OpenAI 官方端点"
@@ -81,7 +81,7 @@ export MYPCBENCH_OSWORLD_JUDGE_PROCESS_TIMEOUT="${MYPCBENCH_OSWORLD_JUDGE_PROCES
 HARD_JUDGE_TIMEOUT="${DERAIL_JUDGE_HARD_TIMEOUT:-$((JUDGE_TIMEOUT + MYPCBENCH_OSWORLD_JUDGE_REQUEST_TIMEOUT + 60))}"
 [[ "$HARD_JUDGE_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail "Judge hard timeout 必须是正整数"
 
-echo "[run_judge] judge=$PINNED_JUDGE_MODEL (routify) protocol=$JUDGE_PROTOCOL admission=$JUDGE_ADMISSION max_images=$PINNED_MAX_IMAGES reasoning_effort=$MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT request_timeout=${MYPCBENCH_OSWORLD_JUDGE_REQUEST_TIMEOUT}s process_timeout=${MYPCBENCH_OSWORLD_JUDGE_PROCESS_TIMEOUT}s task_timeout=${JUDGE_TIMEOUT}s hard_timeout=${HARD_JUDGE_TIMEOUT}s concurrency=$MYPCBENCH_OSWORLD_JUDGE_CONCURRENCY dirs=${#RESULT_DIRS[@]} force=${FORCE_FLAG:-no}"
+echo "[run_judge] judge=$PINNED_JUDGE_MODEL (gateway) protocol=$JUDGE_PROTOCOL admission=$JUDGE_ADMISSION max_images=$PINNED_MAX_IMAGES reasoning_effort=$MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT request_timeout=${MYPCBENCH_OSWORLD_JUDGE_REQUEST_TIMEOUT}s process_timeout=${MYPCBENCH_OSWORLD_JUDGE_PROCESS_TIMEOUT}s task_timeout=${JUDGE_TIMEOUT}s hard_timeout=${HARD_JUDGE_TIMEOUT}s concurrency=$MYPCBENCH_OSWORLD_JUDGE_CONCURRENCY dirs=${#RESULT_DIRS[@]} force=${FORCE_FLAG:-no}"
 for d in "${RESULT_DIRS[@]}"; do
   [[ -d "$d" ]] || fail "result_dir 不存在: $d"
   python3 "$BUNDLE_PY" "$d" || fail "bundle 证据补齐失败: $d"

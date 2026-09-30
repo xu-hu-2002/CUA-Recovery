@@ -136,11 +136,6 @@ def test_guest_admin_archive_preserves_infra_tree(tmp_path):
         assert "infra/triggers/install.py" in archive.getnames()
 
 
-def test_guest_boot_accepts_versioned_qcow2_override():
-    source = (REPOSITORY / "scripts" / "rock" / "derail_guest_boot.sh").read_text()
-    assert 'BASE_QCOW2="${GUEST_QCOW2:-${VM_DIR}/mypcbench.qcow2}"' in source
-    assert 'qemu-img create -f qcow2 -b "$BASE_QCOW2"' in source
-
 
 def test_control_api_patch_suppresses_only_deprecation_warnings():
     source = (REPOSITORY / "infra" / "control_api_patch.py").read_text()
@@ -162,15 +157,6 @@ def test_guest_deploy_enables_control_api_for_fresh_boot():
     source = (REPOSITORY / "scripts" / "phase5" / "guest_admin.py").read_text()
     assert "sudo systemctl enable mypcbench-control-api.service" in source
 
-
-def test_acceptance_file_fetch_uses_post_json_contract():
-    source = (REPOSITORY / "scripts" / "phase5" / "run_phase5_vm_acceptance.py").read_text()
-    assert "curl -fsS -X POST -H 'Content-Type: application/json'" in source
-    assert 'json.dumps({"file_path": guest_path})' in source
-    assert "--data-urlencode" not in source
-    assert "/tmp/phase5-acceptance.tar.gz" in source
-    assert "/home/oai/share" not in source
-    assert "range(1, 91)" in source
 
 
 def test_acceptance_page_probe_is_read_only_and_keeps_trace_streams_linked():
@@ -200,8 +186,3 @@ def test_canon_timeout_patch_is_exact_and_idempotent():
     assert "MYPCBENCH_CANON_PATCH_TIMEOUT" in patched
     assert "'300'" in patched
     assert module.patched_text(patched) == patched
-
-
-def test_image_build_runs_canonical_patchers_once():
-    source = (REPOSITORY / "scripts" / "phase5" / "build_phase5_vm.py").read_text()
-    assert "guest_admin.py reset --run-patchers" in source

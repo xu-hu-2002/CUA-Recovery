@@ -1,7 +1,6 @@
 .DS_Store
 /env.yaml
 /.env
-xdl_config_*
 __pycache__/
 *.py[cod]
 .pytest_cache/

@@ -3,7 +3,7 @@ family: anthropic_computer_use
 scaffold: upstream_runner
 agent_type: claude_cuabash
 model: claude-sonnet-5
-api_snapshot: routify/protocol/anthropic/v1 (2026-08-06, AWS Bedrock 后端)
+api_snapshot: gateway/protocol/anthropic/v1 (2026-08-06, AWS Bedrock 后端)
 output_format: native_tool_use
 history_renderer: anthropic_messages_full_history
 live_adapter: MyPCBench.agent-harness.agents.claude_cua
@@ -15,12 +15,11 @@ coordinate_protocol: absolute_pixels
 
 num_vms: 4
 eta_step_seconds: 198.0
-eta_step_seconds_source: v1 全量采集步间间隔中位（docs/ROUTIFY_API_MATRIX.md §9.3）
+eta_step_seconds_source: v1 全量采集步间间隔中位
 status: collected_f2_complete
 
 notes: >-
-  实测响应含 thinking 块。Anthropic 协议本身无状态，不受 routify 的 Zero Data
+  实测响应含 thinking 块。Anthropic 协议本身无状态，不受网关的 Zero Data
   Retention 影响。必须设 CLAUDE_PROMPT_CACHING_BETA=0：Bedrock 拒绝 computer-use
-  与 prompt-caching 组合的 anthropic-beta 头。经 Bedrock 托管（内部别名
-  claude-saffron），须在 collection manifest 记录与 Anthropic 一方 API 的口径
-  差异。详见 docs/ROUTIFY_API_MATRIX.md。
+  与 prompt-caching 组合的 anthropic-beta 头。经 Bedrock 托管，须在 collection manifest 记录与 Anthropic 一方 API 的口径
+  差异。

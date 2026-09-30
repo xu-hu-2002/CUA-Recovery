@@ -135,7 +135,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
     def _payload(self, **overrides) -> dict:
         payload = {
             "trajectory_id": "traj-a",
-            "annotator_id": "zhang",
+            "annotator_id": "carol",
             "root_cause_action_index": 1,
             "identifiable_at_action_index": 3,
             "error_types": ["grounding_failure"],
@@ -155,10 +155,10 @@ class AnnotationUIServiceTest(unittest.TestCase):
         self.assertEqual(record["source_trajectory_sha256"], TRAJ_SHA)
         self.assertEqual(record["taxonomy_version"], "draft")
         self.assertEqual(record["annotator_role"], "human")
-        self.assertEqual(record["annotation_id"], "traj-a__zhang")
-        self.assertEqual(target.name, "traj-a__zhang.json")
+        self.assertEqual(record["annotation_id"], "traj-a__carol")
+        self.assertEqual(target.name, "traj-a__carol.json")
         proposal = json.loads(
-            (self.out_dir / "cleaning_proposals" / "traj-a__zhang.json").read_text(
+            (self.out_dir / "cleaning_proposals" / "traj-a__carol.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -248,7 +248,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         result = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "rubric_scores": {"R1": 1},
                 "task_success": True,
             },
@@ -259,7 +259,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         review = json.loads(result["rubric_score_path"].read_text(encoding="utf-8"))
         self.assertEqual(review["scores"], {"R1": 1})
         self.assertTrue(review["task_success"])
-        self.assertEqual(self.service.config()["trajectories"][0]["annotated_by"], ["zhang"])
+        self.assertEqual(self.service.config()["trajectories"][0]["annotated_by"], ["carol"])
 
     def test_submit_review_saves_scores_and_failure_annotation(self) -> None:
         result = self.service.submit_review(
@@ -276,7 +276,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         target = self.service.save_draft(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "draft": {
                     "root": None,
                     "types": [],
@@ -286,9 +286,9 @@ class AnnotationUIServiceTest(unittest.TestCase):
                 "rubric_scores": {},
             }
         )
-        self.assertEqual(target.name, "traj-a__zhang.json")
+        self.assertEqual(target.name, "traj-a__carol.json")
         self.assertEqual(target.parent.name, "drafts")
-        recovered = self.service.draft("traj-a", "zhang")
+        recovered = self.service.draft("traj-a", "carol")
         self.assertIsNotNone(recovered)
         self.assertEqual(recovered["draft"]["rationale"], "还在检查")
         self.assertEqual(recovered["rubric_scores"], {})
@@ -298,7 +298,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         self.service.save_draft(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "draft": {"rationale": "unfinished"},
                 "rubric_scores": {"R1": 0},
             }
@@ -307,11 +307,11 @@ class AnnotationUIServiceTest(unittest.TestCase):
             self._payload(rubric_scores={"R1": 0}, task_success=False),
             allow_resubmit=False,
         )
-        self.assertIsNone(self.service.draft("traj-a", "zhang"))
+        self.assertIsNone(self.service.draft("traj-a", "carol"))
 
     def test_submission_is_empty_before_anything_is_submitted(self) -> None:
         self.assertEqual(
-            self.service.submission("traj-a", "zhang"),
+            self.service.submission("traj-a", "carol"),
             {
                 "rubric_scores": None,
                 "annotation": None,
@@ -325,7 +325,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             self._payload(rubric_scores={"R1": 0}, task_success=False),
             allow_resubmit=False,
         )
-        submission = self.service.submission("traj-a", "zhang")
+        submission = self.service.submission("traj-a", "carol")
         self.assertEqual(submission["annotation"]["root_cause_action_index"], 1)
         self.assertEqual(submission["annotation"]["identifiable_at_action_index"], 3)
         self.assertEqual(submission["annotation"]["error_types"], ["grounding_failure"])
@@ -336,10 +336,10 @@ class AnnotationUIServiceTest(unittest.TestCase):
 
     def test_submission_reads_back_a_wrong_rollout_flag(self) -> None:
         self.service.submit_review(
-            {"trajectory_id": "traj-a", "annotator_id": "zhang", "wrong_rollout": True},
+            {"trajectory_id": "traj-a", "annotator_id": "carol", "wrong_rollout": True},
             allow_resubmit=False,
         )
-        submission = self.service.submission("traj-a", "zhang")
+        submission = self.service.submission("traj-a", "carol")
         self.assertEqual(submission["rollout_flag"]["rollout_status"], "needs_rerun")
         self.assertIsNone(submission["annotation"])
         self.assertIsNone(submission["rubric_scores"])
@@ -349,7 +349,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             self._payload(rubric_scores={"R1": 0}, task_success=False),
             allow_resubmit=False,
         )
-        other = self.service.submission("traj-a", "li")
+        other = self.service.submission("traj-a", "alice")
         self.assertEqual(set(other.values()), {None})
 
     def test_reading_a_submission_never_touches_the_label_tree(self) -> None:
@@ -367,13 +367,13 @@ class AnnotationUIServiceTest(unittest.TestCase):
 
         before = snapshot()
         self.assertTrue(before)
-        self.service.submission("traj-a", "zhang")
-        self.service.submission("traj-a", "li")
+        self.service.submission("traj-a", "carol")
+        self.service.submission("traj-a", "alice")
         self.assertEqual(snapshot(), before)
 
     def test_clear_review_archives_only_current_annotator_and_task(self) -> None:
-        review_id = "traj-a__zhang"
-        other_id = "traj-a__li"
+        review_id = "traj-a__carol"
+        other_id = "traj-a__alice"
         targets = [
             self.out_dir / (review_id + ".json"),
             self.out_dir / "drafts" / (review_id + ".json"),
@@ -387,7 +387,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             path.write_text("{}", encoding="utf-8")
 
         result = self.service.clear_review(
-            {"trajectory_id": "traj-a", "annotator_id": "zhang"}
+            {"trajectory_id": "traj-a", "annotator_id": "carol"}
         )
 
         self.assertEqual(len(result["cleared"]), 5)
@@ -399,7 +399,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
 
     def test_clear_review_is_idempotent_when_nothing_is_saved(self) -> None:
         result = self.service.clear_review(
-            {"trajectory_id": "traj-a", "annotator_id": "zhang"}
+            {"trajectory_id": "traj-a", "annotator_id": "carol"}
         )
         self.assertEqual(result, {"cleared": [], "archive_path": None})
 
@@ -415,7 +415,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             self._payload(rubric_scores={"R1": 1, "R2": 0}, task_success=False),
             allow_resubmit=False,
         )
-        records = self.service.export_results("zhang")
+        records = self.service.export_results("carol")
         self.assertEqual(len(records), 1)
         self.assertEqual(
             set(records[0]),
@@ -432,7 +432,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             },
         )
         self.assertEqual(records[0]["trajectory_id"], "traj-a")
-        self.assertEqual(records[0]["annotator_id"], "zhang")
+        self.assertEqual(records[0]["annotator_id"], "carol")
         self.assertEqual(records[0]["scores"], {"R1": 1, "R2": 0})
         self.assertEqual(records[0]["weighted_rubric_score"], 0.25)
         self.assertEqual(records[0]["task_score"], 0)
@@ -449,35 +449,35 @@ class AnnotationUIServiceTest(unittest.TestCase):
             allow_resubmit=False,
         )
 
-        result = self.service.export_results_jsonl("zhang")
+        result = self.service.export_results_jsonl("carol")
 
         target = result["path"]
         self.assertEqual(result["record_count"], 1)
         self.assertEqual(target.parent, self.out_dir / "exports")
-        self.assertTrue(target.name.startswith("b1_human_label_results_zhang_"))
+        self.assertTrue(target.name.startswith("b1_human_label_results_carol_"))
         rows = [
             json.loads(line)
             for line in target.read_text(encoding="utf-8").splitlines()
         ]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["trajectory_id"], "traj-a")
-        self.assertEqual(rows[0]["failure_annotation"]["annotator_id"], "zhang")
+        self.assertEqual(rows[0]["failure_annotation"]["annotator_id"], "carol")
 
     def test_export_results_ignores_submissions_outside_active_builds(self) -> None:
         self.service.submit_review(
             self._payload(rubric_scores={"R1": 0}, task_success=False),
             allow_resubmit=False,
         )
-        review_path = self.out_dir / "rubric_scores" / "traj-a__zhang.json"
+        review_path = self.out_dir / "rubric_scores" / "traj-a__carol.json"
         stale_review = json.loads(review_path.read_text(encoding="utf-8"))
         stale_review["trajectory_id"] = "retired-traj"
-        stale_review["review_id"] = "retired-traj__zhang"
-        (review_path.parent / "retired-traj__zhang.json").write_text(
+        stale_review["review_id"] = "retired-traj__carol"
+        (review_path.parent / "retired-traj__carol.json").write_text(
             json.dumps(stale_review), encoding="utf-8"
         )
 
         records = self.service.export_results(
-            "zhang", active_trajectory_ids={"traj-a"}
+            "carol", active_trajectory_ids={"traj-a"}
         )
 
         self.assertEqual([record["trajectory_id"] for record in records], ["traj-a"])
@@ -486,13 +486,13 @@ class AnnotationUIServiceTest(unittest.TestCase):
         self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "rubric_scores": {"R1": 1},
                 "task_success": True,
             },
             allow_resubmit=False,
         )
-        record = self.service.export_results("zhang")[0]
+        record = self.service.export_results("carol")[0]
         self.assertEqual(record["weighted_rubric_score"], 1.0)
         self.assertEqual(record["task_score"], 1)
         self.assertIsNone(record["failure_annotation"])
@@ -507,7 +507,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         result = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "wrong_rollout": True,
             },
             allow_resubmit=False,
@@ -519,9 +519,9 @@ class AnnotationUIServiceTest(unittest.TestCase):
         self.assertEqual(flag["reason"], "wrong_rollout")
 
         config = self.service.config()["trajectories"][0]
-        self.assertEqual(config["annotated_by"], ["zhang"])
-        self.assertEqual(config["rerun_requested_by"], ["zhang"])
-        record = self.service.export_results("zhang")[0]
+        self.assertEqual(config["annotated_by"], ["carol"])
+        self.assertEqual(config["rerun_requested_by"], ["carol"])
+        record = self.service.export_results("carol")[0]
         self.assertEqual(record["rollout_status"], "needs_rerun")
         self.assertIsNone(record["scores"])
         self.assertIsNone(record["weighted_rubric_score"])
@@ -531,7 +531,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         review_result = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "rubric_scores": {"R1": 1},
                 "task_success": True,
             },
@@ -540,21 +540,21 @@ class AnnotationUIServiceTest(unittest.TestCase):
         flag_result = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "wrong_rollout": True,
             },
             allow_resubmit=False,
         )
         self.assertFalse(review_result["rubric_score_path"].exists())
         self.assertTrue(flag_result["rollout_flag_path"].is_file())
-        records = self.service.export_results("zhang")
+        records = self.service.export_results("carol")
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["rollout_status"], "needs_rerun")
 
         latest = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "rubric_scores": {"R1": 1},
                 "task_success": True,
             },
@@ -562,7 +562,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         )
         self.assertFalse(flag_result["rollout_flag_path"].exists())
         self.assertTrue(latest["rubric_score_path"].is_file())
-        self.assertEqual(self.service.export_results("zhang")[0]["rollout_status"], "valid")
+        self.assertEqual(self.service.export_results("carol")[0]["rollout_status"], "valid")
 
     def test_latest_success_removes_stale_failure_and_cleaning_files(self) -> None:
         failed = self.service.submit_review(
@@ -577,7 +577,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         latest = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "rubric_scores": {"R1": 1},
                 "task_success": True,
             },
@@ -594,7 +594,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         result = self.service.submit_review(
             {
                 "trajectory_id": "traj-a",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "rubric_scores": {"R1": 1},
                 "task_success": True,
             },
@@ -605,7 +605,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             self.service.submit_review(
                 {
                     "trajectory_id": "traj-a",
-                    "annotator_id": "zhang",
+                    "annotator_id": "carol",
                     "rubric_scores": {},
                     "task_success": False,
                 },
@@ -614,7 +614,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         self.assertEqual(result["rubric_score_path"].read_bytes(), before)
 
     def test_third_annotator_adjudicates_two_reviews_and_protocol_files_surface(self) -> None:
-        for annotator, identifiable in (("zhang", 3), ("li", 4)):
+        for annotator, identifiable in (("carol", 3), ("alice", 4)):
             self.service.submit_review(
                 self._payload(
                     annotator_id=annotator,
@@ -626,11 +626,11 @@ class AnnotationUIServiceTest(unittest.TestCase):
             )
         adjudication = {
             "trajectory_id": "traj-a",
-            "annotator_id": "wang",
+            "annotator_id": "bob",
             "task_success": False,
             "resolution_rationale": "The error is visible at action 4.",
             "failure_adjudication": {
-                "input_annotation_ids": ["traj-a__li", "traj-a__zhang"],
+                "input_annotation_ids": ["traj-a__alice", "traj-a__carol"],
                 "root_cause_action_index": 1,
                 "error_horizon_actions": 3,
                 "identifiable_at_action_index": 4,
@@ -642,9 +642,9 @@ class AnnotationUIServiceTest(unittest.TestCase):
             },
         }
         with self.assertRaises(UI.UIError):
-            self.service.submit_adjudication({**adjudication, "annotator_id": "zhang"})
+            self.service.submit_adjudication({**adjudication, "annotator_id": "carol"})
         record = json.loads(self.service.submit_adjudication(adjudication).read_text("utf-8"))
-        self.assertEqual(record["input_review_ids"], ["traj-a__li", "traj-a__zhang"])
+        self.assertEqual(record["input_review_ids"], ["traj-a__alice", "traj-a__carol"])
         self.assertEqual(record["failure_adjudication"]["identifiable_at_action_index"], 4)
 
         (self.out_dir / "protocol").mkdir()
@@ -658,12 +658,12 @@ class AnnotationUIServiceTest(unittest.TestCase):
         )
         listed = self.service.config()["trajectories"][0]
         self.assertTrue(listed["double_annotation"])
-        self.assertEqual(listed["adjudicated_by"], ["wang"])
+        self.assertEqual(listed["adjudicated_by"], ["bob"])
         self.assertEqual(self.service.task("traj-a")["auto_proposal"]["review_route"], "human_verify")
 
     def test_missing_horizon_keeps_both_indices_null(self) -> None:
         target = self.service.submit(
-            self._payload(annotator_id="li", identifiable_at_action_index=None),
+            self._payload(annotator_id="alice", identifiable_at_action_index=None),
             allow_resubmit=False,
         )
         record = json.loads(target.read_text(encoding="utf-8"))
@@ -680,7 +680,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
     def test_cleaning_proposal_pins_old_action_and_rejects_root_drop(self) -> None:
         target = self.service.submit(
             self._payload(
-                annotator_id="li",
+                annotator_id="alice",
                 cleaning_drop_candidates=[
                     {
                         "action_index_global": 2,
@@ -705,7 +705,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         with self.assertRaises(UI.UIError):
             self.service.submit(
                 self._payload(
-                    annotator_id="wang",
+                    annotator_id="bob",
                     cleaning_drop_candidates=[
                         {
                             "action_index_global": 1,
@@ -720,7 +720,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
     def test_cleaning_review_is_required(self) -> None:
         with self.assertRaises(UI.UIError):
             self.service.submit(
-                self._payload(annotator_id="li", cleaning_review_complete=False),
+                self._payload(annotator_id="alice", cleaning_review_complete=False),
                 allow_resubmit=False,
             )
 
@@ -866,7 +866,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         config = self.service.config()
         self.assertEqual(config["known_extra_labels"], ["menu_drift"])
         self.assertEqual(config["open_coded_label_groups"]["others"], ["menu_drift"])
-        self.assertEqual(config["trajectories"][0]["annotated_by"], ["zhang"])
+        self.assertEqual(config["trajectories"][0]["annotated_by"], ["carol"])
         self.assertEqual(config["trajectories"][0]["action_count"], _FIXTURE_ACTIONS)
         self.assertTrue(config["trajectories"][0]["normalization_gate_passed"])
         self.assertEqual(config["trajectories"][0]["agent_id"], "gpt_5_5")
@@ -881,7 +881,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
     def test_open_coded_label_registry_is_shared_and_categorized(self) -> None:
         created = self.service.add_open_coded_label(
             {
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "label": "Missed required comparison",
                 "category": "planning",
                 "description_zh": "遗漏了任务明确要求进行的比较或对照分析。",
@@ -899,7 +899,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         metadata = registry["labels"]["missed_required_comparison"]
         self.assertEqual(metadata["category"], "planning")
-        self.assertEqual(metadata["created_by"], "zhang")
+        self.assertEqual(metadata["created_by"], "carol")
         self.assertEqual(
             metadata["description_zh"],
             "遗漏了任务明确要求进行的比较或对照分析。",
@@ -920,7 +920,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
     def test_open_coded_label_can_be_recategorized_and_soft_deleted(self) -> None:
         self.service.add_open_coded_label(
             {
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "label": "menu drift",
                 "category": "perception",
                 "description_zh": "误判菜单展开后目标选项所在的位置。",
@@ -928,7 +928,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         )
         annotation = self.service.submit(
             self._payload(
-                annotator_id="li",
+                annotator_id="alice",
                 error_types=["grounding_failure", "menu_drift"],
             ),
             allow_resubmit=False,
@@ -937,7 +937,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
 
         updated = self.service.update_open_coded_label(
             {
-                "annotator_id": "wang",
+                "annotator_id": "bob",
                 "label": "menu_drift",
                 "category": "execution",
             }
@@ -949,11 +949,11 @@ class AnnotationUIServiceTest(unittest.TestCase):
         registry_path = self.out_dir / "taxonomy" / "open_coded_labels.json"
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         metadata = registry["labels"]["menu_drift"]
-        self.assertEqual(metadata["updated_by"], "wang")
+        self.assertEqual(metadata["updated_by"], "bob")
         self.assertTrue(metadata["updated_at"].endswith("+00:00"))
 
         deleted = self.service.delete_open_coded_label(
-            {"annotator_id": "wang", "label": "menu_drift"}
+            {"annotator_id": "bob", "label": "menu_drift"}
         )
         self.assertTrue(deleted["deleted"])
         groups = self.service.open_coded_label_groups()
@@ -970,7 +970,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
     def test_seed_error_type_category_and_description_are_shared_overrides(self) -> None:
         updated = self.service.update_open_coded_label(
             {
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "label": "grounding_failure",
                 "category": "planning",
                 "description_zh": "模型知道目标，但界面定位或操作落点不准确。",
@@ -1007,30 +1007,30 @@ class AnnotationUIServiceTest(unittest.TestCase):
         )
         with self.assertRaises(UI.UIError):
             self.service.delete_open_coded_label(
-                {"annotator_id": "zhang", "label": "grounding_failure"}
+                {"annotator_id": "carol", "label": "grounding_failure"}
             )
 
     def test_open_coded_label_registration_is_idempotent_but_category_is_stable(self) -> None:
         payload = {
-            "annotator_id": "zhang",
+            "annotator_id": "carol",
             "label": "menu drift",
             "category": "perception",
             "description_zh": "误判菜单展开后目标选项所在的位置。",
         }
         first = self.service.add_open_coded_label(payload)
         second = self.service.add_open_coded_label(
-            {**payload, "annotator_id": "li"}
+            {**payload, "annotator_id": "alice"}
         )
         self.assertEqual(first, second)
         with self.assertRaises(UI.ConflictError):
             self.service.add_open_coded_label(
-                {**payload, "annotator_id": "li", "category": "execution"}
+                {**payload, "annotator_id": "alice", "category": "execution"}
             )
         with self.assertRaises(UI.ConflictError):
             self.service.add_open_coded_label(
                 {
                     **payload,
-                    "annotator_id": "li",
+                    "annotator_id": "alice",
                     "description_zh": "这是另一个不同的中文定义。",
                 }
             )
@@ -1039,7 +1039,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
         with self.assertRaises(UI.UIError):
             self.service.add_open_coded_label(
                 {
-                    "annotator_id": "zhang",
+                    "annotator_id": "carol",
                     "label": "menu drift",
                     "category": "uncategorized",
                     "description_zh": "误判菜单展开后目标选项所在的位置。",
@@ -1051,7 +1051,7 @@ class AnnotationUIServiceTest(unittest.TestCase):
             with self.subTest(description=description), self.assertRaises(UI.UIError):
                 self.service.add_open_coded_label(
                     {
-                        "annotator_id": "zhang",
+                        "annotator_id": "carol",
                         "label": "menu drift",
                         "category": "perception",
                         "description_zh": description,
@@ -1107,14 +1107,14 @@ class AnnotationUIServiceTest(unittest.TestCase):
         draft = service.save_draft(
             {
                 "trajectory_id": "traj-b",
-                "annotator_id": "zhang",
+                "annotator_id": "carol",
                 "draft": {"rationale": "checking second build"},
                 "rubric_scores": {},
             }
         )
-        self.assertEqual(draft.name, "traj-b__zhang.json")
+        self.assertEqual(draft.name, "traj-b__carol.json")
         self.assertEqual(
-            service.draft("traj-b", "zhang")["draft"]["rationale"],
+            service.draft("traj-b", "carol")["draft"]["rationale"],
             "checking second build",
         )
 

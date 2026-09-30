@@ -40,6 +40,7 @@ REQUIRED_PATHS = (
     "scripts/benchmark/prepare_annotations.py",
     "scripts/benchmark/build_benchmark.py",
     "scripts/benchmark/replay_instance.py",
+    "scripts/takeover/run.sh",
     "scripts/takeover/build_native_history.py",
     "scripts/takeover/run_evaluation.py",
     "scripts/analysis/summarize_open_taxonomy.py",

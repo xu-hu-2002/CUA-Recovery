@@ -424,14 +424,12 @@ index 6cea2e7..e373954 100644
                  "screenshot_file": screenshot_file if screenshot_saved else "",
              }, ensure_ascii=False) + "\n"
              with open(traj_path, "a") as f:
-@@ -851,7 +930,12 @@ def main():
+@@ -851,7 +930,10 @@ def main():
      logger.info("Loaded %d tasks from %s", len(tasks), args.tasks_dir)
  
      if args.backend == "qemu":
 -        args.qcow2_path = _ensure_current_qcow2(args.qcow2_path or os.environ.get("MYPCBENCH_QCOW2"))
 +        if os.environ.get("MYPCBENCH_REMOTE_ATTACH") == "1":
-+            # ROCK proxy 拓扑：guest 在沙箱内，qcow2 由 driver prep 拉取；
-+            # 本机（Nebula）无 KVM 也无 qcow2，绝不能触发 managed 刷新下载。
 +            args.qcow2_path = args.qcow2_path or os.environ.get("MYPCBENCH_QCOW2")
 +        else:
 +            args.qcow2_path = _ensure_current_qcow2(args.qcow2_path or os.environ.get("MYPCBENCH_QCOW2"))

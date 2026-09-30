@@ -32,7 +32,7 @@ Usage:
   bash scripts/takeover/watch_takeover.sh --kill       # stop the dashboard session
 
 The same SOURCE_AGENT, TARGET_AGENT, RUN_TAG, CONDITIONS, and DEPTHS overrides used
-by run_takeover.sh may be supplied here. REFRESH defaults to 15 seconds.
+by scripts/takeover/run.sh may be supplied here. REFRESH defaults to 15 seconds.
 EOF
 }
 
@@ -258,7 +258,7 @@ if paused_at:
 print()
 
 if not selection.exists():
-    print("  Waiting for selection.tsv. Start scripts/rock/run_takeover.sh first.")
+    print("  Waiting for selection.tsv. Start scripts/takeover/run.sh first.")
     raise SystemExit(0)
 if planned == 0:
     print("  selection.tsv contains no episodes for the requested DEPTHS.")

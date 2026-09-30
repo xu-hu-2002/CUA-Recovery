@@ -45,7 +45,7 @@ def _visible_response(source_record_uri: str, cache: dict[Path, list[str]]) -> s
         marker = "/artifacts/raw_rollouts/mypcbench/v1/"
         if marker in path_text:
             suffix = path_text.split(marker, 1)[1]
-            path = REPOSITORY / "artifacts/raw_rollouts/oss_import_20260908" / suffix
+            path = REPOSITORY / "artifacts/raw_rollouts/import_20260908" / suffix
     if path not in cache:
         cache[path] = path.read_text(encoding="utf-8").splitlines()
     record = json.loads(cache[path][int(line) - 1])

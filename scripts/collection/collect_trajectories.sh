@@ -890,12 +890,12 @@ PY
 }
 
 if [[ "$DRY_RUN" != "1" ]]; then
-  if [[ "$BACKEND" == "qemu" && "${MYPCBENCH_REMOTE_ATTACH:-0}" != "1" ]]; then
+  if [[ "$BACKEND" == "qemu" ]]; then
     [[ "$(uname -s)" == "Linux" ]] || die "QEMU 正式运行需要 Linux host"
     if [[ ! -e /dev/kvm && "${ALLOW_NO_KVM:-0}" != "1" ]]; then
       die "没有 /dev/kvm；如确实接受纯软件模拟，请显式设置 ALLOW_NO_KVM=1"
     fi
-  elif [[ "$BACKEND" != "qemu" ]]; then
+  else
     command -v docker >/dev/null 2>&1 || die "BACKEND=docker 但找不到 docker"
   fi
 fi
@@ -930,10 +930,7 @@ fi
 
 QCOW2_ARGS=()
 image_sha256="not-applicable"
-if [[ "$BACKEND" == "qemu" && "${MYPCBENCH_REMOTE_ATTACH:-0}" == "1" ]]; then
-  image_sha256="remote-attach-qcow2-in-sandbox"
-  info "REMOTE_ATTACH=1：跳过本机 qcow2 解析（guest 资产在沙箱侧）"
-elif [[ "$BACKEND" == "qemu" ]]; then
+if [[ "$BACKEND" == "qemu" ]]; then
   qcow2_path="${MYPCBENCH_QCOW2:-${MYPCBENCH_ROOT}/mypcbench-vm/mypcbench.qcow2}"
   if [[ "$DRY_RUN" != "1" && ! -f "$qcow2_path" ]]; then
     info "首次下载 MyPCBench QEMU image；文件较大，请耐心等待"

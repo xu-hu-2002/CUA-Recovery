@@ -14,7 +14,6 @@ CSV_LABEL="${CSV_LABEL:-}"
 REPEAT="${REPEAT:-}"
 CSV_OUT_DIR="${CSV_OUT_DIR:-}"
 JUDGE_ARCHIVE_ROOT="${JUDGE_ARCHIVE_ROOT:-}"
-SHIP_TO_OSS="${SHIP_TO_OSS:-0}"
 FORCE=0
 PREPARE_ONLY=0
 ERROR_AWARENESS=0
@@ -41,14 +40,13 @@ Required selectors:
 Options:
   --run-tag TAG           Output run tag (default: takeover_v1).
   --judge-model MODEL     Must equal configs/judges/default.yaml model (default: not passed);
-                          image limits come from configs/judges/routify_model_registry.json.
+                          image limits come from configs/judges/model_registry.json.
   --max-images N          Positive integer <= the registered model image limit.
   --csv-label LABEL       CSV filename prefix; known agent IDs get paper-facing defaults.
   --csv-out-dir DIR       CSV destination (default: artifacts/takeover).
   --archive-root DIR      Persist scores/records/ledger under the independent judge tree.
-  --ship                  Upload after successful archiving; requires --archive-root.
   --force                 Rejudge every completed episode in the selected cell.
-  --prepare-only          Build/validate staging without API calls or uploads, even with --ship.
+  --prepare-only          Build/validate staging without API calls.
   --error-awareness       Also judge Error-Awareness: the first three post-takeover
                           thoughts get a binary verdict, EAR is aggregated by error type x
                           depth over every --depth at once, and each episode's verdict lands
@@ -61,10 +59,7 @@ Options:
 
 The same values can be supplied through SOURCE_AGENT, TAKEOVER_AGENT (or TARGET_AGENT),
 DEPTH, CONDITION, RUN_TAG, REPEAT, JUDGE_MODEL, MAX_IMAGES, CSV_LABEL, CSV_OUT_DIR,
-JUDGE_ARCHIVE_ROOT, and SHIP_TO_OSS (default: 0; set 1 to opt in).
-OSSUTIL overrides the uploader executable (default: ossutil).
-Uploads go under $JUDGE_OSS_ROOT (required with --ship),
-followed by <model>/<source>/<target>/<condition>/d<N>/.
+and JUDGE_ARCHIVE_ROOT.
 Only task directories with result.txt=1.0, rubric_bundle.json and no protocol_exclusion.json
 are staged.  Without REPEAT, a run with repeat_<k>/ directories is judged repeat by repeat and
 summarized once (scripts/judge/summarize_takeover.py).
@@ -88,7 +83,6 @@ while [[ $# -gt 0 ]]; do
     --csv-label) need_value "$@"; CSV_LABEL="$2"; shift 2 ;;
     --csv-out-dir) need_value "$@"; CSV_OUT_DIR="$2"; shift 2 ;;
     --archive-root) need_value "$@"; JUDGE_ARCHIVE_ROOT="$2"; shift 2 ;;
-    --ship) SHIP_TO_OSS=1; shift ;;
     --force) FORCE=1; shift ;;
     --prepare-only) PREPARE_ONLY=1; shift ;;
     --error-awareness) ERROR_AWARENESS=1; shift ;;
@@ -123,8 +117,6 @@ CONCURRENCY="${CONCURRENCY:-$MODEL_CONCURRENCY}"
   || fail "$EFFECTIVE_JUDGE_MODEL --max-images must be <= $MODEL_MAX_IMAGES"
 [[ "$MAX_COMPLETION_TOKENS" =~ ^[1-9][0-9]*$ ]] || fail "MAX_COMPLETION_TOKENS must be positive"
 [[ "$CONCURRENCY" =~ ^[1-9][0-9]*$ ]] || fail "CONCURRENCY must be positive"
-[[ "$SHIP_TO_OSS" == "0" || "$SHIP_TO_OSS" == "1" ]] || fail "SHIP_TO_OSS must be 0 or 1"
-[[ "$SHIP_TO_OSS" != "1" || -n "$JUDGE_ARCHIVE_ROOT" ]] || fail "--ship requires --archive-root (or JUDGE_ARCHIVE_ROOT)"
 [[ -z "$EAR_TASK_IDS_FILE" || "$ERROR_AWARENESS" == "1" ]] || fail "--ear-task-ids-file requires --error-awareness"
 
 if [[ "$DEPTH" == "all" ]]; then DEPTH="0/5/10/15/20/25"; fi
@@ -182,7 +174,6 @@ if (( ${#REPEAT_DIRS[@]} > 0 )); then
       --condition "$(IFS=/; echo "${CONDITION_VALUES[*]}")" --max-images "$MAX_IMAGES")
     [[ -n "$CSV_LABEL" ]] && child+=(--csv-label "${CSV_LABEL}_r${repeat_value}")
     [[ -n "$JUDGE_ARCHIVE_ROOT" ]] && child+=(--archive-root "$JUDGE_ARCHIVE_ROOT")
-    [[ "$SHIP_TO_OSS" == "1" ]] && child+=(--ship)
     REPEAT="$repeat_value" OUTPUT_ROOT="$repeat_dir" "${child[@]}"
   done
   if [[ "$PREPARE_ONLY" != "1" ]]; then
@@ -222,7 +213,6 @@ if [[ "$ERROR_AWARENESS_ONLY" != "1" ]] \
       [[ -n "$CSV_LABEL" ]] && child+=(--csv-label "$CSV_LABEL")
       [[ -n "$CSV_OUT_DIR" ]] && child+=(--csv-out-dir "$CSV_OUT_DIR")
       [[ -n "$JUDGE_ARCHIVE_ROOT" ]] && child+=(--archive-root "$JUDGE_ARCHIVE_ROOT")
-      [[ "$SHIP_TO_OSS" == "1" ]] && child+=(--ship)
       [[ "$FORCE" == "1" ]] && child+=(--force)
       [[ "$PREPARE_ONLY" == "1" ]] && child+=(--prepare-only)
       "${child[@]}"
@@ -375,12 +365,4 @@ if [[ -n "$JUDGE_ARCHIVE_ROOT" ]]; then
     --condition "$CONDITION" \
     --depth "$DEPTH" \
     --exclusions "$OUTPUT_ROOT/judge_exclusions.json"
-  if [[ "$SHIP_TO_OSS" == "1" ]]; then
-    ARCHIVE_DEPTH="$(python3 -c 'import sys; print(int(sys.argv[1]))' "$DEPTH")"
-    ARCHIVE_SUFFIX="$EFFECTIVE_JUDGE_MODEL/$SOURCE_AGENT/$TAKEOVER_AGENT/$CONDITION/d$ARCHIVE_DEPTH"
-    python3 "$REPO_ROOT/scripts/judge/ship_archive.py" \
-      --source "${JUDGE_ARCHIVE_ROOT%/}/$ARCHIVE_SUFFIX" \
-      --destination "${JUDGE_OSS_ROOT:?set JUDGE_OSS_ROOT to ship judge archives}${ARCHIVE_SUFFIX}/" \
-      --ossutil "${OSSUTIL:-ossutil}"
-  fi
 fi

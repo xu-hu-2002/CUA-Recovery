@@ -56,7 +56,6 @@ COMMANDS = {
         "rubric_csv": ("judge/rubric_csv.py", "Per-rubric CSV for one takeover cell."),
         "summarize_takeover": ("judge/summarize_takeover.py", "Pass@k and rubric score per depth x condition."),
         "archive": ("judge/archive.py", "Archive one judged takeover cell."),
-        "ship_archive": ("judge/ship_archive.py", "Upload one judge archive to OSS with parity checks."),
         "run_with_timeout": ("judge/run_with_timeout.py", "Run a command with a hard timeout."),
     },
     "benchmark": {
@@ -72,12 +71,12 @@ COMMANDS = {
         "build_cases_v1": ("benchmark/build_cases_v1.py", "Build derail-case records from analysed rollouts."),
     },
     "takeover": {
-        "run": ("rock/run_takeover.sh", "Launch prefix-takeover rollouts."),
+        "run": ("takeover/run.sh", "Launch prefix-takeover rollouts."),
         "watch_takeover": ("takeover/watch_takeover.sh", "tmux dashboard for takeover rollout and judge progress."),
         "prepare_source": ("takeover/prepare_source.py", "Canonicalize labelled trajectories for one source."),
         "build_native_history": ("takeover/build_native_history.py", "Build a target agent's native history."),
         "build_matrix": ("takeover/build_matrix.py", "Expand the takeover design into runnable groups."),
-        "stage_inputs": ("takeover/stage_inputs.py", "Stage hash-audited inputs for Nebula workers."),
+        "stage_inputs": ("takeover/stage_inputs.py", "Stage hash-audited takeover inputs."),
         "preflight_history": ("takeover/preflight_history.py", "Validate takeover history shape and token budget."),
         "run_rollout": ("takeover/run_rollout.py", "Run one prefix-takeover rollout."),
         "run_evaluation": ("takeover/run_evaluation.py", "Run or ingest one takeover episode and validate evidence."),
@@ -96,34 +95,14 @@ COMMANDS = {
         "retrospective_v1": ("analysis/retrospective_v1.py", "Parameter detector vs human labels."),
     },
     "phase5": {
-        "probe_rock": ("phase5/probe_rock_phase5.py", "ROCK network and KVM probes."),
-        "build_vm": ("phase5/build_phase5_vm.py", "Build and upload the Phase 5 qcow2 inside ROCK."),
         "build_vm_acceptance_manifest": ("phase5/build_vm_acceptance_manifest.py", "Freeze VM and infra identities for acceptance."),
-        "run_vm_acceptance": ("phase5/run_phase5_vm_acceptance.py", "Run VM acceptance in ROCK."),
         "validate_vm_acceptance": ("phase5/validate_vm_acceptance.py", "Validate a VM acceptance report."),
         "preflight_hazard_realization": ("phase5/preflight_hazard_realization.py", "Offline preflight for hazard records."),
-        "probe_guest_generator": ("phase5/probe_guest_generator.py", "Decide how a variant world can be realized."),
-        "run_hazard_smoke": ("phase5/run_hazard_smoke.py", "One hazard seed smoke against the guest image."),
         "terminalize_hazards": ("phase5/terminalize_hazards.py", "Merge guest hazard results into terminal JSONL."),
         "terminalize_option_a_hazards": ("phase5/terminalize_option_a_hazards.py", "Terminalize the option-A hazard catalog."),
         "freeze_catalog": ("phase5/freeze_catalog.py", "Freeze the run catalog after the hazard gate."),
         "build_rollout_workload": ("phase5/build_rollout_workload.py", "Build a hash-locked model/shard workload."),
         "run_rollout_workload": ("phase5/run_rollout_workload.py", "Run a frozen workload in MyPCBench."),
-    },
-    "rock": {
-        "make_task_shards": ("rock/make_task_shards.py", "Split the 184 MyPCBench tasks into shards."),
-        "stage_vm_assets": ("rock/stage_vm_assets.sh", "Download and verify the VM image inside a ROCK sandbox."),
-        "submit_collection": ("rock/submit_derail_rock_nebula.sh", "Submit a Nebula + ROCK collection job."),
-        "submit_opencua_smoke": ("rock/submit_derail_opencua_smoke.sh", "Submit the OpenCUA-72B smoke job."),
-        "run_phase5_rollout": ("rock/run_phase5_rollout.sh", "Run one Phase 5 rollout shard."),
-        **{
-            f"submit_takeover_{model}{fleet}": (
-                f"rock/submit_takeover_{model}{fleet}.sh",
-                f"Submit {'all shards' if fleet else 'one shard'} of a {model} takeover cell.",
-            )
-            for model in ("claude", "evocua", "kimi", "opencua", "qwen35")
-            for fleet in ("", "_fleet")
-        },
     },
 }
 

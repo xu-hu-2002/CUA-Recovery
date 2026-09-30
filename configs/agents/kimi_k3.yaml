@@ -3,7 +3,7 @@ family: kimi
 scaffold: derail_tool_agent
 agent_type: derail_kimi_k3
 model: kimi-k3
-api_gateway: routify_openai_compatible
+api_gateway: gateway_openai_compatible
 output_format: openai_compatible_function_calling
 scaffold_origin: derail_general_vlm
 live_adapter: derail.mypcbench.factory.create_mypcbench_agent

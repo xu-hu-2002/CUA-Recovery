@@ -3,7 +3,7 @@ family: openai_computer_use
 scaffold: upstream_runner
 agent_type: openai_cuabash
 model: gpt-5.6-luna
-api_snapshot: routify/protocol/openai/v1 (2026-08-06)
+api_snapshot: gateway/protocol/openai/v1 (2026-08-06)
 output_format: native_computer_call
 history_renderer: zdr_stateless_replay
 live_adapter: MyPCBench.agent-harness.agents.openai_cua
@@ -12,6 +12,6 @@ eta_step_seconds: 9.0
 eta_step_seconds_source: 借用 gpt_5_5 实测值（同代码路径同网关）；luna 未单独实测
 status: registered_smoke_only_not_in_any_formal_batch
 notes: >-
-  routify 组织启用 Zero Data Retention，previous_response_id 被拒，故走
+  网关组织启用 Zero Data Retention，previous_response_id 被拒，故走
   OPENAI_ZDR_STATELESS=1 的客户端全历史回放（store:false +
-  reasoning.encrypted_content）。详见 docs/ROUTIFY_API_MATRIX.md。
+  reasoning.encrypted_content）。

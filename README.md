@@ -35,8 +35,8 @@ Fine-tuning Qwen3.5-35B-A3B on CUA-Recovery-Train gives **ReRail-35B-A3B**.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/xu-hu-2002/CUA-Recovery.git
-cd CUA-Recovery
+git clone https://anonymous.4open.science/r/CUA-Recovery-B03B
+cd CUA-Recovery-B03B
 ```
 
 2. Run the setup script. It creates a virtual environment, installs dependencies, fetches MyPCBench into `third_party/` at a pinned commit, applies `patches/`, and creates `.env`:
@@ -126,8 +126,6 @@ All parameters live in `configs/`. The defaults follow the paper.
 | `configs/train/sft_v1.yaml` | Hint schedule, teacher, leak filter, SFT objective and hyperparameters |
 | `configs/agents/*.yaml` | Per-agent model, action space, and context settings |
 
-Deployment-specific locations for ROCK sandboxes (`ROCK_*`) and object storage (`OSS_*`, `JUDGE_OSS_ROOT`) are read from the environment. See `.env.example`.
-
 ## File Structure
 
 ```
@@ -147,7 +145,7 @@ CUA-Recovery/
 ├── scripts/                # Stage scripts called by main.py
 │   ├── synthesis/  collection/  judge/  benchmark/
 │   ├── takeover/   train/       analysis/
-│   └── rock/  phase5/  lib/
+│   └── phase5/  lib/
 ├── configs/                # All configuration
 ├── prompts/                # Agent and judge prompts
 ├── schemas/                # JSON Schemas for data formats

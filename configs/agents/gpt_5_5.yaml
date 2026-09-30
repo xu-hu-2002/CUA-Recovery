@@ -3,11 +3,11 @@ family: openai_computer_use
 scaffold: upstream_runner
 agent_type: openai_cuabash
 model: gpt-5.5
-api_snapshot: routify/protocol/openai/v1 (2026-08-06)
+api_snapshot: gateway/protocol/openai/v1 (2026-08-06)
 output_format: native_computer_call
 history_renderer: zdr_stateless_replay
 live_adapter: MyPCBench.agent-harness.agents.openai_cua
 num_vms: 4
 eta_step_seconds: 9.0
-eta_step_seconds_source: v1 全量采集步间间隔中位（docs/ROUTIFY_API_MATRIX.md §9.3）
+eta_step_seconds_source: v1 全量采集步间间隔中位
 status: collected_v1_pending_rejudge_with_opus_4_8

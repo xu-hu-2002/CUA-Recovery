@@ -16,7 +16,6 @@ third_party_paths() {
   MYPCBENCH_NATIVE_RESPONSES_PATCH="${repo_root}/patches/mypcbench_caf9c754_native_responses_state.patch"
   MYPCBENCH_GPT55_RESILIENCE_PATCH="${repo_root}/patches/mypcbench_caf9c754_gpt55_recollection_resilience.patch"
   MYPCBENCH_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_derail_judge.patch"
-  MYPCBENCH_PROXY_PATCH="${repo_root}/patches/mypcbench_caf9c754_derail_proxy.patch"
   MYPCBENCH_MESSAGE_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_message_first_judge.patch"
   MYPCBENCH_JUDGE_RESILIENCE_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_resilience_v2.patch"
   MYPCBENCH_JUDGE_REASONING_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_reasoning_effort_low.patch"
@@ -127,10 +126,6 @@ setup_mypcbench_judge() {
     "$MYPCBENCH_JUDGE_PROCESS_TIMEOUT_PATCH" "judge process timeout"
   apply_mypcbench_patch \
     "$MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH" "judge fail on errors"
-}
-
-setup_mypcbench_proxy() {
-  apply_mypcbench_patch "$MYPCBENCH_PROXY_PATCH" "DERAIL proxy"
 }
 
 setup_evocua() {

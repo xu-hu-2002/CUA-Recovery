@@ -220,7 +220,7 @@ class NativeHistoryRegistryTests(unittest.TestCase):
 
     def test_kimi_k3_is_explicitly_scaffold_and_reuses_absolute_pixels(self) -> None:
         registration = get_registration("kimi_k3")
-        self.assertIn("frozen_schema_via_routify", registration.protocol_origin)
+        self.assertIn("frozen_schema_via_gateway", registration.protocol_origin)
         adapter = registration.create("Do the task")
         self.assertIsInstance(adapter, KimiK3ScaffoldAdapter)
         call = adapter.action_to_call(

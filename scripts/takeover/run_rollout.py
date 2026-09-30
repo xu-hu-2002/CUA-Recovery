@@ -439,7 +439,6 @@ def main() -> int:
                 "timeout_seconds": args.timeout,
                 "worker_index": args.worker_index,
                 "worker_port_base": worker_port_base,
-                "rock_sandbox_id": os.environ.get("ROCK_SANDBOX_ID") or None,
                 "runtime_dir": str(runtime_dir),
                 "trajectory_id": trajectory_id,
                 "task_id": task_id,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Administer a MyPCBench guest through its control API from a ROCK sandbox."""
+"""Administer a MyPCBench guest through its control API."""
 
 from __future__ import annotations
 

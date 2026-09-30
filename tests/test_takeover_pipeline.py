@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import subprocess
 import tempfile
 import types
 import unittest
@@ -84,131 +83,9 @@ class ProductionBundleDefaultsTests(unittest.TestCase):
             self.assertIn((source_dir / "state_probes.jsonl").resolve(), required)
             self.assertFalse(missing)
 
-    def test_proxy_port_allocator_is_stable_and_collection_scoped(self):
-        repo = Path(__file__).resolve().parents[1]
-        allocator = repo / "scripts/rock/allocate_proxy_ports.sh"
-
-        def allocate(collection_id: str) -> str:
-            command = (
-                "unset PROXY_PORT_BASE PROXY_LIFECYCLE_PORT; "
-                f"COLLECTION_ID={collection_id} source {allocator}; "
-                'printf "%s:%s" "$PROXY_PORT_BASE" "$PROXY_LIFECYCLE_PORT"'
-            )
-            return subprocess.run(
-                ["bash", "-c", command], check=True, capture_output=True, text=True
-            ).stdout.splitlines()[-1]
-
-        first = allocate("collection-a")
-        self.assertEqual(first, allocate("collection-a"))
-        self.assertNotEqual(first, allocate("collection-b"))
-        base, lifecycle = (int(value) for value in first.split(":"))
-        self.assertEqual(lifecycle, base + 28)
-
-    def test_rock_entrypoints_default_to_the_frozen_v2_bundle(self):
-        repo = Path(__file__).resolve().parents[1]
-        for relative_path in (
-            "scripts/rock/derail_rock_driver.py",
-            "scripts/rock/submit_derail_opencua_smoke.sh",
-            "scripts/rock/submit_derail_rock_nebula.sh",
-        ):
-            source = (repo / relative_path).read_text(encoding="utf-8")
-            self.assertIn("takeover_inputs/failure_prefix_v1_full_v3", source)
-
-    def test_submit_entrypoints_reject_tracked_dirty_worktrees(self):
-        repo = Path(__file__).resolve().parents[1]
-        for relative_path in (
-            "scripts/rock/submit_derail_opencua_smoke.sh",
-            "scripts/rock/submit_derail_rock_nebula.sh",
-        ):
-            source = (repo / relative_path).read_text(encoding="utf-8")
-            self.assertIn('ALLOW_DIRTY_SUBMIT="${ALLOW_DIRTY_SUBMIT:-0}"', source)
-            self.assertIn('git -C "$REPO" diff --quiet --ignore-submodules', source)
-            self.assertIn('git -C "$REPO" diff --cached --quiet --ignore-submodules', source)
-
-    def test_submit_entrypoints_serialize_fixed_run_config_packaging(self):
-        repo = Path(__file__).resolve().parents[1]
-        for relative_path in (
-            "scripts/rock/submit_derail_opencua_smoke.sh",
-            "scripts/rock/submit_derail_rock_nebula.sh",
-        ):
-            source = (repo / relative_path).read_text(encoding="utf-8")
-            self.assertIn('SUBMIT_LOCK_DIR="$REPO/.submit_derail_nebula.lock"', source)
-            self.assertIn('mkdir "$SUBMIT_LOCK_DIR"', source)
-            self.assertIn("trap _release_submit_lock EXIT", source)
-            self.assertIn("fi; _release_submit_lock' EXIT", source)
-
-    def test_rock_driver_keeps_oss_credentials_out_of_action_argv(self):
-        repo = Path(__file__).resolve().parents[1]
-        source = (repo / "scripts/rock/derail_rock_driver.py").read_text(encoding="utf-8")
-        self.assertIn("await sandbox.fs.upload_dir(", source)
-        self.assertIn("ossutil -c {shlex.quote(OSS_CONFIG_REMOTE_PATH)}", source)
-        self.assertNotIn('ossutil -e \"$OSS_ENDPOINT\" -i', source)
-        self.assertNotIn("f\"{secrets_body}DERAILEOF", source)
-
-    def test_opencua_fleet_preserves_running_sibling_sandboxes(self):
-        repo = Path(__file__).resolve().parents[1]
-        fleet = repo / "scripts/rock/submit_takeover_opencua_fleet.sh"
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            calls = root / "calls.txt"
-            submit = root / "submit.sh"
-            submit.write_text(
-                'printf "%s:%s:%s\\n" "$SHARD_OFFSET" "$SHARD_COUNT" '
-                '"$SWEEP_STALE_SANDBOXES" >> "$CALLS_FILE"\n',
-                encoding="utf-8",
-            )
-            env = os.environ.copy()
-            env.update(
-                {
-                    "SHARD_COUNT": "3",
-                    "MAX_FLEET_WORKERS": "3",
-                    "SUBMIT_SCRIPT": str(submit),
-                    "CALLS_FILE": str(calls),
-                }
-            )
-            subprocess.run(["bash", str(fleet)], env=env, check=True)
-            self.assertEqual(calls.read_text().splitlines(), ["0:3:0", "1:3:0", "2:3:0"])
-
-    def test_kimi_fleet_preserves_running_sibling_sandboxes(self):
-        repo = Path(__file__).resolve().parents[1]
-        fleet = repo / "scripts/rock/submit_takeover_kimi_fleet.sh"
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            calls = root / "calls.txt"
-            submit = root / "submit.sh"
-            submit.write_text(
-                'printf "%s:%s:%s:%s\\n" "$SHARD_OFFSET" "$SHARD_COUNT" '
-                '"$SWEEP_STALE_SANDBOXES" "$COLLECTION_ID" >> "$CALLS_FILE"\n',
-                encoding="utf-8",
-            )
-            env = os.environ.copy()
-            env.update(
-                {
-                    "SHARD_COUNT": "3",
-                    "MAX_FLEET_WORKERS": "3",
-                    "SUBMIT_SCRIPT": str(submit),
-                    "CALLS_FILE": str(calls),
-                    "COLLECTION_ID_PREFIX": "retry",
-                }
-            )
-            subprocess.run(["bash", str(fleet)], env=env, check=True)
-            self.assertEqual(
-                calls.read_text().splitlines(),
-                ["0:3:0:retry-s0of3", "1:3:0:retry-s1of3", "2:3:0:retry-s2of3"],
-            )
-
-    def test_opencua_takeover_uses_the_frozen_result_layout(self):
-        repo = Path(__file__).resolve().parents[1]
-        source = (repo / "scripts/rock/submit_derail_opencua_smoke.sh").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("results/takeover/failure_prefix_v1/", source)
-        self.assertIn("${TAKEOVER_SOURCE_AGENT}/${TAKEOVER_TARGET_AGENT}", source)
-        self.assertIn("${TAKEOVER_CONDITION}/d${TAKEOVER_DEPTH}", source)
-
     def test_takeover_preflight_uses_the_same_external_shard_range_as_workers(self):
         repo = Path(__file__).resolve().parents[1]
-        source = (repo / "scripts/rock/run_takeover.sh").read_text()
+        source = (repo / "scripts/takeover/run.sh").read_text()
         self.assertIn('--shard-count "$SHARD_COUNT"', source)
         self.assertIn('--shard-offset "$SHARD_OFFSET"', source)
         self.assertIn('--shard-workers "$NUM_WORKERS"', source)
@@ -218,118 +95,12 @@ class ProductionBundleDefaultsTests(unittest.TestCase):
         self.assertIn('"token_overflow"', source)
         self.assertIn('--takeover-config "$TAKEOVER_CONFIG"', source)
 
-    def test_qwen_runtime_budget_contract_is_packaged_for_nebula(self):
+    def test_evocua_takeover_preflight_has_no_native_request_api(self):
         repo = Path(__file__).resolve().parents[1]
-        source = (repo / "scripts/rock/submit_derail_opencua_smoke.sh").read_text()
-        for variable in (
-            "MYPCBENCH_QWEN_MAX_TOKENS",
-            "MYPCBENCH_QWEN_HISTORY_N",
-            "MYPCBENCH_QWEN_CONTEXT_POLICY",
-        ):
-            self.assertIn(f"export {variable}=", source)
-
-    def test_open_model_takeover_wrappers_freeze_protocol_and_layout(self):
-        repo = Path(__file__).resolve().parents[1]
-        qwen35 = (repo / "scripts/rock/submit_takeover_qwen35.sh").read_text()
-        self.assertIn("TAKEOVER_TOKENIZE_MODE=vllm", qwen35)
-        self.assertIn("TAKEOVER_CONTEXT_CAP=49152", qwen35)
-        self.assertIn("Qwen/Qwen3.5-35B-A3B", qwen35)
-        self.assertIn("--disable-custom-all-reduce --enforce-eager", qwen35)
-        self.assertIn("--enable-auto-tool-choice", qwen35)
-        self.assertIn("--tool-call-parser hermes", qwen35)
-        self.assertNotIn("--reasoning-parser", qwen35)
-        self.assertIn("MYPCBENCH_QWEN_MAX_TOKENS=4096", qwen35)
-        self.assertIn("MYPCBENCH_QWEN_CONTEXT_POLICY=tokenize_oldest_first_v1", qwen35)
-        self.assertIn("notified is frozen to depth 0/10/20", qwen35)
-
-        evocua = (repo / "scripts/rock/submit_takeover_evocua.sh").read_text()
-        self.assertIn('CONDITION="${CONDITION:-notified}"', evocua)
-        self.assertIn('case "$DEPTH" in 0|10|20)', evocua)
-        self.assertIn("${OPENCUA_WEIGHTS_OSS_DIR:?", evocua)
-        self.assertIn("OPENCUA_MODEL=EvoCUA", evocua)
-        self.assertIn("TAKEOVER_CONTEXT_CAP=49152", evocua)
-        self.assertIn("--max-model-len 49152", evocua)
-        self.assertIn("TAKEOVER_TOKENIZE_MODE=vllm", evocua)
-        self.assertIn("failure_prefix_v1/evocua_32b/evocua_32b", evocua)
-
-        driver = (repo / "scripts/rock/derail_rock_driver.py").read_text()
-        self.assertIn('"EVOCUA_BASE_URLS": OPENCUA_BASE_URLS', driver)
-        self.assertIn('"EVOCUA_MODEL": EVOCUA_MODEL', driver)
-
-        entry = (repo / "scripts/rock/entry_derail_opencua_nebula.sh").read_text()
-        self.assertIn('export EVOCUA_BASE_URLS="$OPENCUA_BASE_URLS"', entry)
-        self.assertIn('export EVOCUA_MODEL="$OPENCUA_MODEL"', entry)
-        self.assertIn("OSS_EVOCUA_SNAPSHOT_URI", driver)
-        self.assertIn("setup_evocua", driver)
-        self.assertIn("evocua-4a0ad5f.tar.gz", driver)
-
         preflight = (repo / "scripts/takeover/preflight_history.py").read_text()
         self.assertIn('args.target_agent == "evocua_32b"', preflight)
         self.assertIn('"EVOCUA_MODEL"', preflight)
         self.assertIn("EvoCUA target has no native request preflight API", preflight)
-
-    def test_qwen_probe_checks_exact_tokenizer_and_tool_call_contracts(self):
-        repo = Path(__file__).resolve().parents[1]
-        entry = (repo / "scripts/rock/entry_derail_opencua_nebula.sh").read_text()
-        self.assertIn('"name": "tokenize"', entry)
-        self.assertIn('base.removesuffix("/v1") + "/tokenize"', entry)
-        self.assertIn('"name": "structured_tool_call"', entry)
-        self.assertIn('"tool_choice": "required"', entry)
-        self.assertIn('if agent in {"qwen3_8_27b", "qwen3_5_35b_a3b"}:', entry)
-        self.assertIn("chat completions probe failed: HTTP", entry)
-        self.assertIn('text_message.get("content") or ""', entry)
-        self.assertIn('text_max_tokens = 4096 if agent == "qwen3_5_35b_a3b" else 256', entry)
-        self.assertIn('"finish_reason": body["choices"][0].get("finish_reason")', entry)
-        self.assertIn('"usage": body.get("usage")', entry)
-        self.assertIn('gui_message.get("content") or ""', entry)
-
-    def test_fleets_do_not_sweep_other_models_by_default(self):
-        repo = Path(__file__).resolve().parents[1]
-        for name in (
-            "submit_takeover_kimi_fleet.sh",
-            "submit_takeover_opencua_fleet.sh",
-        ):
-            source = (repo / "scripts/rock" / name).read_text()
-            self.assertIn('shard_sweep="${SWEEP_STALE_SANDBOXES:-0}"', source)
-
-        for name in (
-            "submit_takeover_qwen35_fleet.sh",
-            "submit_takeover_claude_fleet.sh",
-        ):
-            self.assertTrue((repo / "scripts/rock" / name).is_file())
-
-    def test_proxy_driver_forwards_frozen_trajectory_selection(self):
-        repo = Path(__file__).resolve().parents[1]
-        driver = (repo / "scripts/rock/derail_rock_driver.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn('"TRAJECTORY_ID_FILTER": TAKEOVER_TRAJECTORY_ID_FILTER', driver)
-        self.assertIn('"TRAJECTORY_ID_FILE": TAKEOVER_TRAJECTORY_ID_FILE', driver)
-        for relative_path in (
-            "scripts/rock/submit_derail_rock_nebula.sh",
-            "scripts/rock/submit_derail_opencua_smoke.sh",
-        ):
-            source = (repo / relative_path).read_text(encoding="utf-8")
-            self.assertIn("TAKEOVER_TRAJECTORY_ID_FILTER", source)
-            self.assertIn("TAKEOVER_TRAJECTORY_ID_FILE", source)
-
-    def test_proxy_driver_requires_auditable_ship_parity(self):
-        repo = Path(__file__).resolve().parents[1]
-        driver = (repo / "scripts/rock/derail_rock_driver.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn('SHIP_LEDGER_NAME = "ship_ledger.json"', driver)
-        self.assertIn('"object_parity": not (missing or unexpected or mismatched)', driver)
-        self.assertIn('ledger["object_parity"] and ledger["completed_result_count"]', driver)
-
-    def test_claude_takeover_submit_uses_native_protocol_token_counting(self):
-        repo = Path(__file__).resolve().parents[1]
-        submit = (repo / "scripts/rock/submit_takeover_claude.sh").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("TAKEOVER_TOKENIZE_MODE=anthropic_usage", submit)
-        self.assertIn("CLAUDE_OPUS_4_8_MODEL", submit)
-        self.assertIn("TAKEOVER_ANNOTATOR=annotator1", submit)
 
 
 class TakeoverDiagnosisTests(unittest.TestCase):

@@ -8,13 +8,11 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import textwrap
 import unittest
 from itertools import product
 from pathlib import Path
-from unittest import mock
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -22,16 +20,13 @@ LAUNCHER = REPOSITORY / "scripts" / "judge" / "run_takeover_judge.sh"
 RUN_JUDGE = REPOSITORY / "scripts" / "judge" / "run_judge.sh"
 CSV_SCRIPT = REPOSITORY / "scripts" / "judge" / "rubric_csv.py"
 ARCHIVE_SCRIPT = REPOSITORY / "scripts" / "judge" / "archive.py"
-SHIP_SCRIPT = REPOSITORY / "scripts" / "judge" / "ship_archive.py"
 SELECTION_SCRIPT = REPOSITORY / "scripts" / "judge" / "takeover_judge_selection.py"
 REGISTRY_SCRIPT = REPOSITORY / "scripts" / "judge" / "judge_model_registry.py"
-REGISTRY_CONFIG = REPOSITORY / "configs" / "judges" / "routify_model_registry.json"
+REGISTRY_CONFIG = REPOSITORY / "configs" / "judges" / "model_registry.json"
 PREFIX_SCRIPT = REPOSITORY / "scripts" / "takeover" / "bundle_prefix.py"
 JUDGE_WRAPPER = REPOSITORY / "scripts" / "judge" / "full_traj_judge.py"
 HARD_TIMEOUT = REPOSITORY / "scripts" / "judge" / "run_with_timeout.py"
 JUDGE_CONFIG = REPOSITORY / "configs" / "judges" / "default.yaml"
-OSS_ROOT = "oss://example-bucket/derail/judge/takeover/failure_prefix_v1/"
-os.environ["JUDGE_OSS_ROOT"] = OSS_ROOT
 
 
 def _test_env(**overrides):
@@ -40,7 +35,7 @@ def _test_env(**overrides):
         "SOURCE_AGENT", "TAKEOVER_AGENT", "TARGET_AGENT", "DEPTH", "CONDITION",
         "RUN_TAG", "JUDGE_MODEL", "MAX_IMAGES", "REASONING_EFFORT",
         "MAX_COMPLETION_TOKENS", "CONCURRENCY", "CSV_LABEL", "CSV_OUT_DIR",
-        "JUDGE_ARCHIVE_ROOT", "SHIP_TO_OSS", "OUTPUT_ROOT", "OSSUTIL",
+        "JUDGE_ARCHIVE_ROOT", "OUTPUT_ROOT",
         "DERAIL_RUN_JUDGE_MODEL", "DERAIL_RUN_JUDGE_MAX_IMAGES",
     ):
         env.pop(key, None)
@@ -99,40 +94,6 @@ STUB_JUDGE = textwrap.dedent("""\
             }))
     """)
 
-STUB_OSSUTIL = textwrap.dedent("""\
-    import json
-    import os
-    import sys
-    from pathlib import Path
-
-    command = Path(sys.argv[0]).name
-    with Path("events.jsonl").open("a") as log:
-        log.write(json.dumps([command, *sys.argv[1:]]) + "\\n")
-    phase = "ls" if command == "ls" else "archive" if "-r" in sys.argv else "ledger"
-    if os.environ.get("STUB_FAIL") == phase:
-        sys.exit("stub ossutil failure: " + phase)
-    remote = Path("remote.json")
-    if phase == "archive":
-        source = Path(sys.argv[-2])
-        assert (source / "archive_manifest.json").is_file(), "upload before archive"
-        remote.write_text(json.dumps({
-            str(path.relative_to(source)): path.stat().st_size
-            for path in source.rglob("*") if path.is_file()
-        }))
-    elif phase == "ledger":
-        ledger = Path(sys.argv[-2]).read_text()
-        assert json.loads(ledger)["object_parity"]
-        Path("remote_ledger.json").write_text(ledger)
-    else:
-        sizes = json.loads(remote.read_text())
-        if os.environ.get("STUB_PARITY_FAIL") == "1":
-            sizes.pop("scores.json")
-        destination = sys.argv[-1].rstrip("/") + "/"
-        sizes[""] = 0
-        for name, size in sizes.items():
-            print(f"2026-09-11 00:00:00 +0000 CST {size} Standard HASH {destination}{name}")
-    """)
-
 
 def _load_csv_module():
     spec = importlib.util.spec_from_file_location("takeover_rubric_csv", CSV_SCRIPT)
@@ -189,7 +150,7 @@ class TakeoverJudgeTests(unittest.TestCase):
     def test_launcher_preserves_explicit_gateway(self):
         text = LAUNCHER.read_text(encoding="utf-8")
         self.assertIn('if [[ -z "${OPENAI_BASE_URL:-}" ]]', text)
-        self.assertNotIn("inherited routify base_url", text)
+        self.assertNotIn("inherited gateway base_url", text)
 
     def test_csv_builder_writes_rubric_columns(self):
         module = _load_csv_module()
@@ -281,7 +242,7 @@ class TakeoverJudgeTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="takeover judge ")
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name).resolve()
-        for script in (LAUNCHER, RUN_JUDGE, CSV_SCRIPT, ARCHIVE_SCRIPT, SHIP_SCRIPT,
+        for script in (LAUNCHER, RUN_JUDGE, CSV_SCRIPT, ARCHIVE_SCRIPT,
                        SELECTION_SCRIPT, REGISTRY_SCRIPT, REGISTRY_CONFIG, PREFIX_SCRIPT,
                        JUDGE_WRAPPER, HARD_TIMEOUT, JUDGE_CONFIG):
             destination = root / script.relative_to(REPOSITORY)
@@ -294,15 +255,12 @@ class TakeoverJudgeTests(unittest.TestCase):
         judge = root / "third_party/MyPCBench/agent-harness/judge_results.py"
         judge.parent.mkdir(parents=True)
         judge.write_text(STUB_JUDGE, encoding="utf-8")
-        for command in ("cp", "ls"):
-            (root / command).write_text(STUB_OSSUTIL, encoding="utf-8")
-        (root / "ossutil stub").symlink_to(sys.executable)
         (root / "credentials.env").write_text("", encoding="utf-8")
         env = _test_env(
             OUTPUT_ROOT=str(root / "outputs"), CSV_OUT_DIR=str(root / "csv"),
             DERAIL_CRED_ENV=str(root / "credentials.env"),
             OPENAI_API_KEY="local-stub", OPENAI_BASE_URL="http://127.0.0.1:1",
-            OSSUTIL=str(root / "ossutil stub"), STUB_FAIL="", STUB_PARITY_FAIL="0",
+            STUB_FAIL="",
         )
         task = self._episode(root / "outputs/depth_0/unaware", "task-a", result=1.0)
         _human_provenance(task)
@@ -403,24 +361,6 @@ class TakeoverJudgeTests(unittest.TestCase):
         self.assertIn("shares a source", inner.stderr)
         self.assertEqual(self._events(root), [])
 
-    def test_ship_requires_archive_even_in_prepare_only(self):
-        root, env = self._shell_fixture()
-        for use_env, prepare in product((False, True), ((), ("--prepare-only",))):
-            with self.subTest(use_env=use_env, prepare=prepare):
-                args = () if use_env else ("--ship",)
-                child_env = dict(env, SHIP_TO_OSS="1") if use_env else env
-                result = self._launch(root, child_env, *args, *prepare)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("--ship requires --archive-root", result.stderr)
-        self.assertEqual(self._events(root), [])
-
-    def test_ship_rejects_invalid_opt_in(self):
-        root, env = self._shell_fixture()
-        result = self._launch(root, dict(env, SHIP_TO_OSS="yes"), "--prepare-only")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("SHIP_TO_OSS must be 0 or 1", result.stderr)
-        self.assertEqual(self._events(root), [])
-
     def test_agent_ids_cannot_escape_archive_tree(self):
         root, env = self._shell_fixture()
         for selector in ("--source-agent", "--takeover-agent"):
@@ -430,92 +370,68 @@ class TakeoverJudgeTests(unittest.TestCase):
                 self.assertIn("set a valid", result.stderr)
         self.assertEqual(self._events(root), [])
 
-    def test_prepare_only_with_ship_never_judges_archives_or_uploads(self):
+    def test_prepare_only_never_judges_or_archives(self):
         root, env = self._shell_fixture()
-        for args, overrides in ((("--ship",), {}), ((), {"SHIP_TO_OSS": "1"})):
-            with self.subTest(args=args):
-                result = self._launch(
-                    root, dict(env, **overrides), "--prepare-only", *args,
-                    "--archive-root", str(root / "archive"),
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
+        result = self._launch(
+            root, env, "--prepare-only", "--archive-root", str(root / "archive"),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._events(root), [])
         self.assertFalse((root / "archive").exists())
         self.assertFalse((root / "csv").exists())
         self.assertTrue((root / "outputs/_judge_d0_unaware_ok/task-a").is_symlink())
 
-    def test_archive_without_opt_in_never_uploads(self):
+    def test_archive_writes_manifest(self):
         root, env = self._shell_fixture()
         result = self._launch(root, env, "--archive-root", str(root / "archive"))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([event[0] for event in self._events(root)], ["judge"])
         self.assertEqual(self._events(root)[0][:3], ["judge", "gpt-5.6-terra", "50"])
         self.assertTrue((self._archive(root) / "archive_manifest.json").is_file())
-        self.assertFalse((self._archive(root) / "ship_ledger.json").exists())
 
-    def test_ship_uploads_after_archive_and_publishes_parity_ledger(self):
+    def test_environment_relative_archive_root(self):
         root, env = self._shell_fixture()
-        result = self._launch(root, env, "--archive-root", str(root / "archive"), "--ship")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        archive = self._archive(root)
-        destination = OSS_ROOT + "gpt-5.6-terra/source/target/unaware/d0/"
-        events = self._events(root)
-        self.assertEqual([event[0] for event in events], ["judge", "cp", "ls", "cp"])
-        self.assertEqual(events[1], ["cp", "-r", "-f", f"{archive}/", destination])
-        self.assertEqual(events[2], ["ls", destination])
-        self.assertEqual(events[3], ["cp", "-f", str(archive / "ship_ledger.json"), destination])
-        ledger = json.loads((archive / "ship_ledger.json").read_text())
-        self.assertTrue(ledger["object_parity"])
-        self.assertEqual(ledger["local_object_count"], 5)
-        self.assertEqual(ledger["remote_object_count"], 5)
-        self.assertEqual(ledger, json.loads((root / "remote_ledger.json").read_text()))
-        record = json.loads((archive / "judge_records.json").read_text())[0]
-        self.assertEqual(record["launch"]["human_source_judge"]["authority"], "human_annotation")
-
-    def test_environment_opt_in_and_relative_archive_root(self):
-        root, env = self._shell_fixture()
-        env.update(SHIP_TO_OSS="1", JUDGE_ARCHIVE_ROOT="archive")
+        env.update(JUDGE_ARCHIVE_ROOT="archive")
         result = self._launch(root, env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual([event[0] for event in self._events(root)], ["judge", "cp", "ls", "cp"])
-        self.assertTrue((self._archive(root) / "ship_ledger.json").is_file())
+        self.assertEqual([event[0] for event in self._events(root)], ["judge"])
+        self.assertTrue((self._archive(root) / "archive_manifest.json").is_file())
 
-    def test_batch_propagates_ship_for_each_cell(self):
+    def test_batch_archives_each_cell(self):
         root, env = self._shell_fixture()
         for depth, condition in ((0, "notified"), (5, "unaware"), (5, "notified")):
             task = self._episode(root / f"outputs/depth_{depth}/{condition}", "task-a", result=1.0)
             _human_provenance(task)
         result = self._launch(
             root, env, "--depth", "0/5", "--condition", "unaware/notified",
-            "--archive-root", str(root / "archive"), "--ship", "--max-images", "25",
+            "--archive-root", str(root / "archive"), "--max-images", "25",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         events = self._events(root)
-        self.assertEqual([event[0] for event in events], ["judge", "cp", "ls", "cp"] * 4)
-        destinations = [event[-1] for event in events if event[0] == "ls"]
-        expected = [OSS_ROOT + f"gpt-5.6-terra/source/target/{condition}/d{depth}/"
-                    for depth in (0, 5) for condition in ("unaware", "notified")]
-        self.assertEqual(destinations, expected)
+        self.assertEqual([event[0] for event in events], ["judge"] * 4)
+        for depth, condition in product((0, 5), ("unaware", "notified")):
+            self.assertTrue((root / f"archive/gpt-5.6-terra/source/target/{condition}/d{depth}"
+                             / "archive_manifest.json").is_file())
         self.assertTrue(all(event[2] == "25" for event in events if event[0] == "judge"))
 
-    def test_batch_prepare_only_with_ship_has_no_external_calls(self):
+    def test_batch_prepare_only_has_no_external_calls(self):
         root, env = self._shell_fixture()
         self._episode(root / "outputs/depth_5/unaware", "task-a", result=1.0)
         result = self._launch(
             root, env, "--depth", "0/5", "--archive-root", str(root / "archive"),
-            "--ship", "--prepare-only",
+            "--prepare-only",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._events(root), [])
         self.assertFalse((root / "archive").exists())
         self.assertTrue((root / "outputs/_judge_d5_unaware_ok/task-a").is_symlink())
 
-    def test_judge_and_csv_failure_stop_before_upload(self):
+    def test_judge_and_csv_failure_stop_before_archive(self):
         for phase in ("judge", "csv"):
             with self.subTest(phase=phase):
                 root, env = self._shell_fixture()
                 result = self._launch(
-                    root, dict(env, STUB_FAIL=phase), "--ship",
+                    root, dict(env, STUB_FAIL=phase),
                     "--archive-root", str(root / "archive"),
                 )
                 self.assertNotEqual(result.returncode, 0)
@@ -524,155 +440,23 @@ class TakeoverJudgeTests(unittest.TestCase):
                 if phase == "judge":
                     self.assertEqual(result.returncode, 23)
 
-    def test_invalid_human_provenance_stops_before_upload(self):
+    def test_invalid_human_provenance_stops_before_archive(self):
         root, env = self._shell_fixture()
         _human_provenance(root / "outputs/depth_0/unaware/task-a", digest="b" * 64)
-        result = self._launch(root, env, "--ship", "--archive-root", str(root / "archive"))
+        result = self._launch(root, env, "--archive-root", str(root / "archive"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid human source-judge provenance", result.stderr)
         self.assertEqual([event[0] for event in self._events(root)], ["judge"])
         self.assertFalse((root / "archive").exists())
 
-    def test_ossutil_failures_propagate_to_launcher(self):
-        for phase, commands in (("archive", ["judge", "cp"]),
-                                ("ls", ["judge", "cp", "ls"]),
-                                ("ledger", ["judge", "cp", "ls", "cp"])):
-            with self.subTest(phase=phase):
-                root, env = self._shell_fixture()
-                result = self._launch(
-                    root, dict(env, STUB_FAIL=phase), "--ship",
-                    "--archive-root", str(root / "archive"),
-                )
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("stub ossutil failure: " + phase, result.stderr)
-                self.assertEqual([event[0] for event in self._events(root)], commands)
-                self.assertTrue((self._archive(root) / "archive_manifest.json").is_file())
-                self.assertFalse((root / "remote_ledger.json").exists())
-
-    def test_parity_failure_keeps_local_ledger_without_publishing_it(self):
-        root, env = self._shell_fixture()
-        result = self._launch(
-            root, dict(env, STUB_PARITY_FAIL="1"), "--ship",
-            "--archive-root", str(root / "archive"),
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("judge OSS object parity failed", result.stderr)
-        self.assertEqual([event[0] for event in self._events(root)], ["judge", "cp", "ls"])
-        ledger = json.loads((self._archive(root) / "ship_ledger.json").read_text())
-        self.assertFalse(ledger["object_parity"])
-        self.assertEqual(ledger["missing_remote"], ["scores.json"])
-        self.assertFalse((root / "remote_ledger.json").exists())
-
-    def test_help_documents_limits_and_shipping(self):
+    def test_help_documents_limits(self):
         result = subprocess.run(
             ["bash", str(LAUNCHER), "--help"], env=_test_env(),
             capture_output=True, text=True, check=True,
         )
-        for text in ("routify_model_registry.json", "registered model image limit", "--ship",
-                     "requires --archive-root", "without API calls or uploads", "OSSUTIL", "JUDGE_OSS_ROOT"):
+        for text in ("model_registry.json", "registered model image limit", "without API calls"):
             self.assertIn(text, result.stdout)
 
-
-class TakeoverJudgeShippingTests(unittest.TestCase):
-    def setUp(self):
-        spec = importlib.util.spec_from_file_location("ship_takeover_judge", SHIP_SCRIPT)
-        self.module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.module)
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
-        self.source = Path(temporary.name).resolve()
-        self.destination = OSS_ROOT + "gpt-5.6-terra/source/target/unaware/d0/"
-
-    def _listing(self, files):
-        return "\n".join(
-            f"2026-09-11 00:00:00 +0000 CST {size} Standard HASH {self.destination}{name}"
-            for name, size in files.items()
-        )
-
-    def test_parse_empty_listing(self):
-        self.assertEqual(self.module.parse_listing("", self.destination), {})
-
-    def test_listing_excludes_root_marker_and_ship_ledger(self):
-        output = self._listing({"": 0, "scores.json": 3, "ship_ledger.json": 99})
-        output += "\nObject Number is: 3\n" + self._listing({"other.json": 1}).replace(
-            "/d0/", "/d5/"
-        )
-        self.assertEqual(self.module.parse_listing(output, self.destination), {"scores.json": 3})
-        self.assertEqual(self.module.parse_listing(output, self.destination.rstrip("/")),
-                         {"scores.json": 3})
-
-    def test_empty_archive_is_rejected_before_subprocess(self):
-        with mock.patch.object(self.module, "run") as run:
-            with self.assertRaisesRegex(ValueError, "archive is empty"):
-                self.module.ship(self.source, self.destination, "stub")
-        run.assert_not_called()
-
-    def test_ledger_only_archive_is_rejected(self):
-        (self.source / "ship_ledger.json").write_text("{}")
-        with mock.patch.object(self.module, "run") as run:
-            with self.assertRaisesRegex(ValueError, "archive is empty"):
-                self.module.ship(self.source, self.destination, "stub")
-        run.assert_not_called()
-
-    def test_destination_outside_frozen_root_is_rejected(self):
-        (self.source / "scores.json").write_text("{}\n")
-        with mock.patch.object(self.module, "run") as run:
-            with self.assertRaisesRegex(ValueError, "destination must be under"):
-                self.module.ship(self.source, "oss://example-bucket/other/", "stub")
-        run.assert_not_called()
-
-    def test_empty_remote_listing_does_not_report_parity(self):
-        (self.source / "scores.json").write_text("{}\n")
-        with mock.patch.object(self.module, "run", side_effect=["", ""]):
-            ledger = self.module.ship(self.source, self.destination, "stub")
-        self.assertFalse(ledger["object_parity"])
-        self.assertEqual(ledger["missing_remote"], ["scores.json"])
-        self.assertEqual(ledger["remote_object_count"], 0)
-
-    def test_parity_detects_missing_unexpected_and_size_mismatch(self):
-        (self.source / "scores.json").write_text("{}\n")
-        cases = [({}, ["scores.json"], [], []),
-                 ({"scores.json": 3, "extra.json": 1}, [], ["extra.json"], []),
-                 ({"scores.json": 4}, [], [], ["scores.json"])]
-        for files, missing, unexpected, mismatches in cases:
-            responses = ["", self._listing(files)]
-            with self.subTest(files=files), mock.patch.object(self.module, "run", side_effect=responses):
-                ledger = self.module.ship(self.source, self.destination, "stub")
-                self.assertFalse(ledger["object_parity"])
-                self.assertEqual(ledger["missing_remote"], missing)
-                self.assertEqual(ledger["unexpected_remote"], unexpected)
-                self.assertEqual(ledger["size_mismatches"], mismatches)
-
-    def test_successful_parity_excludes_existing_ledger_on_both_sides(self):
-        (self.source / "scores.json").write_text("{}\n")
-        (self.source / "ship_ledger.json").write_text("{}\n")
-        output = self._listing({"": 0, "scores.json": 3, "ship_ledger.json": 100})
-        with mock.patch.object(self.module, "run", side_effect=["", output]) as run:
-            ledger = self.module.ship(self.source, self.destination, "stub")
-        self.assertTrue(ledger["object_parity"])
-        self.assertEqual(ledger["local_object_count"], 1)
-        self.assertEqual(ledger["remote_object_count"], 1)
-        self.assertEqual(self.module.local_files(self.source), {"scores.json": 3})
-        self.assertEqual(run.call_count, 2)
-
-    def test_main_uses_ossutil_environment_and_publishes_ledger(self):
-        (self.source / "scores.json").write_text("{}\n")
-        argv = [str(SHIP_SCRIPT), "--source", str(self.source), "--destination", self.destination]
-        responses = ["", self._listing({"scores.json": 3}), ""]
-        with mock.patch.dict(os.environ, {"OSSUTIL": "/local/ossutil stub"}), mock.patch.object(sys, "argv", argv):
-            with mock.patch.object(self.module, "run", side_effect=responses) as run, mock.patch("builtins.print"):
-                self.assertEqual(self.module.main(), 0)
-        self.assertTrue(all(call.args[0][0] == "/local/ossutil stub" for call in run.call_args_list))
-        self.assertEqual(run.call_args_list[-1].args[0], [
-            "/local/ossutil stub", "cp", "-f", str(self.source / "ship_ledger.json"), self.destination,
-        ])
-        self.assertTrue(json.loads((self.source / "ship_ledger.json").read_text())["object_parity"])
-
-    def test_subprocess_failure_is_not_swallowed(self):
-        failure = subprocess.CompletedProcess(["stub"], 17, stdout="", stderr="copy failed")
-        with mock.patch.object(self.module.subprocess, "run", return_value=failure):
-            with self.assertRaisesRegex(RuntimeError, "copy failed"):
-                self.module.run(["stub", "cp"])
 
 
 if __name__ == "__main__":
