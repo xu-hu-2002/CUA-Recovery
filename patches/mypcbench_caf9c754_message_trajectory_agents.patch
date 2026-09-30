@@ -1,5 +1,5 @@
 diff --git a/agent-harness/agents/claude_cuabash.py b/agent-harness/agents/claude_cuabash.py
-index fcacb51..92fb8df 100644
+index 0c29746..b235144 100644
 --- a/agent-harness/agents/claude_cuabash.py
 +++ b/agent-harness/agents/claude_cuabash.py
 @@ -16,6 +16,7 @@ turn's KV cache instead of reprocessing the whole history every step. See

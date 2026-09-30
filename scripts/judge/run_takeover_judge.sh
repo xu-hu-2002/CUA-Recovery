@@ -232,6 +232,7 @@ display_agent_id() {
   case "$1" in
     evocua_32b) echo "evocua32b" ;;
     qwen3_5_35b_a3b) echo "qwen3.5_35B_A3B" ;;
+    rerail_35b_a3b) echo "ReRail-35B-A3B" ;;
     opencua_72b) echo "opencua72b" ;;
     kimi_k3) echo "kimi_k3" ;;
     gpt_5_5) echo "gpt-5.5" ;;

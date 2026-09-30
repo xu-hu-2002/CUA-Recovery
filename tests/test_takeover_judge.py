@@ -79,7 +79,6 @@ STUB_JUDGE = textwrap.dedent("""\
     assert model in {
         "gpt-5.6-terra",
         "claude-opus-4-8",
-        "openai.gpt-5.6-luna",
         "openai.gpt-5.5",
     } and 0 < int(max_images) <= 200
     staging = Path(sys.argv[sys.argv.index("--result_dir") + 1])
@@ -327,8 +326,8 @@ class TakeoverJudgeTests(unittest.TestCase):
 
     def test_both_layers_reject_every_model_but_the_configured_judge(self):
         root, env = self._shell_fixture()
-        for value in ("claude-opus-4-8", "openai.gpt-5.5", "openai.gpt-5.6-luna",
-                      "anthropic.claude-sonnet-4-6", "gpt-4o", "../gpt-5.6-terra"):
+        for value in ("claude-opus-4-8", "openai.gpt-5.5", "gpt-5.6-sol",
+                      "gpt-4o", "../gpt-5.6-terra"):
             with self.subTest(value=value):
                 outer = self._launch(root, env, "--judge-model", value, "--prepare-only")
                 inner = self._run_inner(root, dict(env, DERAIL_RUN_JUDGE_MODEL=value))
@@ -354,8 +353,9 @@ class TakeoverJudgeTests(unittest.TestCase):
     def test_judge_may_not_grade_its_own_source(self):
         root, env = self._shell_fixture()
         manifest = root / "outputs/depth_0/unaware/task-a/takeover_manifest.json"
-        manifest.write_text(json.dumps({"source_agent": "gpt_5_6_luna",
-                                        "target_agent": "gpt_5_6_luna"}), encoding="utf-8")
+        manifest.write_text(json.dumps({"source_agent": "gpt_5_5",
+                                        "target_agent": "gpt_5_5",
+                                        "target_model": "gpt-5.6-sol"}), encoding="utf-8")
         inner = self._run_inner(root, env)
         self.assertNotEqual(inner.returncode, 0)
         self.assertIn("shares a source", inner.stderr)

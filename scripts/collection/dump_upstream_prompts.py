@@ -123,17 +123,6 @@ def dump_gpt_5_5() -> tuple[str, str]:
     )
 
 
-def dump_claude_sonnet_5() -> tuple[str, str]:
-    with _sys_path(MYPCBENCH_HARNESS):
-        prompts = importlib.import_module("agents.prompts")
-        template = prompts.CLAUDE_CUA_SYSTEM_PROMPT
-    text = template.format(CLIENT_PASSWORD=CLIENT_PASSWORD, CURRENT_DATE=FROZEN_DATE_TEXT)
-    return text, (
-        "agents/prompts.py:CLAUDE_CUA_SYSTEM_PROMPT，enable_computer=True 分支，"
-        "见 claude_cuabash.py:264"
-    )
-
-
 def dump_qwen3_5_35b_a3b() -> tuple[str, str]:
     with _sys_path(MYPCBENCH_HARNESS):
         qwen_cua = importlib.import_module("agents.qwen_cua")
@@ -242,7 +231,6 @@ def dump_opencua_72b() -> tuple[str, str]:
 DUMPERS: dict[str, Callable[[], tuple[str, str]]] = {
     "gpt_5_5": dump_gpt_5_5,
     "qwen3_5_35b_a3b": dump_qwen3_5_35b_a3b,
-    "claude_sonnet_5": dump_claude_sonnet_5,
     "evocua_32b": dump_evocua_32b,
     "opencua_72b": dump_opencua_72b,
 }

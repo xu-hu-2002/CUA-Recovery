@@ -94,13 +94,10 @@ agent_step_seconds() {
 }
 
 export_agent_env() {
-  case "$1" in
-    qwen3_5_35b_a3b)
-      export MYPCBENCH_QWEN_MAX_TOKENS="${MYPCBENCH_QWEN_MAX_TOKENS:-4096}"
-      export MYPCBENCH_QWEN_HISTORY_N="${MYPCBENCH_QWEN_HISTORY_N:-100}"
-      export MYPCBENCH_QWEN_CONTEXT_POLICY="${MYPCBENCH_QWEN_CONTEXT_POLICY:-tokenize_oldest_first_v1}"
-      ;;
-  esac
+  [[ "$(agent_family "$REPO_ROOT" "$1" || true)" == qwen35 ]] || return 0
+  export MYPCBENCH_QWEN_MAX_TOKENS="${MYPCBENCH_QWEN_MAX_TOKENS:-4096}"
+  export MYPCBENCH_QWEN_HISTORY_N="${MYPCBENCH_QWEN_HISTORY_N:-100}"
+  export MYPCBENCH_QWEN_CONTEXT_POLICY="${MYPCBENCH_QWEN_CONTEXT_POLICY:-tokenize_oldest_first_v1}"
 }
 
 CONFIRMED=0

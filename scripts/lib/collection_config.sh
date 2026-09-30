@@ -68,6 +68,10 @@ usable_gpu_indices() {
   }'
 }
 
+agent_family() {
+  config_scalar "$(agent_config_path "$1" "$2")" family
+}
+
 agent_tensor_parallel_size() {
   config_scalar "$(agent_config_path "$1" "$2")" tensor_parallel_size
 }

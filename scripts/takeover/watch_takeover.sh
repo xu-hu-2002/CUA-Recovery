@@ -2,7 +2,7 @@
 set -u
 
 SOURCE_AGENT="${SOURCE_AGENT:-evocua_32b}"
-TARGET_AGENT="${TARGET_AGENT:?TARGET_AGENT is required}"
+TARGET_AGENT="${TARGET_AGENT:-rerail_35b_a3b}"
 RUN_TAG="${RUN_TAG:-takeover_v1}"
 CONDITIONS="${CONDITIONS:-unaware notified diagnosed}"
 DEPTHS="${DEPTHS:-0 5 10 15 20 25}"

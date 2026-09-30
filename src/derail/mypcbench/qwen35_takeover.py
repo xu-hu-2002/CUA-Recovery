@@ -8,6 +8,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from derail.adapters.qwen35 import QWEN35_AGENT_IDS
 from derail.mypcbench.tool_agent import takeover_condition_prompt
 
 
@@ -135,6 +136,6 @@ class Qwen35TakeoverTarget:
 
 
 def wrap_qwen35_takeover_target(target: Any, agent_id: str) -> Any:
-    if agent_id != "qwen3_5_35b_a3b":
+    if agent_id not in QWEN35_AGENT_IDS:
         return target
     return Qwen35TakeoverTarget(target)

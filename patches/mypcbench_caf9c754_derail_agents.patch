@@ -113,7 +113,7 @@ index 92308f9..0e6fa64 100644
  
  def encode_image(image_bytes: bytes) -> str:
 diff --git a/agent-harness/agents/claude_cuabash.py b/agent-harness/agents/claude_cuabash.py
-index f311e70..fcacb51 100644
+index f311e70..0c29746 100644
 --- a/agent-harness/agents/claude_cuabash.py
 +++ b/agent-harness/agents/claude_cuabash.py
 @@ -209,6 +209,9 @@ class ClaudeCUAAgent(BaseAgent):
@@ -233,7 +233,7 @@ index f311e70..fcacb51 100644
  
          # Call Claude (always use beta API when beta tools are present).
          # Retry on transient errors with backoff; on repeated image-size
-@@ -600,11 +660,17 @@ class ClaudeCUAAgent(BaseAgent):
+@@ -600,11 +660,10 @@ class ClaudeCUAAgent(BaseAgent):
          # through extra_body for the new path since the SDK kwarg isn't
          # recognized for this model family.
          ml = self.model.lower()
@@ -241,21 +241,14 @@ index f311e70..fcacb51 100644
 -            ml.startswith("claude-opus-4-7")
 -            or ml.startswith("claude-opus-4-8")
 -            or ml.startswith("claude-opus-4-9")
-+        # DERAIL: 上游只列了 opus-4-7/4-8/4-9，但 claude-sonnet-5 同样拒绝
-+        # thinking.enabled（2026-08-06 实测 400：'"thinking.enabled" is not
-+        # supported for this model. Use "thinking.adaptive" and
-+        # "output_config.effort"'）。硬编码名单会随新模型不断失效，所以
-+        # 另加一个运行时自愈分支（见重试循环的 adaptive 降级）；
-+        # 这里只把已实测确认的型号列入，避免第一次调用就吃 400。
 +        _adaptive_prefixes = (
 +            "claude-opus-4-7", "claude-opus-4-8", "claude-opus-4-9",
-+            "claude-sonnet-5",
          )
 +        is_opus_4x = ml.startswith(_adaptive_prefixes) or self._force_adaptive_thinking
          extra_body: Dict[str, Any] = {}
          if self.enable_thinking:
              if is_opus_4x:
-@@ -642,7 +708,7 @@ class ClaudeCUAAgent(BaseAgent):
+@@ -642,7 +701,7 @@ class ClaudeCUAAgent(BaseAgent):
          last_error: Optional[BaseException] = None
          for attempt in range(self.api_retry_times):
              try:
@@ -264,14 +257,14 @@ index f311e70..fcacb51 100644
                  last_error = None
                  break
              except TypeError as e:
-@@ -667,6 +733,28 @@ class ClaudeCUAAgent(BaseAgent):
+@@ -667,6 +726,28 @@ class ClaudeCUAAgent(BaseAgent):
              except _CLAUDE_RETRYABLE as e:
                  last_error = e
                  err_msg = str(e)
 +                # DERAIL: 服务端明确要求用 thinking.adaptive（新模型家族拒绝
 +                # enabled+budget_tokens）。错误文案已经告诉了正确形式，直接置
 +                # 粘滞位重试，不要把它当一般错误磨完重试预算——后者会让整个
-+                # 任务卡十几分钟后以“模型无输出”告终（2026-08-06 sonnet-5 实证）。
++                # 任务卡十几分钟后以“模型无输出”告终。
 +                if (
 +                    not self._force_adaptive_thinking
 +                    and "adaptive" in err_msg
@@ -293,7 +286,7 @@ index f311e70..fcacb51 100644
                  # Server-side rejection of `output_config={"effort": ...}` —
                  # e.g. "This model does not support the effort parameter."
                  # returned as a 400 (APIError subclass, NOT a TypeError). The
-@@ -1082,6 +1170,17 @@ class ClaudeCUAAgent(BaseAgent):
+@@ -1082,6 +1163,17 @@ class ClaudeCUAAgent(BaseAgent):
          (1280×720). We scale them back to the real VM resolution using
          `self._resize_factor` (set during screenshot resize in predict).
          """
@@ -311,7 +304,7 @@ index f311e70..fcacb51 100644
          action = input_dict.get("action", "")
          coord = input_dict.get("coordinate")
          text = input_dict.get("text", "")
-@@ -1090,7 +1189,7 @@ class ClaudeCUAAgent(BaseAgent):
+@@ -1090,7 +1182,7 @@ class ClaudeCUAAgent(BaseAgent):
          # If no resize happened (VM == 1280×720), factor is (1.0, 1.0).
          if coord:
              fx, fy = getattr(self, "_resize_factor", (1.0, 1.0))
@@ -320,7 +313,7 @@ index f311e70..fcacb51 100644
  
          # Helper: wrap a click/scroll statement with keyDown/keyUp for each
          # modifier token in `text` (e.g. "shift" for shift-click,
-@@ -1217,7 +1316,7 @@ class ClaudeCUAAgent(BaseAgent):
+@@ -1217,7 +1309,7 @@ class ClaudeCUAAgent(BaseAgent):
              # Scale start_coordinate too (it's also in model space).
              if start:
                  fx, fy = getattr(self, "_resize_factor", (1.0, 1.0))

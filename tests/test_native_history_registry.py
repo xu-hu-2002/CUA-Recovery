@@ -35,7 +35,7 @@ class NativeHistoryRegistryTests(unittest.TestCase):
             implemented,
             {
                 "kimi_k3", "opencua_72b", "qwen3_5_35b_a3b", "claude_opus_4_8", "evocua_32b",
-                "gpt_5_5",
+                "gpt_5_5", "rerail_35b_a3b",
             },
         )
         self.assertTrue(all(item["release_ready_without_probe"] is False for item in statuses))

@@ -29,11 +29,13 @@ for entry in (str(SRC), str(HARNESS)):
         sys.path.insert(0, entry)
 
 from derail.adapters import HistoryStep, create_native_history_adapter  # noqa: E402
+from derail.adapters.qwen35 import QWEN35_AGENT_IDS  # noqa: E402
 from derail.derived.layout import atomic_write_json, sha256_file, sha256_json  # noqa: E402
 from derail.mypcbench.agent_config import (  # noqa: E402
     DERAIL_TOOL_AGENT,
     load_agent_config,
     load_config,
+    resolve_checkpoint,
 )
 from derail.mypcbench.tool_agent import (  # noqa: E402
     NativeToolComputerAgent,
@@ -518,7 +520,7 @@ def main() -> int:
             else load_config(live_agent_id)
         )
         os.environ.setdefault("DERAIL_REPO_ROOT", str(REPOSITORY))
-        if args.target_agent == "qwen3_5_35b_a3b":
+        if args.target_agent in QWEN35_AGENT_IDS:
             from run_mypcbench import get_agent
 
             requested = os.environ.get("MYPCBENCH_QWEN_MAX_TOKENS", "")
@@ -526,7 +528,7 @@ def main() -> int:
                 raise RuntimeError("Qwen 3.5 token preflight requires MYPCBENCH_QWEN_MAX_TOKENS")
             if os.environ.get("MYPCBENCH_QWEN_CONTEXT_POLICY") != "tokenize_oldest_first_v1":
                 raise RuntimeError("Qwen 3.5 token preflight requires tokenize_oldest_first_v1")
-            target_model = str(config.document.get("checkpoint") or "")
+            target_model = resolve_checkpoint(config)
             requested_max_tokens = int(requested)
             os.environ["OPENAI_BASE_URL"] = args.tokenize_base_url
             upstream = get_agent(

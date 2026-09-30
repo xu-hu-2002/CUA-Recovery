@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Mapping, Optional, Tuple
@@ -32,6 +33,9 @@ AGENT_ID_BY_TYPE: Mapping[str, str] = {
     "derail_evocua": "evocua_32b",
     "derail_opencua": "opencua_72b",
 }
+
+_ENV_REFERENCE = re.compile(r"\$\{(\w+)\}")
+
 
 class AgentConfigError(RuntimeError):
     """Agent yaml has a missing, mistyped, or out-of-range field."""
@@ -157,9 +161,8 @@ _SPECS: Mapping[str, _AgentSpec] = {
         },
     ),
     "qwen3_5_35b_a3b": _AgentSpec(UPSTREAM_RUNNER, LOCAL_VLLM),
+    "rerail_35b_a3b": _AgentSpec(UPSTREAM_RUNNER, LOCAL_VLLM),
     "gpt_5_5": _AgentSpec(UPSTREAM_RUNNER, HOSTED_API),
-    "gpt_5_6_luna": _AgentSpec(UPSTREAM_RUNNER, HOSTED_API),
-    "claude_sonnet_5": _AgentSpec(UPSTREAM_RUNNER, HOSTED_API),
     "claude_opus_4_8": _AgentSpec(UPSTREAM_RUNNER, HOSTED_API),
 }
 
@@ -272,6 +275,8 @@ def load_config(agent_id: str) -> AgentConfig:
         raise AgentConfigError(f"{path} 不是一个 YAML 映射")
 
     required = _required_fields(spec)
+    if _ENV_REFERENCE.fullmatch(str(document.get("checkpoint", ""))):
+        required.pop("revision")
     missing = [name for name in required if name not in document]
     if missing:
         raise AgentConfigError(f"{agent_id}.yaml 缺少必填字段：{missing}")
@@ -328,6 +333,21 @@ def load_config(agent_id: str) -> AgentConfig:
         live=live,
         document=document,
     )
+
+
+def resolve_checkpoint(config: AgentConfig) -> str:
+    """The checkpoint, with a ``${VAR}`` value read from the environment."""
+
+    value = str(config.document.get("checkpoint") or "")
+    match = _ENV_REFERENCE.fullmatch(value)
+    if match is None:
+        return value
+    resolved = os.environ.get(match.group(1), "").strip()
+    if not resolved:
+        raise AgentConfigError(
+            f"{config.agent_id}.yaml 的 checkpoint 取自环境变量 {match.group(1)}，但它没有设置"
+        )
+    return resolved
 
 
 def load_agent_config(agent_id: str) -> AgentConfig:

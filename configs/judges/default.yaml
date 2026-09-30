@@ -2,7 +2,7 @@ judge_id: derail_judge_gpt56_terra
 model: gpt-5.6-terra
 
 same_source_groups:
-  - [gpt-5.6-terra, gpt-5.6-sol, gpt-5.6-luna]
+  - [gpt-5.6-terra, gpt-5.6-sol]
 
 ear:
   max_segments: null

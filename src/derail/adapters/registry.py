@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from functools import partial
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from .base import AgentAdapter
@@ -11,10 +12,11 @@ from .evocua import EvoCUAS2Adapter
 from .kimi_k3 import KimiK3ScaffoldAdapter
 from .openai_cua import OpenAIResponsesHistoryAdapter
 from .opencua import OpenCUAActionHistoryAdapter
-from .qwen35 import Qwen35StateAdapter
+from .qwen35 import QWEN35_AGENT_IDS, Qwen35StateAdapter
 
 TARGET_AGENT_IDS: Tuple[str, ...] = (
     "qwen3_5_35b_a3b",
+    "rerail_35b_a3b",
     "evocua_32b",
     "opencua_72b",
     "gpt_5_5",
@@ -65,17 +67,20 @@ class NativeHistoryRegistration:
 
 
 _REGISTRY: Dict[str, NativeHistoryRegistration] = {
-    "qwen3_5_35b_a3b": NativeHistoryRegistration(
-        agent_id="qwen3_5_35b_a3b",
-        family="qwen35_osworld_vendored",
-        live_source="third_party/MyPCBench/agent-harness/agents/qwen_cua.py:QwenOSWorldAgent",
-        history_structure="processed-image chat history with folding/context fitting",
-        protocol_origin="vendored_paper_results",
-        renderer_path="derail.adapters.qwen35.Qwen35StateAdapter",
-        renderer_implemented=True,
-        conformance_required=True,
-        factory=Qwen35StateAdapter,
-    ),
+    **{
+        agent_id: NativeHistoryRegistration(
+            agent_id=agent_id,
+            family="qwen35_osworld_vendored",
+            live_source="third_party/MyPCBench/agent-harness/agents/qwen_cua.py:QwenOSWorldAgent",
+            history_structure="processed-image chat history with folding/context fitting",
+            protocol_origin="vendored_paper_results",
+            renderer_path="derail.adapters.qwen35.Qwen35StateAdapter",
+            renderer_implemented=True,
+            conformance_required=True,
+            factory=partial(Qwen35StateAdapter, agent_id=agent_id),
+        )
+        for agent_id in sorted(QWEN35_AGENT_IDS)
+    },
     "evocua_32b": NativeHistoryRegistration(
         agent_id="evocua_32b",
         family="evocua_s2",

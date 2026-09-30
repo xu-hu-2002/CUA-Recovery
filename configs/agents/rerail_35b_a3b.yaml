@@ -1,0 +1,19 @@
+agent_id: rerail_35b_a3b
+family: qwen35
+scaffold: upstream_runner
+agent_type: qwen_cuabash
+checkpoint: ${RERAIL_CHECKPOINT}
+live_adapter: MyPCBench.agent-harness.agents.qwen_cua.QwenOSWorldAgent
+output_format: native_tool_calling
+coordinate_protocol: normalized_0_1000
+history_renderer: vendored_osworld_history_n_with_exact_context_budget
+temperature: 0.6
+generation_budget_source: explicit_MyPCBench_QWEN_MAX_TOKENS
+endpoint_contract: exact_model_id_and_max_model_len_preflight
+probe_history_window: 100
+context_policy: tokenize_oldest_first_v1
+tokenizer_image_policy: same_dimensions_distinct_hash_v1
+tensor_parallel_size: 2
+eta_step_seconds: 7.8
+eta_step_seconds_source: 未实测；调度估计沿用 qwen3_5_35b_a3b
+status: registered

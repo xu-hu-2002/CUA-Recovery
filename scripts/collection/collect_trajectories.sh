@@ -113,10 +113,11 @@ start_in_tmux_if_needed() {
     ALLOW_NO_KVM MYPCBENCH_DIAG_DIR MYPCBENCH_QWEN_MAX_TOKENS \
     MYPCBENCH_QWEN_HISTORY_N MYPCBENCH_QWEN_CONTEXT_POLICY \
     OPENAI_BASE_URL QWEN35_BASE_URLS QWEN35_BASE_URL \
+    RERAIL_CHECKPOINT RERAIL_BASE_URLS RERAIL_BASE_URL \
     EVOCUA_BASE_URLS EVOCUA_BASE_URL \
     OPENCUA_BASE_URLS OPENCUA_BASE_URL \
     ANTHROPIC_API_KEY ANTHROPIC_BASE_URL CLAUDE_PROMPT_CACHING_BETA \
-    CLAUDE_SONNET_5_MODEL CLAUDE_OPUS_4_8_MODEL GPT55_MODEL GPT56_LUNA_MODEL \
+    CLAUDE_OPUS_4_8_MODEL GPT55_MODEL \
     OPENAI_ZDR_STATELESS OPENAI_ZDR_KEEP_IMAGES \
     OPENAI_RATE_LIMIT_RETRIES ANTHROPIC_RATE_LIMIT_RETRIES \
     DERAIL_ANTHROPIC_API_APPROVED DERAIL_ANTHROPIC_API_PURPOSE \
@@ -365,11 +366,6 @@ resolve_agent() {
       RESOLVED_MODEL="${GPT55_MODEL:-gpt-5.5}"
       RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
       ;;
-    gpt_5_6_luna)
-      RESOLVED_AGENT_TYPE="openai_cuabash"
-      RESOLVED_MODEL="${GPT56_LUNA_MODEL:-gpt-5.6-luna}"
-      RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
-      ;;
     kimi_k3)
       RESOLVED_AGENT_TYPE="derail_kimi_k3"
       RESOLVED_MODEL="${KIMI_K3_MODEL:-kimi-k3}"
@@ -387,12 +383,13 @@ resolve_agent() {
       RESOLVED_BASE_URLS_ENV="QWEN35_BASE_URLS"
       RESOLVED_BASE_URL_ENV="QWEN35_BASE_URL"
       ;;
-    claude_sonnet_5)
-      [[ -n "${CLAUDE_SONNET_5_MODEL:-}" ]] || die \
-        "claude_sonnet_5 尚未冻结真实 API model ID；请先设置 CLAUDE_SONNET_5_MODEL"
-      RESOLVED_AGENT_TYPE="claude_cuabash"
-      RESOLVED_MODEL="${CLAUDE_SONNET_5_MODEL}"
-      RESOLVED_REQUIRED_ENV="ANTHROPIC_API_KEY"
+    rerail_35b_a3b)
+      [[ -n "${RERAIL_CHECKPOINT:-}" ]] || die "rerail_35b_a3b 需要 RERAIL_CHECKPOINT"
+      RESOLVED_AGENT_TYPE="qwen_cuabash"
+      RESOLVED_MODEL="${RERAIL_CHECKPOINT}"
+      RESOLVED_REQUIRED_ENV="LOCAL_ENDPOINT"
+      RESOLVED_BASE_URLS_ENV="RERAIL_BASE_URLS"
+      RESOLVED_BASE_URL_ENV="RERAIL_BASE_URL"
       ;;
     claude_opus_4_8)
       [[ -n "${CLAUDE_OPUS_4_8_MODEL:-}" ]] || die \
@@ -803,7 +800,7 @@ export DERAIL_AGENT_MAX_STEPS="$MAX_STEPS"
 QWEN35_ENDPOINT_CONTRACTS_JSON="[]"
 if [[ "$DRY_RUN" == "0" ]]; then
   for agent_id in "${AGENTS[@]}"; do
-    [[ "$agent_id" == "qwen3_5_35b_a3b" ]] || continue
+    [[ "$(agent_family "$REPO_ROOT" "$agent_id" || true)" == qwen35 ]] || continue
     [[ -n "${MYPCBENCH_QWEN_MAX_TOKENS:-}" ]] || die \
       "Qwen3.5 真实运行必须显式设置 MYPCBENCH_QWEN_MAX_TOKENS；probe 的 4096 不会自动转为正式配置"
     [[ -n "${MYPCBENCH_QWEN_HISTORY_N:-}" ]] || die \
@@ -1105,7 +1102,7 @@ for agent_id in "${AGENTS[@]}"; do
     if (( agent_vms > endpoint_count )); then
       info "注意：${agent_id} 的 ${agent_vms} 个 VM 将共享 ${endpoint_count} 个推理 endpoint"
     fi
-    if [[ "$agent_id" == "qwen3_5_35b_a3b" && "$DRY_RUN" == "0" ]]; then
+    if [[ "$(agent_family "$REPO_ROOT" "$agent_id" || true)" == qwen35 && "$DRY_RUN" == "0" ]]; then
       qwen35_endpoint_preflight "$endpoint_urls"
       record_qwen35_contracts "${run_root}/collection_manifest.json"
     fi

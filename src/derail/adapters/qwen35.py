@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from typing import Any, Dict, List
 
 from .base import AgentCapabilities, HistoryStep
 
+
+QWEN35_AGENT_IDS = frozenset({"qwen3_5_35b_a3b", "rerail_35b_a3b"})
 
 _ACTION_LINE = re.compile(r"(?m)^Action:\s*(?P<action>\S.*)$")
 _TOOL_CALL = re.compile(r"<tool_call>.*?</tool_call>", re.DOTALL)
@@ -29,8 +32,11 @@ class Qwen35StateAdapter:
     )
     history_starts_with_system_message = False
 
-    def __init__(self, instruction: str = "") -> None:
+    def __init__(self, instruction: str = "", agent_id: str = "qwen3_5_35b_a3b") -> None:
+        if agent_id not in QWEN35_AGENT_IDS:
+            raise ValueError(f"{agent_id} is not a Qwen 3.5 agent")
         self.instruction = instruction
+        self.capabilities = replace(type(self).capabilities, agent_id=agent_id)
 
     @staticmethod
     def _source_response(trajectory_log: str) -> tuple[str, str, str]:

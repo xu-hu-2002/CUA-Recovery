@@ -26,7 +26,7 @@ Usage:
   bash scripts/collection/serve_open_source.sh attach <agent_id>
 
 agent_id:
-  qwen3_5_35b_a3b | evocua_32b | opencua_72b
+  qwen3_5_35b_a3b | rerail_35b_a3b | evocua_32b | opencua_72b
 
 Replicas are derived, not declared: usable GPUs / tensor_parallel_size, where the
 TP size comes from configs/agents/<agent_id>.yaml and the GPU count from
@@ -107,6 +107,7 @@ agent_gpu_group() {
 short_name() {
   case "$1" in
     qwen3_5_35b_a3b) printf 'qwen35\n' ;;
+    rerail_35b_a3b) printf 'rerail\n' ;;
     evocua_32b) printf 'evocua\n' ;;
     opencua_72b) printf 'opencua72b\n' ;;
     *) die "未知 agent_id：$1" ;;
@@ -165,7 +166,7 @@ assert_runtime_image() {
   local agent_id="$1"
   local image
   case "$agent_id" in
-    qwen3_5_35b_a3b) image="$VLLM_019_IMAGE" ;;
+    qwen3_5_35b_a3b | rerail_35b_a3b) image="$VLLM_019_IMAGE" ;;
     opencua_72b) image="$VLLM_012_IMAGE" ;;
     evocua_32b)
       assert_evocua_image
@@ -175,10 +176,25 @@ assert_runtime_image() {
   docker image inspect "$image" >/dev/null 2>&1 || die "冻结 runtime image 不存在：${image}"
 }
 
+agent_checkpoint() {
+  local value name
+  value="$(config_scalar_required "$(agent_config_path "$REPO_ROOT" "$1")" checkpoint)" || exit 1
+  if [[ "$value" =~ ^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$ ]]; then
+    name="${BASH_REMATCH[1]}"
+    value="${!name:-}"
+    [[ -n "$value" ]] || die "${1} 的 checkpoint 需要环境变量 ${name}"
+  fi
+  printf '%s\n' "$value"
+}
+
 snapshot_path() {
   local config checkpoint revision
   config="$(agent_config_path "$REPO_ROOT" "$1")"
-  checkpoint="$(config_scalar_required "$config" checkpoint)" || exit 1
+  checkpoint="$(agent_checkpoint "$1")" || exit 1
+  if [[ "$checkpoint" == /* ]]; then
+    printf '%s\n' "$checkpoint"
+    return
+  fi
   revision="$(config_scalar_required "$config" revision)" || exit 1
   printf '%s/models--%s/snapshots/%s\n' \
     "$HF_CACHE_ROOT/hub" "${checkpoint//\//--}" "$revision"
@@ -188,13 +204,15 @@ append_model_args() {
   local agent_id="$1" config tp checkpoint revision
   config="$(agent_config_path "$REPO_ROOT" "$agent_id")"
   tp="$(config_scalar_required "$config" tensor_parallel_size)" || exit 1
-  checkpoint="$(config_scalar_required "$config" checkpoint)" || exit 1
-  revision="$(config_scalar_required "$config" revision)" || exit 1
+  checkpoint="$(agent_checkpoint "$agent_id")" || exit 1
+  revision="$(config_scalar "$config" revision || true)"
+  DOCKER_VOLUME_ARGS=()
+  [[ "$checkpoint" == /* ]] && DOCKER_VOLUME_ARGS=(--volume "${checkpoint}:${checkpoint}:ro")
   case "$agent_id" in
-    qwen3_5_35b_a3b)
+    qwen3_5_35b_a3b | rerail_35b_a3b)
       MODEL_ARGS=(
         "$checkpoint"
-        --revision "$revision"
+        ${revision:+--revision "$revision"}
         --served-model-name "$checkpoint"
         --tensor-parallel-size "$tp" --dtype bfloat16
         --gpu-memory-utilization 0.92 --max-model-len 49152 --max-num-seqs 1
@@ -233,6 +251,7 @@ print_base_urls() {
   local variable
   case "$agent_id" in
     qwen3_5_35b_a3b) variable=QWEN35_BASE_URLS ;;
+    rerail_35b_a3b) variable=RERAIL_BASE_URLS ;;
     evocua_32b) variable=EVOCUA_BASE_URLS ;;
     opencua_72b) variable=OPENCUA_BASE_URLS ;;
   esac
@@ -306,7 +325,7 @@ start_model() {
       --label derail.project=DERAIL --label "derail.agent_id=${agent_id}"
       --gpus "$gpu_request" --ipc host --cpuset-cpus "$cpu_set"
       --publish "127.0.0.1:${port}:8000"
-      --volume "${HF_CACHE_ROOT}:/root/.cache/huggingface"
+      --volume "${HF_CACHE_ROOT}:/root/.cache/huggingface" "${DOCKER_VOLUME_ARGS[@]}"
       --env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       "$RUNTIME_IMAGE" "${MODEL_ARGS[@]}"
     )

@@ -23,7 +23,7 @@ from run_mypcbench import get_agent, run_single_example  # noqa: E402
 
 from derail.canonical.mypcbench import load_canonical_jsonl  # noqa: E402
 from derail.derived.layout import atomic_write_json, sha256_file  # noqa: E402
-from derail.mypcbench.agent_config import load_config  # noqa: E402
+from derail.mypcbench.agent_config import load_config, resolve_checkpoint  # noqa: E402
 from derail.mypcbench.takeover_agent import PrefixTakeoverAgent  # noqa: E402
 from derail.mypcbench.qwen35_takeover import wrap_qwen35_takeover_target  # noqa: E402
 from derail.mypcbench.claude_takeover import wrap_claude_takeover_target  # noqa: E402
@@ -325,7 +325,7 @@ def main() -> int:
     target_config = load_config(live_target_agent_id)
     agent_type = str(target_config.document["agent_type"])
     configured_model = str(
-        target_config.document.get("checkpoint") or target_config.document.get("model") or ""
+        resolve_checkpoint(target_config) or target_config.document.get("model") or ""
     )
     if not configured_model:
         raise RuntimeError(f"target config has no model/checkpoint: {target_config.path}")
