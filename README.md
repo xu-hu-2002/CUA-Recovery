@@ -2,6 +2,10 @@
 
 **A benchmark and a data pipeline for detecting and recovering from policy-induced errors in long, stateful computer-use workflows.**
 
+<p align="center">
+  <img src="assets/overview.png" alt="CUA-Recovery overview" width="100%">
+</p>
+
 ## 📢 News
 
 - **[2026/09]** Code released.
@@ -46,6 +50,12 @@ source .venv/bin/activate
 ```
 
 3. Fill in `.env` with the API keys and endpoints you use.
+
+## Hardware
+
+- Open-weight agents are served with vLLM on AMD MI308X GPUs, 8 GPUs per job (TP=8).
+- Smoke tests and API-based agents run on NVIDIA RTX A6000 (48 GB), TP=2.
+- ReRail-35B-A3B is fine-tuned on 64 × AMD MI308X for 18 hours.
 
 ## Quick Start
 
@@ -131,6 +141,7 @@ All parameters live in `configs/`. The defaults follow the paper.
 ```
 CUA-Recovery/
 ├── main.py                 # Entry point for every stage
+├── assets/                 # Figures
 ├── src/derail/             # Core package
 │   ├── gen/                # Workflow composition, frozen verifiers, splits
 │   ├── ir/, world/         # Task IR and gold-lineage interpreter
