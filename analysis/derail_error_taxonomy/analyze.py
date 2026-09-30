@@ -26,15 +26,15 @@ class Build:
 
 
 BUILDS = (
-    Build("claudeopus48_xuhu_traj", "claude_opus_4_8", "closed", "xuhu"),
-    Build("evocua32b_jinxin_traj", "evocua_32b", "open", "Jinxin"),
-    Build("gpt5_5_haoming_traj", "gpt_5_5", "closed", "Haoming"),
-    Build("gpt5_5_recollected_haoming_traj", "gpt_5_5", "closed", "Haoming"),
-    Build("gpt5_5_recollected_retry38_haoming_traj", "gpt_5_5", "closed", "Haoming"),
-    Build("gpt5_5_recollected_retry38_unfinished13_haoming_traj", "gpt_5_5", "closed", "Haoming"),
-    Build("kimi_k3_26_kangshuo_traj", "kimi_k3_26", "open", "kangshuo"),
-    Build("opencua_72b_dingyi_traj", "opencua_72b", "open", "dingyi"),
-    Build("qwen35_licheng_traj", "qwen3_5_35b_a3b", "open", "licheng"),
+    Build("claudeopus48_annotator1_traj", "claude_opus_4_8", "closed", "annotator1"),
+    Build("evocua32b_annotator2_traj", "evocua_32b", "open", "annotator2"),
+    Build("gpt5_5_annotator3_traj", "gpt_5_5", "closed", "annotator3"),
+    Build("gpt5_5_recollected_annotator3_traj", "gpt_5_5", "closed", "annotator3"),
+    Build("gpt5_5_recollected_retry38_annotator3_traj", "gpt_5_5", "closed", "annotator3"),
+    Build("gpt5_5_recollected_retry38_unfinished13_annotator3_traj", "gpt_5_5", "closed", "annotator3"),
+    Build("kimi_k3_26_annotator4_traj", "kimi_k3_26", "open", "annotator4"),
+    Build("opencua_72b_annotator5_traj", "opencua_72b", "open", "annotator5"),
+    Build("qwen35_annotator6_traj", "qwen3_5_35b_a3b", "open", "annotator6"),
 )
 INCLUDED_MODELS = (
     "claude_opus_4_8",

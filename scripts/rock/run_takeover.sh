@@ -38,43 +38,6 @@ RETRY_FAILED_ONLY="${RETRY_FAILED_ONLY:-0}"
 JOB_MAX_ATTEMPTS="${JOB_MAX_ATTEMPTS:-3}"
 JOB_RETRY_DELAY="${JOB_RETRY_DELAY:-10}"
 
-usage() {
-  cat <<'EOF'
-用法：
-  bash scripts/rock/run_takeover.sh \
-    --source-agent evocua_32b \
-    --takeover-agent qwen3_8_27b \
-    --depth 0/5/10/15/20/25 \
-    --prompt-condition unaware/notified/diagnosed [选项]
-
-核心参数：
-  --source-agent ID          产生失败 prefix、将被接管的 agent。
-  --takeover-agent ID        从 prefix 继续执行任务的 agent；--target-agent 是同义写法。
-  --depth N[/N...]           接管深度：0、5、10、15、20、25，用 / 连接可一次跑多个。
-                             0=根因后立即接管；5=source 再走 5 步后接管，依此类推。
-                             all 等价于 0/5/10/15/20/25。
-  --prompt-condition C[/C...]  Prompt 条件，用 / 连接可一次跑多个：
-                             unaware  = 不告诉 takeover agent 之前发生过错误；
-                             notified = 告知有严重错误，但不透露位置和类型；
-                             diagnosed= 给出人工标注的根因位置和错误类型证据。
-                             all 等价于 unaware/notified/diagnosed。
-
-常用选项：
-  --annotator-id ID          选择人工标注者。
-  --run-tag TAG              输出实验名称，默认 takeover_v1。
-  --repeats N                每个 state 独立运行 N 次（默认取配置，论文 Pass@3 为 3）。
-  --takeover-config PATH     协议配置，默认 configs/takeover/takeover.yaml。
-  --dry-run                  只执行选择和 preflight，不启动 VM。
-  --no-judge                 rollout 完成后不自动 judge。
-  --run-judge                rollout 完成后自动 judge（默认）。
-  --retry-failed-only        只重跑已有 result.txt=0 的任务。
-  -h, --help                 显示本帮助。
-
-也可以继续使用环境变量，例如 DEPTHS="0 5" CONDITIONS="unaware notified"。
-多个 depth 和 condition 会运行它们的笛卡尔积。
-EOF
-}
-
 need_value() {
   [[ $# -ge 2 && -n "$2" ]] || { echo "FATAL: $1 需要一个值" >&2; exit 2; }
 }
@@ -93,8 +56,7 @@ while [[ $# -gt 0 ]]; do
     --no-judge) RUN_JUDGE=0; shift ;;
     --run-judge) RUN_JUDGE=1; shift ;;
     --retry-failed-only) RETRY_FAILED_ONLY=1; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "FATAL: 未知参数：$1" >&2; usage >&2; exit 2 ;;
+    *) echo "FATAL: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 

@@ -329,7 +329,7 @@ class ProductionBundleDefaultsTests(unittest.TestCase):
         )
         self.assertIn("TAKEOVER_TOKENIZE_MODE=anthropic_usage", submit)
         self.assertIn("CLAUDE_OPUS_4_8_MODEL", submit)
-        self.assertIn("TAKEOVER_ANNOTATOR=xuhu", submit)
+        self.assertIn("TAKEOVER_ANNOTATOR=annotator1", submit)
 
 
 class TakeoverDiagnosisTests(unittest.TestCase):

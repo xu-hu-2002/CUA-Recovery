@@ -104,9 +104,9 @@ TAKEOVER_INPUT_ROOT = Path(_env(
 ))
 TAKEOVER_SOURCE_AGENT = _env("TAKEOVER_SOURCE_AGENT", "opencua_72b")
 TAKEOVER_TARGET_AGENT = _env("TAKEOVER_TARGET_AGENT", AGENT_ID)
-TAKEOVER_ANNOTATOR = _env("TAKEOVER_ANNOTATOR", "dingyi")
+TAKEOVER_ANNOTATOR = _env("TAKEOVER_ANNOTATOR", "annotator5")
 TAKEOVER_BUILD_DIR = _env(
-    "TAKEOVER_BUILD_DIR", "artifacts/derail_builds/opencua72b_dingyi_takeover"
+    "TAKEOVER_BUILD_DIR", "artifacts/derail_builds/opencua72b_annotator5_takeover"
 )
 TAKEOVER_DEPTH = _env("TAKEOVER_DEPTH", "0")
 TAKEOVER_CONDITION = _env("TAKEOVER_CONDITION", "unaware")

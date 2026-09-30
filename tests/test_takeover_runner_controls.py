@@ -122,20 +122,6 @@ class TakeoverResumeTests(unittest.TestCase):
             self.assertEqual(ROLLOUT._enforce_takeover_artifacts(result_dir, 1.0), 0)
 
 
-class TakeoverRolloutShellTests(unittest.TestCase):
-    def test_help_documents_multi_depth_and_condition_options_in_chinese(self):
-        completed = subprocess.run(
-            ["bash", str(REPOSITORY / "scripts/rock/run_takeover.sh"), "--help"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        self.assertIn("--depth 0/5/10/15/20/25", completed.stdout)
-        self.assertIn("--prompt-condition unaware/notified/diagnosed", completed.stdout)
-        self.assertIn("根因后立即接管", completed.stdout)
-        self.assertIn("笛卡尔积", completed.stdout)
-
-
 class TakeoverDashboardTests(unittest.TestCase):
     def _run_dashboard(self, root: Path) -> str:
         env = dict(os.environ)

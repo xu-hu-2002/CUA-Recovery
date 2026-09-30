@@ -105,9 +105,9 @@ fields:
 
 analysis_set:
   agent_annotator_whitelist:
-    gpt_5_5: Haoming
-    claude_opus_4_8: xuhu
-    evocua_32b: Jinxin
+    gpt_5_5: annotator3
+    claude_opus_4_8: annotator1
+    evocua_32b: annotator2
   require_rubric_review: true
   exclude_wrong_rollout: true
   low_n_threshold: 10
