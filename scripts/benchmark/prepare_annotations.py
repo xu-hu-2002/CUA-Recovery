@@ -27,9 +27,6 @@ FINGERPRINT_SCRIPTS = (
 DEFAULT_TARGET_AGENTS = (
     "qwen3_5_35b_a3b",
     "evocua_32b",
-    "qwen3_6_27b",
-    "qwen3_8_27b",
-    "holo_3_1_35b_a3b",
     "opencua_72b",
     "gpt_5_5",
 )

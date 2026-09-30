@@ -37,11 +37,8 @@ from derail.mypcbench.tool_agent import (
     SafePyAutoGUICompiler,
     ToolCallError,
     build_computer_tools,
-    holo31_protocol,
     kimi_k3_cuabash_protocol,
     kimi_k3_protocol,
-    qwen36_protocol,
-    qwen38_protocol,
     validate_pyautogui_program,
 )
 
@@ -297,7 +294,7 @@ class _FakeEnv:
 
 
 class SafeCompilerTests(unittest.TestCase):
-    def test_holo_normalized_edges_map_inside_screen(self):
+    def test_normalized_edges_map_inside_screen(self):
         compiler = SafePyAutoGUICompiler((1280, 800), "normalized_0_1000")
         self.assertEqual(
             compiler.compile("click", {"x": 1000, "y": 1000}),
@@ -323,7 +320,7 @@ class SafeCompilerTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ToolCallError):
                 compiler.compile("click", {"x": invalid})
 
-    def test_holo_bare_coordinate_pair_string_is_accepted(self):
+    def test_bare_coordinate_pair_string_is_accepted(self):
         compiler = SafePyAutoGUICompiler((1280, 800), "normalized_0_1000")
         self.assertEqual(
             compiler.compile("click", {"x": "867, 163"}),
@@ -435,15 +432,15 @@ class NativeToolAgentTests(unittest.TestCase):
             "type": "function",
             "function": {
                 "name": "click",
-                "arguments": json.dumps({"x": 500, "y": 500}),
+                "arguments": json.dumps({"x": 640, "y": 400}),
             },
         }
         message = types.SimpleNamespace(content=None, tool_calls=[call])
         client = _FakeClient(message)
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=client,
         )
 
@@ -528,7 +525,7 @@ class NativeToolAgentTests(unittest.TestCase):
             "function": {"name": "click", "arguments": json.dumps({"x": 500, "y": 500})},
         }
         protocol = dataclasses.replace(
-            holo31_protocol(),
+            kimi_k3_protocol(),
             history_turns=3,
             max_images_in_context=3,
             previous_action_log=False,
@@ -537,7 +534,7 @@ class NativeToolAgentTests(unittest.TestCase):
             [types.SimpleNamespace(content=None, tool_calls=[call]) for _ in range(6)]
         )
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B", (1280, 800), protocol, client=client
+            "kimi-k3", (1280, 800), protocol, client=client
         )
         for _ in range(6):
             agent.predict("Do the task", {"screenshot": b"png"})
@@ -554,13 +551,13 @@ class NativeToolAgentTests(unittest.TestCase):
             "type": "function",
             "function": {
                 "name": "scroll",
-                "arguments": json.dumps({"x": 500, "y": 500, "delta_y": -300}),
+                "arguments": json.dumps({"x": 640, "y": 400, "delta_y": -300}),
             },
         }
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=_FakeClient(types.SimpleNamespace(content=None, tool_calls=[call])),
         )
 
@@ -589,13 +586,13 @@ class NativeToolAgentTests(unittest.TestCase):
             "type": "function",
             "function": {
                 "name": "scroll",
-                "arguments": json.dumps({"x": 500, "y": 500, "delta_y": -3}),
+                "arguments": json.dumps({"x": 640, "y": 400, "delta_y": -3}),
             },
         }
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=_FakeClient(types.SimpleNamespace(content=None, tool_calls=[call])),
         )
 
@@ -604,7 +601,7 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(actions, ["pyautogui.moveTo(640, 400)", "pyautogui.scroll(-3)"])
         self.assertIn("Accepted for execution", agent._turns[0][-1]["content"])
 
-    def test_invalid_holo_tool_call_gets_one_bounded_schema_repair(self):
+    def test_invalid_tool_call_gets_one_bounded_schema_repair(self):
         invalid = types.SimpleNamespace(
             content=None,
             tool_calls=[
@@ -626,16 +623,16 @@ class NativeToolAgentTests(unittest.TestCase):
                     "type": "function",
                     "function": {
                         "name": "click",
-                        "arguments": json.dumps({"x": 500, "y": 500}),
+                        "arguments": json.dumps({"x": 640, "y": 400}),
                     },
                 }
             ],
         )
         client = _FakeClient([invalid, valid])
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=client,
         )
 
@@ -665,9 +662,9 @@ class NativeToolAgentTests(unittest.TestCase):
 
         client = _FakeClient([invalid("bad1"), invalid("bad2"), invalid("bad3")])
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=client,
         )
 
@@ -681,11 +678,11 @@ class NativeToolAgentTests(unittest.TestCase):
 
     def test_both_derail_scaffolds_share_schema_repair_budget(self):
         self.assertEqual(
-            qwen36_protocol().schema_repair_attempts,
-            holo31_protocol().schema_repair_attempts,
+            kimi_k3_protocol().schema_repair_attempts,
+            kimi_k3_cuabash_protocol().schema_repair_attempts,
             "两个 DERAIL scaffold 的 schema_repair_attempts 必须一致，否则失败分布不可比",
         )
-        self.assertEqual(holo31_protocol().schema_repair_attempts, 2)
+        self.assertEqual(kimi_k3_cuabash_protocol().schema_repair_attempts, 2)
 
     def _batch_message(self, call_id, names_and_arguments):
         return types.SimpleNamespace(
@@ -700,31 +697,14 @@ class NativeToolAgentTests(unittest.TestCase):
             ],
         )
 
-    def test_wait_before_an_action_is_executed_in_order(self):
-        message = self._batch_message(
-            "lead",
-            [("wait", {"seconds": 2}), ("click", {"x": 500, "y": 500})],
-        )
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
-            (1280, 800),
-            holo31_protocol(),
-            client=_FakeClient(message),
-        )
-
-        response, actions = agent.predict("Wait then click", {"screenshot": b"png"})
-
-        self.assertEqual(actions, ["WAIT", "pyautogui.click(640, 400, button='left')"])
-        self.assertEqual(json.loads(response)["interventions"], [])
-
-    def test_qwen_repeated_waits_collapse_into_one_and_stay_auditable(self):
+    def test_repeated_waits_collapse_into_one_and_stay_auditable(self):
         message = self._batch_message(
             "waits", [("wait", {"seconds": 2}), ("wait", {"seconds": 3})]
         )
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B",
+            "kimi-k3",
             (1280, 800),
-            qwen36_protocol(),
+            kimi_k3_protocol(),
             client=_FakeClient(message),
         )
 
@@ -740,74 +720,14 @@ class NativeToolAgentTests(unittest.TestCase):
             ["waits_0", "waits_1"],
         )
 
-    def test_holo_repeated_waits_are_all_executed_in_order(self):
-        message = self._batch_message(
-            "waits", [("wait", {"seconds": 2}), ("wait", {"seconds": 3})]
-        )
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
-            (1280, 800),
-            holo31_protocol(),
-            client=_FakeClient(message),
-        )
-
-        response, actions = agent.predict("Wait twice", {"screenshot": b"png"})
-
-        self.assertEqual(actions, ["WAIT", "WAIT"])
-        self.assertEqual(json.loads(response)["interventions"], [])
-
-    def test_batched_interactions_execute_in_order_without_a_repair(self):
-        batched = self._batch_message(
-            "batch",
-            [
-                ("click", {"x": 500, "y": 500}),
-                ("write", {"content": "hello"}),
-                ("click", {"x": 600, "y": 600}),
-            ],
-        )
-        client = _FakeClient([batched])
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B", (1280, 800), holo31_protocol(), client=client
-        )
-
-        response, actions = agent.predict("Search", {"screenshot": b"png"})
-
-        self.assertEqual(
-            actions,
-            [
-                "pyautogui.click(640, 400, button='left')",
-                "pyautogui.write('hello', interval=0.01)",
-                "pyautogui.click(767, 479, button='left')",
-            ],
-        )
-        parsed = json.loads(response)
-        self.assertEqual(parsed["interventions"], [])
-        self.assertEqual(len(client.completions.requests), 1)
-
-    def test_answer_may_close_the_turn_it_shares_with_an_action(self):
-        batched = self._batch_message(
-            "finish",
-            [("click", {"x": 500, "y": 500}), ("answer", {"status": "success"})],
-        )
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
-            (1280, 800),
-            holo31_protocol(),
-            client=_FakeClient([batched]),
-        )
-
-        _response, actions = agent.predict("Finish", {"screenshot": b"png"})
-
-        self.assertEqual(actions, ["pyautogui.click(640, 400, button='left')", "DONE"])
-
     def test_missing_tool_call_gets_one_bounded_schema_repair(self):
         missing = types.SimpleNamespace(content="plain text", tool_calls=None)
         valid = self._action_message("fixed", "wait", {"seconds": 1})
         client = _FakeClient([missing, valid])
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=client,
         )
 
@@ -826,7 +746,7 @@ class NativeToolAgentTests(unittest.TestCase):
                     "type": "function",
                     "function": {
                         "name": "click",
-                        "arguments": json.dumps({"x": 800, "y": 560}),
+                        "arguments": json.dumps({"x": 1023, "y": 447}),
                     },
                 },
                 {
@@ -840,9 +760,9 @@ class NativeToolAgentTests(unittest.TestCase):
             ],
         )
         agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
+            "kimi-k3",
             (1280, 800),
-            holo31_protocol(),
+            kimi_k3_protocol(),
             client=_FakeClient(message),
         )
 
@@ -850,47 +770,7 @@ class NativeToolAgentTests(unittest.TestCase):
 
         self.assertEqual(actions, ["pyautogui.click(1023, 447, button='left')", "WAIT"])
 
-    def test_consecutive_clicks_run_as_one_batch(self):
-        batched = types.SimpleNamespace(
-            content=None,
-            tool_calls=[
-                {
-                    "id": "first",
-                    "type": "function",
-                    "function": {
-                        "name": "click",
-                        "arguments": json.dumps({"x": 500, "y": 500}),
-                    },
-                },
-                {
-                    "id": "second",
-                    "type": "function",
-                    "function": {
-                        "name": "click",
-                        "arguments": json.dumps({"x": 600, "y": 600}),
-                    },
-                },
-            ],
-        )
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
-            (1280, 800),
-            holo31_protocol(),
-            client=_FakeClient([batched]),
-        )
-
-        response, actions = agent.predict("Repair", {"screenshot": b"png"})
-
-        self.assertEqual(
-            actions,
-            [
-                "pyautogui.click(640, 400, button='left')",
-                "pyautogui.click(767, 479, button='left')",
-            ],
-        )
-        self.assertEqual(json.loads(response)["interventions"], [])
-
-    def test_qwen_consecutive_clicks_still_require_schema_repair(self):
+    def test_consecutive_clicks_still_require_schema_repair(self):
         batched = self._batch_message(
             "batch",
             [("click", {"x": 500, "y": 500}), ("click", {"x": 600, "y": 600})],
@@ -898,7 +778,7 @@ class NativeToolAgentTests(unittest.TestCase):
         repaired = self._action_message("fixed", "click", {"x": 500, "y": 500})
         client = _FakeClient([batched, repaired])
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), qwen36_protocol(), client=client
+            "kimi-k3", (1280, 800), kimi_k3_protocol(), client=client
         )
 
         response, actions = agent.predict("Click once", {"screenshot": b"png"})
@@ -906,42 +786,6 @@ class NativeToolAgentTests(unittest.TestCase):
         self.assertEqual(actions, ["pyautogui.click(500, 500, button='left')"])
         self.assertEqual(json.loads(response)["interventions"][0]["type"], "schema_repair")
         self.assertEqual(len(client.completions.requests), 2)
-
-    def test_holo_answer_must_be_the_last_call(self):
-        invalid = self._batch_message(
-            "invalid",
-            [("answer", {"status": "success"}), ("click", {"x": 500, "y": 500})],
-        )
-        repaired = self._action_message("fixed", "answer", {"status": "success"})
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
-            (1280, 800),
-            holo31_protocol(),
-            client=_FakeClient([invalid, repaired]),
-        )
-
-        response, actions = agent.predict("Finish", {"screenshot": b"png"})
-
-        self.assertEqual(actions, ["DONE"])
-        self.assertEqual(json.loads(response)["interventions"][0]["type"], "schema_repair")
-
-    def test_invalid_argument_inside_a_batch_still_gets_repaired(self):
-        bad = self._batch_message(
-            "bad",
-            [("click", {"x": 500, "y": 500}), ("click", {"x": 99999, "y": 1})],
-        )
-        good = self._action_message("fixed", "click", {"x": 500, "y": 500})
-        agent = NativeToolComputerAgent(
-            "Hcompany/Holo-3.1-35B-A3B",
-            (1280, 800),
-            holo31_protocol(),
-            client=_FakeClient([bad, good]),
-        )
-
-        response, actions = agent.predict("Repair", {"screenshot": b"png"})
-
-        self.assertEqual(actions, ["pyautogui.click(640, 400, button='left')"])
-        self.assertEqual(json.loads(response)["interventions"][0]["type"], "schema_repair")
 
     @staticmethod
     def _action_message(call_id, name, arguments):
@@ -970,7 +814,7 @@ class NativeToolAgentTests(unittest.TestCase):
     @staticmethod
     def _guarded_protocol():
         return dataclasses.replace(
-            qwen36_protocol(),
+            kimi_k3_protocol(),
             alternating_action_repeat_limit=8,
             stalled_state_step_limit=15,
         )
@@ -982,7 +826,7 @@ class NativeToolAgentTests(unittest.TestCase):
         sequence.append(self._action_message("repair", "move", {"x": 100, "y": 100}))
         client = _FakeClient(sequence)
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), protocol, client=client
+            "kimi-k3", (1280, 800), protocol, client=client
         )
         for index in range(2 * limit - 1):
             _, actions = agent.predict("Task", {"screenshot": f"png-{index}".encode()})
@@ -1002,7 +846,7 @@ class NativeToolAgentTests(unittest.TestCase):
         sequence.append(self._action_message("bail", "answer", {"status": "failure"}))
         client = _FakeClient(sequence)
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), self._guarded_protocol(), client=client
+            "kimi-k3", (1280, 800), self._guarded_protocol(), client=client
         )
         for _ in range(14):
             _, actions = agent.predict("Task", {"screenshot": b"frozen"})
@@ -1021,7 +865,7 @@ class NativeToolAgentTests(unittest.TestCase):
             for index in range(20)
         ]
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), self._guarded_protocol(), client=_FakeClient(sequence)
+            "kimi-k3", (1280, 800), self._guarded_protocol(), client=_FakeClient(sequence)
         )
 
         for index in range(20):
@@ -1029,19 +873,19 @@ class NativeToolAgentTests(unittest.TestCase):
             self.assertEqual(actions, [f"pyautogui.moveTo({100 + index}, 100)"])
 
     def test_both_derail_scaffolds_ship_with_loop_guards_disabled(self):
-        qwen, holo = qwen36_protocol(), holo31_protocol()
+        gui, bash = kimi_k3_protocol(), kimi_k3_cuabash_protocol()
         for field in ("alternating_action_repeat_limit", "stalled_state_step_limit"):
             self.assertEqual(
-                getattr(qwen, field),
-                getattr(holo, field),
+                getattr(gui, field),
+                getattr(bash, field),
                 f"两个 DERAIL scaffold 的 {field} 必须一致，否则失败分布不可比",
             )
-            self.assertEqual(getattr(holo, field), 0, f"{field} 应为 0（守卫停用）")
+            self.assertEqual(getattr(bash, field), 0, f"{field} 应为 0（守卫停用）")
 
     def test_disabled_guard_never_aborts_even_on_a_hard_cycle(self):
         sequence = self._alternating_cycle(12)
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), qwen36_protocol(), client=_FakeClient(sequence)
+            "kimi-k3", (1280, 800), kimi_k3_protocol(), client=_FakeClient(sequence)
         )
 
         for _ in range(24):
@@ -1055,7 +899,7 @@ class NativeToolAgentTests(unittest.TestCase):
         sequence = self._alternating_cycle(limit)
         sequence.append(self._action_message("again", "hotkey", {"keys": ["esc"]}))
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B",
+            "kimi-k3",
             (1280, 800),
             protocol,
             client=_FakeClient(sequence),
@@ -1081,7 +925,7 @@ class NativeToolAgentTests(unittest.TestCase):
         ]
         sequence.append(self._action_message("repair", "hotkey", {"keys": ["ctrl", "l"]}))
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), protocol, client=_FakeClient(sequence)
+            "kimi-k3", (1280, 800), protocol, client=_FakeClient(sequence)
         )
 
         for _ in range(limit - 1):
@@ -1100,7 +944,7 @@ class NativeToolAgentTests(unittest.TestCase):
             for index in range(6)
         ]
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), self._guarded_protocol(), client=_FakeClient(sequence)
+            "kimi-k3", (1280, 800), self._guarded_protocol(), client=_FakeClient(sequence)
         )
 
         for index in range(6):
@@ -1115,25 +959,16 @@ class NativeToolAgentTests(unittest.TestCase):
             tool_calls=None,
         )
         agent = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B",
+            "kimi-k3",
             (1280, 800),
-            qwen36_protocol(),
+            kimi_k3_protocol(),
             client=_FakeClient(message),
         )
         _response, actions = agent.predict("Wait", {"screenshot": b"png"})
         self.assertEqual(actions, ["WAIT"])
 
     def test_factory_exposes_local_tool_agents(self):
-        qwen = create_mypcbench_agent("derail_qwen36", "qwen", (1280, 800), "pw")
-        qwen38 = create_mypcbench_agent("derail_qwen38", "qwen38", (1280, 800), "pw")
-        holo = create_mypcbench_agent("derail_holo31", "holo", (1280, 800), "pw")
         kimi = create_mypcbench_agent("derail_kimi_k3", "kimi-k3", (1280, 800), "pw")
-        self.assertEqual(qwen.protocol.coordinate_protocol, "absolute_pixels")
-        self.assertEqual(qwen.protocol.tool_choice, "auto")
-        self.assertEqual(qwen38.protocol.coordinate_protocol, "absolute_pixels")
-        self.assertEqual(qwen38.protocol.tool_choice, "auto")
-        self.assertEqual(holo.protocol.coordinate_protocol, "normalized_0_1000")
-        self.assertEqual(holo.protocol.tool_choice, "auto")
         self.assertEqual(kimi.protocol.coordinate_protocol, "absolute_pixels")
         self.assertEqual(kimi.protocol.tool_choice, "auto")
         self.assertIsNone(kimi.protocol.temperature)
@@ -1166,13 +1001,6 @@ class NativeToolAgentTests(unittest.TestCase):
             "reasoning tokens 计入预算，kimi 的 max_tokens 不得小于 4096",
         )
 
-        qwen_client = _FakeClient(message)
-        qwen = NativeToolComputerAgent(
-            "Qwen/Qwen3.6-27B", (1280, 800), qwen36_protocol(), client=qwen_client
-        )
-        qwen.predict("Open settings", {"screenshot": b"png"})
-        self.assertEqual(qwen_client.completions.requests[0]["temperature"], 0.0)
-
     def test_shipped_protocol_comes_from_yaml(self):
         source = pathlib.Path(__file__).resolve().parents[1] / "configs" / "agents"
         with tempfile.TemporaryDirectory() as tmp:
@@ -1180,7 +1008,7 @@ class NativeToolAgentTests(unittest.TestCase):
             (root / "configs" / "agents").mkdir(parents=True)
             for path in source.glob("*.yaml"):
                 shutil.copy(path, root / "configs" / "agents" / path.name)
-            patched = root / "configs" / "agents" / "holo_3_1_35b_a3b.yaml"
+            patched = root / "configs" / "agents" / "kimi_k3.yaml"
             patched.write_text(
                 patched.read_text(encoding="utf-8")
                 .replace("tool_choice: auto", "tool_choice: required")
@@ -1190,22 +1018,21 @@ class NativeToolAgentTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.object(agent_config, "REPO_ROOT", root):
-                holo = create_mypcbench_agent("derail_holo31", "holo", (1280, 800), "pw")
-                self.assertEqual(holo.protocol.tool_choice, "required")
-                self.assertEqual(holo.protocol.max_images_in_context, 7)
-                self.assertEqual(holo.protocol.history_turns, 9)
-                self.assertFalse(holo.protocol.previous_action_log)
-                qwen = create_mypcbench_agent("derail_qwen36", "qwen", (1280, 800), "pw")
-                self.assertEqual(qwen.protocol.tool_choice, "auto")
+                kimi = create_mypcbench_agent("derail_kimi_k3", "kimi-k3", (1280, 800), "pw")
+                self.assertEqual(kimi.protocol.tool_choice, "required")
+                self.assertEqual(kimi.protocol.max_images_in_context, 7)
+                self.assertEqual(kimi.protocol.history_turns, 9)
+                self.assertFalse(kimi.protocol.previous_action_log)
+                bash = create_mypcbench_agent(
+                    "derail_kimi_k3_cuabash", "kimi-k3", (1280, 800), "pw"
+                )
+                self.assertEqual(bash.protocol.tool_choice, "auto")
 
     def test_yaml_matches_shipped_protocol(self):
         import yaml
 
         config_dir = pathlib.Path(__file__).resolve().parents[1] / "configs" / "agents"
         for agent_id, protocol in (
-            ("holo_3_1_35b_a3b", holo31_protocol()),
-            ("qwen3_6_27b", qwen36_protocol()),
-            ("qwen3_8_27b", qwen38_protocol()),
             ("kimi_k3", kimi_k3_protocol()),
             ("kimi_k3_cuabash", kimi_k3_cuabash_protocol()),
         ):
@@ -1423,7 +1250,7 @@ class BashToolAgentTests(unittest.TestCase):
             tool_replies = [m for m in sent if m.get("role") == "tool"]
             self.assertTrue(any(m.get("tool_call_id") == "b1" for m in tool_replies))
 
-    def test_steps_accounting_aborts_on_pathological_consecutive_bash(self):
+    def test_steps_accounting_aborts_on_runaway_consecutive_bash(self):
         with mock.patch.dict(os.environ, {"DERAIL_BASH_ACCOUNTING": "steps"}), \
              mock.patch(
                  "derail.mypcbench.tool_agent._MAX_CONSECUTIVE_BASH_STEPS", 3

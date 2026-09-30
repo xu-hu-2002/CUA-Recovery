@@ -236,7 +236,7 @@ class ReplayStateTests(unittest.TestCase):
         agent = PrefixTakeoverAgent(
             target_agent=target, environment=object(), task_config={"instruction": "Finish"},
             canonical_steps=steps, diagnosis=diagnosis, condition="unaware",
-            source_agent="kimi_k3", target_agent_id="qwen3_8_27b",
+            source_agent="kimi_k3", target_agent_id="kimi_k3",
             qcow2_path=Path("/tmp/base.qcow2"), qcow2_sha256="c" * 64,
             artifact_dir=directory, depth=1,
             replay_verification=load_takeover_config()["replay_verification"],

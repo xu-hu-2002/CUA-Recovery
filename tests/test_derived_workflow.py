@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from derail.adapters.base import HistoryStep
-from derail.adapters.holo31 import Holo31Adapter
+from derail.adapters.kimi_k3 import KimiK3ScaffoldAdapter
 from derail.annotation.labels import Reversibility
 from derail.annotation.records import Adjudication, HumanAnnotation
 from derail.annotation.taxonomy import error_types_outside_seed, summarize_open_codes
@@ -838,9 +838,9 @@ for _line_index, _line in enumerate(_text.split('\\n')):
             ),
         )
         artifact = build_native_history_artifact(
-            Holo31Adapter(instruction="Complete the synthetic task"),
+            KimiK3ScaffoldAdapter(instruction="Complete the synthetic task"),
             steps,
-            renderer_version="holo31-v1",
+            renderer_version="kimi-k3-v1",
             strip_reasoning=False,
         )
         self.assertEqual(artifact.action_indices, (0, 2))
@@ -999,9 +999,9 @@ for _line_index, _line in enumerate(_text.split('\\n')):
             action=ClickAction(kind="click", x_px=10, y_px=10),
         )
         history = build_native_history_artifact(
-            Holo31Adapter(instruction="Recover and finish the task."),
+            KimiK3ScaffoldAdapter(instruction="Recover and finish the task."),
             (history_step,),
-            renderer_version="holo31-v1",
+            renderer_version="kimi-k3-v1",
             conformance_probe_sha256=sha256_file(probe_path),
             conformance_passed=True,
         )
@@ -1025,7 +1025,7 @@ for _line_index, _line in enumerate(_text.split('\\n')):
             build_id="build-1",
             instance_id="case-1-d0",
             case_id="case-1",
-            agent_id="holo_3_1_35b_a3b",
+            agent_id="kimi_k3",
             agent_model_revision="rev-1",
             agent_prompt_sha256="1" * 64,
             adapter_sha256="2" * 64,

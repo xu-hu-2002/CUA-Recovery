@@ -26,8 +26,7 @@ Usage:
   bash scripts/collection/serve_open_source.sh attach <agent_id>
 
 agent_id:
-  qwen3_5_35b_a3b | evocua_32b | qwen3_6_27b | qwen3_8_27b |
-  holo_3_1_35b_a3b | opencua_72b
+  qwen3_5_35b_a3b | evocua_32b | opencua_72b
 
 Replicas are derived, not declared: usable GPUs / tensor_parallel_size, where the
 TP size comes from configs/agents/<agent_id>.yaml and the GPU count from
@@ -109,9 +108,6 @@ short_name() {
   case "$1" in
     qwen3_5_35b_a3b) printf 'qwen35\n' ;;
     evocua_32b) printf 'evocua\n' ;;
-    qwen3_6_27b) printf 'qwen36\n' ;;
-    qwen3_8_27b) printf 'qwen38\n' ;;
-    holo_3_1_35b_a3b) printf 'holo31\n' ;;
     opencua_72b) printf 'opencua72b\n' ;;
     *) die "未知 agent_id：$1" ;;
   esac
@@ -169,7 +165,7 @@ assert_runtime_image() {
   local agent_id="$1"
   local image
   case "$agent_id" in
-    qwen3_5_35b_a3b|qwen3_6_27b|qwen3_8_27b|holo_3_1_35b_a3b) image="$VLLM_019_IMAGE" ;;
+    qwen3_5_35b_a3b) image="$VLLM_019_IMAGE" ;;
     opencua_72b) image="$VLLM_012_IMAGE" ;;
     evocua_32b)
       assert_evocua_image
@@ -208,32 +204,6 @@ append_model_args() {
       )
       RUNTIME_IMAGE="$VLLM_019_IMAGE"
       ;;
-    qwen3_6_27b)
-      MODEL_ARGS=(
-        "$checkpoint"
-        --revision "$revision"
-        --served-model-name "$checkpoint"
-        --tensor-parallel-size "$tp" --dtype bfloat16
-        --max-model-len 49152 --max-num-seqs 1 --gpu-memory-utilization 0.90
-        --disable-custom-all-reduce
-        --reasoning-parser qwen3 --enable-auto-tool-choice
-        --tool-call-parser qwen3_coder --host 0.0.0.0 --port 8000
-      )
-      RUNTIME_IMAGE="$VLLM_019_IMAGE"
-      ;;
-    qwen3_8_27b)
-      MODEL_ARGS=(
-        "$checkpoint"
-        --revision "$revision"
-        --served-model-name "$checkpoint"
-        --tensor-parallel-size "$tp" --dtype bfloat16
-        --max-model-len 98304 --max-num-seqs 1 --gpu-memory-utilization 0.90
-        --disable-custom-all-reduce
-        --reasoning-parser qwen3 --enable-auto-tool-choice
-        --tool-call-parser qwen3_coder --host 0.0.0.0 --port 8000
-      )
-      RUNTIME_IMAGE="$VLLM_019_IMAGE"
-      ;;
     evocua_32b)
       MODEL_ARGS=(
         --model "$checkpoint"
@@ -243,20 +213,6 @@ append_model_args() {
         --disable-custom-all-reduce --host 0.0.0.0 --port 8000
       )
       RUNTIME_IMAGE="$EVOCUA_IMAGE"
-      ;;
-    holo_3_1_35b_a3b)
-      MODEL_ARGS=(
-        "$checkpoint"
-        --revision "$revision"
-        --served-model-name "$checkpoint"
-        --tensor-parallel-size "$tp" --dtype bfloat16
-        --max-model-len 49152 --max-num-seqs 1 --gpu-memory-utilization 0.90
-        --disable-custom-all-reduce
-        --reasoning-parser qwen3 --enable-auto-tool-choice
-        --tool-call-parser qwen3_coder --host 0.0.0.0 --port 8000
-        --trust-remote-code
-      )
-      RUNTIME_IMAGE="$VLLM_019_IMAGE"
       ;;
     opencua_72b)
       MODEL_ARGS=(
@@ -277,10 +233,7 @@ print_base_urls() {
   local variable
   case "$agent_id" in
     qwen3_5_35b_a3b) variable=QWEN35_BASE_URLS ;;
-    qwen3_6_27b) variable=QWEN36_BASE_URLS ;;
-    qwen3_8_27b) variable=QWEN38_BASE_URLS ;;
     evocua_32b) variable=EVOCUA_BASE_URLS ;;
-    holo_3_1_35b_a3b) variable=HOLO31_BASE_URLS ;;
     opencua_72b) variable=OPENCUA_BASE_URLS ;;
   esac
   local urls=""

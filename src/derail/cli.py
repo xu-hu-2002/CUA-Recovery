@@ -32,7 +32,6 @@ REQUIRED_PATHS = (
     "src/derail/synthesis/pipeline.py",
     "src/derail/synthesis/skeletons.py",
     "src/derail/replay/executor.py",
-    "src/derail/adapters/holo31.py",
     "scripts/collection/serve_open_source.sh",
     "scripts/collection/collect_all.sh",
     "scripts/collection/collect_trajectories.sh",

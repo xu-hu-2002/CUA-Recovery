@@ -27,9 +27,6 @@ LOCAL_VLLM = "local_vllm"
 HOSTED_API = "hosted_api"
 
 AGENT_ID_BY_TYPE: Mapping[str, str] = {
-    "derail_qwen36": "qwen3_6_27b",
-    "derail_qwen38": "qwen3_8_27b",
-    "derail_holo31": "holo_3_1_35b_a3b",
     "derail_kimi_k3": "kimi_k3",
     "derail_kimi_k3_cuabash": "kimi_k3_cuabash",
     "derail_evocua": "evocua_32b",
@@ -125,11 +122,6 @@ _TOOL_AGENT_LIVE: Mapping[str, _Field] = {
     "enable_bash": _Field(bool),
 }
 
-_QWEN38_TOOL_AGENT_LIVE: Mapping[str, _Field] = {
-    **_TOOL_AGENT_LIVE,
-    "enable_shell": _Field(bool),
-}
-
 _UPSTREAM_COMMON_LIVE: Mapping[str, _Field] = {
     "max_tokens": _Field(int, minimum=1),
     "top_p": _Field(float, minimum=0.0),
@@ -139,11 +131,6 @@ _UPSTREAM_COMMON_LIVE: Mapping[str, _Field] = {
 }
 
 _SPECS: Mapping[str, _AgentSpec] = {
-    "qwen3_6_27b": _AgentSpec(DERAIL_TOOL_AGENT, LOCAL_VLLM, live=_TOOL_AGENT_LIVE),
-    "qwen3_8_27b": _AgentSpec(
-        DERAIL_TOOL_AGENT, LOCAL_VLLM, live=_QWEN38_TOOL_AGENT_LIVE
-    ),
-    "holo_3_1_35b_a3b": _AgentSpec(DERAIL_TOOL_AGENT, LOCAL_VLLM, live=_TOOL_AGENT_LIVE),
     "kimi_k3": _AgentSpec(DERAIL_TOOL_AGENT, HOSTED_API, live=_TOOL_AGENT_LIVE),
     "kimi_k3_cuabash": _AgentSpec(DERAIL_TOOL_AGENT, HOSTED_API, live=_TOOL_AGENT_LIVE),
     "evocua_32b": _AgentSpec(

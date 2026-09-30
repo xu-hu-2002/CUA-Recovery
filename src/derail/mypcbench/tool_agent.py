@@ -345,7 +345,7 @@ def build_computer_tools(
 
 
 def build_shell_tool() -> dict[str, Any]:
-    """Return the Qwen3.8 VM-shell function schema used in live and replay history."""
+    """Return the VM-shell function schema used in live and replay history."""
 
     return _tool(
         "bash",
@@ -833,7 +833,7 @@ class NativeToolComputerAgent:
             raise ToolCallError("bash.max_output_length must be in [1, 20000]")
         execute = getattr(self._environment, "_execute_command", None)
         if not callable(execute):
-            raise RuntimeError("Qwen3.8 bash requires the active MyPCBench VM environment")
+            raise RuntimeError("bash requires the active MyPCBench VM environment")
         outputs = []
         for command in commands:
             result = execute(command, shell=True)
@@ -1516,18 +1516,6 @@ def protocol_from_config(config: AgentConfig) -> ToolAgentProtocol:
             config["system_prompt_file"], has_bash=config["enable_bash"]
         ),
     )
-
-
-def qwen36_protocol() -> ToolAgentProtocol:
-    return protocol_from_config(load_agent_config("qwen3_6_27b"))
-
-
-def qwen38_protocol() -> ToolAgentProtocol:
-    return protocol_from_config(load_agent_config("qwen3_8_27b"))
-
-
-def holo31_protocol() -> ToolAgentProtocol:
-    return protocol_from_config(load_agent_config("holo_3_1_35b_a3b"))
 
 
 def kimi_k3_protocol() -> ToolAgentProtocol:

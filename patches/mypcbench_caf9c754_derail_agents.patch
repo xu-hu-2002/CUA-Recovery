@@ -1367,8 +1367,8 @@ index aac97a9..71bb0b3 100644
                              "claude_cuabash",
                              "openai_cuabash",
                              "qwen_cuabash", "qwen_cua",
-+                            "derail_qwen36", "derail_qwen38", "derail_evocua",
-+                            "derail_opencua", "derail_holo31",
++                            "derail_evocua",
++                            "derail_opencua",
 +                            "derail_kimi_k3", "derail_kimi_k3_cuabash",
                          ],
                          help="Paper agents (<provider>_<input>): "

@@ -26,7 +26,7 @@ usage() {
 Usage:
   bash scripts/judge/run_takeover_judge.sh \
     --source-agent evocua_32b \
-    --takeover-agent qwen3_8_27b \
+    --takeover-agent evocua_32b \
     --depth 0/5/10/15/20/25 \
     --prompt-condition unaware/notified/diagnosed [options]
 
@@ -231,10 +231,7 @@ if [[ "$CSV_OUT_DIR" != /* ]]; then CSV_OUT_DIR="$REPO_ROOT/$CSV_OUT_DIR"; fi
 display_agent_id() {
   case "$1" in
     evocua_32b) echo "evocua32b" ;;
-    qwen3_8_27b) echo "qwen3.8_27B" ;;
-    qwen3_6_27b) echo "qwen3.6_27B" ;;
     qwen3_5_35b_a3b) echo "qwen3.5_35B_A3B" ;;
-    holo_3_1_35b_a3b) echo "holo3.1_35B_A3B" ;;
     opencua_72b) echo "opencua72b" ;;
     kimi_k3) echo "kimi_k3" ;;
     gpt_5_5) echo "gpt-5.5" ;;

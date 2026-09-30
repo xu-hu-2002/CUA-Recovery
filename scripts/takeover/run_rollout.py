@@ -151,7 +151,6 @@ def _runtime_model_name(target_agent_id: str, configured_model: str) -> str:
     env_names = {
         "evocua_32b": "EVOCUA_MODEL",
         "opencua_72b": "OPENCUA_MODEL",
-        "qwen3_8_27b": "QWEN38_MODEL",
         "qwen3_5_35b_a3b": "QWEN35_MODEL",
         "kimi_k3": "KIMI_K3_MODEL",
         "gpt_5_5": "GPT55_MODEL",

@@ -468,7 +468,7 @@ class TakeoverAgentTests(unittest.TestCase):
                 diagnosis=diagnosis,
                 condition="diagnosed",
                 source_agent="evocua_32b",
-                target_agent_id="qwen3_8_27b",
+                target_agent_id="kimi_k3",
                 qcow2_path=Path("/tmp/base.qcow2"),
                 qcow2_sha256="c" * 64,
                 artifact_dir=Path(directory),

@@ -19,55 +19,6 @@ from derail.mypcbench.agent_config import (
 )
 
 GOLDEN_LIVE = {
-    "qwen3_6_27b": {
-        "coordinate_protocol": "absolute_pixels",
-        "system_prompt_file": "qwen3_6_27b_mypcbench_system.txt",
-        "temperature": 0.0,
-        "max_tokens": 2048,
-        "max_images_in_context": 20,
-        "history_turns": 100,
-        "image_fold_size": 10,
-        "previous_action_log": True,
-        "tool_choice": "auto",
-        "schema_repair_attempts": 2,
-        "multi_tool_policy": "one_interaction_plus_collapsed_waits",
-        "alternating_action_repeat_limit": 0,
-        "stalled_state_step_limit": 0,
-        "enable_bash": False,
-    },
-    "qwen3_8_27b": {
-        "coordinate_protocol": "absolute_pixels",
-        "system_prompt_file": "qwen3_8_27b_mypcbench_system.txt",
-        "enable_shell": True,
-        "temperature": 0.0,
-        "max_tokens": 2048,
-        "max_images_in_context": 20,
-        "history_turns": 100,
-        "image_fold_size": 10,
-        "previous_action_log": True,
-        "tool_choice": "auto",
-        "schema_repair_attempts": 2,
-        "multi_tool_policy": "one_interaction_plus_collapsed_waits",
-        "alternating_action_repeat_limit": 0,
-        "stalled_state_step_limit": 0,
-        "enable_bash": False,
-    },
-    "holo_3_1_35b_a3b": {
-        "coordinate_protocol": "normalized_0_1000",
-        "system_prompt_file": "holo_3_1_35b_a3b_mypcbench_system.txt",
-        "temperature": 0.0,
-        "max_tokens": 2048,
-        "max_images_in_context": 20,
-        "history_turns": 100,
-        "image_fold_size": 10,
-        "previous_action_log": True,
-        "tool_choice": "auto",
-        "schema_repair_attempts": 2,
-        "multi_tool_policy": "execute_all_calls_in_order",
-        "alternating_action_repeat_limit": 0,
-        "stalled_state_step_limit": 0,
-        "enable_bash": False,
-    },
     "kimi_k3": {
         "coordinate_protocol": "absolute_pixels",
         "system_prompt_file": "kimi_k3_mypcbench_system.txt",
@@ -146,22 +97,12 @@ class GoldenConfigTests(unittest.TestCase):
     def test_referenced_system_prompts_exist(self):
         prompts = config_dir().parents[1] / "prompts" / "agents"
         for agent_id in (
-            "qwen3_6_27b",
-            "qwen3_8_27b",
-            "holo_3_1_35b_a3b",
             "kimi_k3",
             "kimi_k3_cuabash",
         ):
             with self.subTest(agent_id=agent_id):
                 name = load_agent_config(agent_id)["system_prompt_file"]
                 self.assertTrue((prompts / name).is_file(), f"缺少冻结 prompt：{name}")
-
-    def test_qwen38_explicitly_enables_hybrid_shell(self):
-        qwen38 = load_agent_config("qwen3_8_27b")
-        qwen36 = load_agent_config("qwen3_6_27b")
-        self.assertTrue(qwen38["enable_shell"])
-        self.assertNotIn("enable_shell", qwen36.live)
-        self.assertNotEqual(qwen38["system_prompt_file"], qwen36["system_prompt_file"])
 
     def test_kimik3_cuabash_differs_only_in_bash_surface(self):
         gui = dict(load_agent_config("kimi_k3").live)
@@ -188,7 +129,7 @@ class AgentIdResolutionTests(unittest.TestCase):
 
     def test_missing_env_agent_id_still_resolves(self):
         with mock.patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(agent_id_for_type("derail_holo31"), "holo_3_1_35b_a3b")
+            self.assertEqual(agent_id_for_type("derail_kimi_k3"), "kimi_k3")
 
 
 class ScaffoldUniformityTests(unittest.TestCase):

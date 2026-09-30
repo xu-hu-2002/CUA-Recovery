@@ -385,28 +385,6 @@ def create_mypcbench_agent(
         )
         return config
 
-    if agent_type == "derail_qwen36":
-        return NativeToolComputerAgent(
-            model,
-            screen_size,
-            protocol_from_config(configured()),
-            api_key=os.environ.get("QWEN36_API_KEY"),
-        )
-    if agent_type == "derail_qwen38":
-        return NativeToolComputerAgent(
-            model,
-            screen_size,
-            protocol_from_config(configured()),
-            api_key=os.environ.get("QWEN38_API_KEY"),
-            environment=kwargs.get("env"),
-        )
-    if agent_type == "derail_holo31":
-        return NativeToolComputerAgent(
-            model,
-            screen_size,
-            protocol_from_config(configured()),
-            api_key=os.environ.get("HOLO31_API_KEY"),
-        )
     if agent_type == "derail_kimi_k3":
         return NativeToolComputerAgent(
             model,

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping
 
 from .base import AgentCapabilities, HistoryStep
-from .qwen38 import Qwen38ScaffoldAdapter
+from .kimi_k3 import KimiK3ScaffoldAdapter
 
 
 class ClaudeNativeHistoryAdapter:
@@ -18,7 +18,7 @@ class ClaudeNativeHistoryAdapter:
 
     capabilities = AgentCapabilities(
         agent_id="claude_opus_4_8",
-        action_kinds=Qwen38ScaffoldAdapter.capabilities.action_kinds,
+        action_kinds=KimiK3ScaffoldAdapter.capabilities.action_kinds,
         coordinate_protocol="anthropic_computer_1280x720",
         history_format="anthropic_recorded_messages",
         silent_action_kinds=frozenset({"terminate"}),

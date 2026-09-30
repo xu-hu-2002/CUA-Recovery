@@ -8,20 +8,14 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from .base import AgentAdapter
 from .claude import ClaudeNativeHistoryAdapter
 from .evocua import EvoCUAS2Adapter
-from .holo31 import Holo31Adapter
 from .kimi_k3 import KimiK3ScaffoldAdapter
 from .openai_cua import OpenAIResponsesHistoryAdapter
 from .opencua import OpenCUAActionHistoryAdapter
 from .qwen35 import Qwen35StateAdapter
-from .qwen36 import Qwen36ScaffoldAdapter
-from .qwen38 import Qwen38ScaffoldAdapter
 
 TARGET_AGENT_IDS: Tuple[str, ...] = (
     "qwen3_5_35b_a3b",
     "evocua_32b",
-    "qwen3_6_27b",
-    "qwen3_8_27b",
-    "holo_3_1_35b_a3b",
     "opencua_72b",
     "gpt_5_5",
     "claude_opus_4_8",
@@ -93,31 +87,6 @@ _REGISTRY: Dict[str, NativeHistoryRegistration] = {
         conformance_required=True,
         factory=EvoCUAS2Adapter,
     ),
-    "qwen3_6_27b": NativeHistoryRegistration(
-        agent_id="qwen3_6_27b",
-        family="qwen36_general_vlm_scaffold",
-        live_source="src/derail/mypcbench/tool_agent.py:NativeToolComputerAgent",
-        history_structure="OpenAI-compatible system/user/assistant-tool/tool messages",
-        protocol_origin="derail_scaffold_not_native_qwen_cua",
-        renderer_path="derail.adapters.qwen36.Qwen36ScaffoldAdapter",
-        renderer_implemented=True,
-        conformance_required=True,
-        factory=Qwen36ScaffoldAdapter,
-    ),
-    "qwen3_8_27b": NativeHistoryRegistration(
-        agent_id="qwen3_8_27b",
-        family="qwen38_general_vlm_scaffold",
-        live_source="src/derail/mypcbench/tool_agent.py:NativeToolComputerAgent",
-        history_structure=(
-            "OpenAI-compatible system/user/assistant-tool/tool messages with GUI and VM-shell "
-            "calls/results"
-        ),
-        protocol_origin="derail_scaffold_not_native_qwen_cua",
-        renderer_path="derail.adapters.qwen38.Qwen38ScaffoldAdapter",
-        renderer_implemented=True,
-        conformance_required=True,
-        factory=Qwen38ScaffoldAdapter,
-    ),
     "kimi_k3": NativeHistoryRegistration(
         agent_id="kimi_k3",
         family="kimi_general_vlm_scaffold",
@@ -128,17 +97,6 @@ _REGISTRY: Dict[str, NativeHistoryRegistration] = {
         renderer_implemented=True,
         conformance_required=True,
         factory=KimiK3ScaffoldAdapter,
-    ),
-    "holo_3_1_35b_a3b": NativeHistoryRegistration(
-        agent_id="holo_3_1_35b_a3b",
-        family="holo31",
-        live_source="src/derail/mypcbench/tool_agent.py:NativeToolComputerAgent",
-        history_structure="OpenAI-compatible system/user/assistant-tool/tool messages",
-        protocol_origin="frozen_derail_experimental_schema",
-        renderer_path="derail.adapters.holo31.Holo31Adapter",
-        renderer_implemented=True,
-        conformance_required=True,
-        factory=Holo31Adapter,
     ),
     "opencua_72b": NativeHistoryRegistration(
         agent_id="opencua_72b",

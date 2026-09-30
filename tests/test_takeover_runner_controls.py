@@ -128,6 +128,7 @@ class TakeoverDashboardTests(unittest.TestCase):
         env.update(
             {
                 "OUTPUT_ROOT": str(root),
+                "TARGET_AGENT": "evocua_32b",
                 "DEPTHS": "0",
                 "CONDITIONS": "unaware",
                 "RUN_JUDGE": "1",
