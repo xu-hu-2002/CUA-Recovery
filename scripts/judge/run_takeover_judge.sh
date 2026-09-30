@@ -267,8 +267,8 @@ if [[ "$ERROR_AWARENESS" == "1" ]]; then
     ERROR_AWARENESS=0
   fi
   if [[ "$PREPARE_ONLY" != "1" ]]; then
-  if [[ -n "${DERAIL_CRED_ENV:-}" && -f "$DERAIL_CRED_ENV" ]]; then
-    set -a; . "$DERAIL_CRED_ENV"; set +a
+  if [[ -n "${RECOVERY_CRED_ENV:-}" && -f "$RECOVERY_CRED_ENV" ]]; then
+    set -a; . "$RECOVERY_CRED_ENV"; set +a
   fi
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
     [[ -f "$REPO_ROOT/.env" ]] || fail "$REPO_ROOT/.env 不存在，且环境里没有 OPENAI_API_KEY"
@@ -280,8 +280,8 @@ if [[ "$ERROR_AWARENESS" == "1" ]]; then
   if [[ -z "${OPENAI_BASE_URL:-}" ]]; then unset OPENAI_BASE_URL; fi
   export MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT="$REASONING_EFFORT"
   export MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS="$MAX_COMPLETION_TOKENS"
-  export DERAIL_OPENAI_API_APPROVED=1
-  export DERAIL_OPENAI_API_PURPOSE=takeover_error_awareness
+  export RECOVERY_OPENAI_API_APPROVED=1
+  export RECOVERY_OPENAI_API_PURPOSE=takeover_error_awareness
   printf '[takeover judge] error-awareness: model=%s reasoning=%s depths=%s condition=%s\n' \
     "$EFFECTIVE_JUDGE_MODEL" "$REASONING_EFFORT" "${DEPTH_VALUES[*]}" "$CONDITION"
   if [[ "$ERROR_AWARENESS" == "1" ]]; then "${ear[@]}"; fi
@@ -332,12 +332,12 @@ fi
 export MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT="$REASONING_EFFORT"
 export MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS="$MAX_COMPLETION_TOKENS"
 export MYPCBENCH_OSWORLD_JUDGE_CONCURRENCY="$CONCURRENCY"
-export DERAIL_OPENAI_API_APPROVED=1
-export DERAIL_OPENAI_API_PURPOSE=trajectory_rubric_judge
+export RECOVERY_OPENAI_API_APPROVED=1
+export RECOVERY_OPENAI_API_PURPOSE=trajectory_rubric_judge
 judge=(bash "$REPO_ROOT/scripts/judge/run_judge.sh" "$STAGING")
 [[ "$FORCE" == "1" ]] && judge+=(--force)
-DERAIL_RUN_JUDGE_MODEL="$JUDGE_MODEL" \
-DERAIL_RUN_JUDGE_MAX_IMAGES="$MAX_IMAGES" \
+RECOVERY_RUN_JUDGE_MODEL="$JUDGE_MODEL" \
+RECOVERY_RUN_JUDGE_MAX_IMAGES="$MAX_IMAGES" \
   "${judge[@]}"
 
 echo "[takeover judge] complete: $CELL"

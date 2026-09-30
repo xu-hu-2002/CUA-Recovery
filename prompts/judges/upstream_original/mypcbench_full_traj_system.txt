@@ -1,6 +1,6 @@
 # 上游 caf9c754 的原始版本，仅作 diff 基准，**不参与运行**。
 # 我们实际发出的版本见 ../mypcbench_full_traj_system.txt；
-# 两者的差异由 patches/mypcbench_caf9c754_derail_judge.patch 产生。
+# 两者的差异由 patches/mypcbench_caf9c754_recovery_judge.patch 产生。
 ------------------------------------------------------------------------------
 You are an expert evaluator of desktop-agent trajectories.
 

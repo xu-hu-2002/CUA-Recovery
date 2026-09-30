@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/compatibility_edge.schema.json",
-  "title": "DERAIL pairwise grounded-module compatibility edge",
+  "$id": "https://recovery.local/schemas/compatibility_edge.schema.json",
+  "title": "RECOVERY pairwise grounded-module compatibility edge",
   "type": "object",
   "required": [
     "schema_version", "edge_id", "from_module", "to_module", "bindings",

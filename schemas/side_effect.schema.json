@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/side_effect.schema.json",
-  "title": "DERAIL structured side effect (side-effect/0.1)",
-  "$comment": "Concrete effect type and R1-R3 class are separate from the abstract operation. Compensation and checkpoint fields are validated for consistency by derail.longhorizon.effects.",
+  "$id": "https://recovery.local/schemas/side_effect.schema.json",
+  "title": "RECOVERY structured side effect (side-effect/0.1)",
+  "$comment": "Concrete effect type and R1-R3 class are separate from the abstract operation. Compensation and checkpoint fields are validated for consistency by recovery.longhorizon.effects.",
   "type": "object",
   "required": [
     "effect_id", "effect_type", "target_ref", "reversibility_class", "commit_scope",

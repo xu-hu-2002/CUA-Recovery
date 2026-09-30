@@ -16,7 +16,7 @@ build/
 artifacts/snapshots/*
 artifacts/screenshots/*
 artifacts/raw_rollouts/*
-artifacts/derail_builds/*
+artifacts/recovery_builds/*
 artifacts/replay_logs/*
 artifacts/model_outputs/*
 artifacts/serving_logs/*

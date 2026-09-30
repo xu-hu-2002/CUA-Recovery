@@ -153,7 +153,7 @@ for vm in sorted(groups):
 
 sep = "  " + "─" * 62
 print()
-print(f"  DERAIL rubric judge   {run_root.name}")
+print(f"  RECOVERY rubric judge   {run_root.name}")
 print()
 elapsed = int(time.time() - started) if started else 0
 print(f"  已运行 {elapsed // 3600}h{elapsed % 3600 // 60:02d}m   "
@@ -297,7 +297,7 @@ while true; do
   grand_empty=0
 
   output=""
-  output+=$(printf '\n  DERAIL collection   %s\n' "$collection_id")
+  output+=$(printf '\n  RECOVERY collection   %s\n' "$collection_id")
   output+=$'\n'
   output+=$(printf '  已运行 %s   刷新间隔 %ss   %s\n' \
     "$(human_time "$elapsed")" "$REFRESH" "$(date '+%H:%M:%S')")

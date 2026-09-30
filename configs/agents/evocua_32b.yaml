@@ -1,11 +1,11 @@
 agent_id: evocua_32b
 family: evocua
 scaffold: upstream_official
-agent_type: derail_evocua
+agent_type: recovery_evocua
 checkpoint: meituan/EvoCUA-32B-20260105
 served_model_name: EvoCUA
 revision: ce0553438b5f329959b4e740791b580402bbc73e
-live_adapter: derail.mypcbench.factory.create_mypcbench_agent
+live_adapter: recovery.mypcbench.factory.create_mypcbench_agent
 upstream_agent_commit: 4a0ad5fd4eb1d5b65966e1c7cc3feaa3b534eadd
 coordinate_protocol: normalized_0_999
 tensor_parallel_size: 2

@@ -1,10 +1,10 @@
 agent_id: opencua_72b
 family: opencua
 scaffold: upstream_official
-agent_type: derail_opencua
+agent_type: recovery_opencua
 checkpoint: xlangai/OpenCUA-72B
 revision: 3cc4af5337a1d0010f934284df3c482797266547
-live_adapter: derail.mypcbench.factory.create_mypcbench_agent
+live_adapter: recovery.mypcbench.factory.create_mypcbench_agent
 upstream_agent_commit: 091f5ef1d5544bc74953c77875d5feb5bed30108
 coordinate_protocol: smart_resize_absolute_pixels
 tensor_parallel_size: 4

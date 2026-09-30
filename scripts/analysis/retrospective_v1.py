@@ -11,16 +11,16 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.failure_analysis.retrospective import (  # noqa: E402
+from recovery.failure_analysis.retrospective import (  # noqa: E402
     agreement_summary,
     load_traj,
     retrospective_row,
     trace_from_traj,
 )
-from derail.failure_analysis.run import AnalysisConfig  # noqa: E402
+from recovery.failure_analysis.run import AnalysisConfig  # noqa: E402
 
 
 def _find_traj(root: Path, model: str, task_id: str) -> Path:

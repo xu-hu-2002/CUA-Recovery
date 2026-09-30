@@ -15,10 +15,10 @@ if str(SRC) not in sys.path:
 
 import yaml  # noqa: E402
 
-from derail.derived.layout import atomic_write_json  # noqa: E402
-from derail.takeover.selection import select_takeover_failures  # noqa: E402
+from recovery.derived.layout import atomic_write_json  # noqa: E402
+from recovery.takeover.selection import select_takeover_failures  # noqa: E402
 
-PROTOCOL_CONFIG = REPOSITORY / "configs" / "benchmark" / "derail_v1.yaml"
+PROTOCOL_CONFIG = REPOSITORY / "configs" / "benchmark" / "recovery_v1.yaml"
 
 
 def main() -> int:

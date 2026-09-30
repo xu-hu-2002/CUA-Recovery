@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/generation_record.schema.json",
-  "title": "DERAIL task-synthesis candidate or rejection record",
+  "$id": "https://recovery.local/schemas/generation_record.schema.json",
+  "title": "RECOVERY task-synthesis candidate or rejection record",
   "oneOf": [
     {
-      "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/accepted"
+      "$ref": "https://recovery.local/schemas/generation_record.schema.json#/$defs/accepted"
     },
     {
-      "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/rejected"
+      "$ref": "https://recovery.local/schemas/generation_record.schema.json#/$defs/rejected"
     },
     {
-      "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/v1_0"
+      "$ref": "https://recovery.local/schemas/generation_record.schema.json#/$defs/v1_0"
     }
   ],
   "$defs": {
@@ -79,7 +79,7 @@
     "accepted": {
       "allOf": [
         {
-          "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/base"
+          "$ref": "https://recovery.local/schemas/generation_record.schema.json#/$defs/base"
         },
         {
           "type": "object",
@@ -141,7 +141,7 @@
               "const": "pending_round_trip_validation"
             },
             "task_ir": {
-              "$ref": "https://derail.local/schemas/task_fragment.schema.json"
+              "$ref": "https://recovery.local/schemas/task_fragment.schema.json"
             },
             "world_bindings": {
               "type": "object"
@@ -199,7 +199,7 @@
     "rejected": {
       "allOf": [
         {
-          "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/base"
+          "$ref": "https://recovery.local/schemas/generation_record.schema.json#/$defs/base"
         },
         {
           "type": "object",

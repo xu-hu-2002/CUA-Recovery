@@ -247,7 +247,7 @@ if started_at is None:
     started_at = min(launch_times) if launch_times else None
 
 print()
-print(f"  DERAIL takeover   {run_tag}   {source} → {target}")
+print(f"  RECOVERY takeover   {run_tag}   {source} → {target}")
 print(f"  output: {root}")
 if started_at:
     print(f"  elapsed {duration(now - started_at)}   refresh {time.strftime('%H:%M:%S')}   budget {max_steps} steps")

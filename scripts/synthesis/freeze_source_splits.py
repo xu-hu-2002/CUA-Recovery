@@ -11,8 +11,8 @@ from typing import Iterable
 
 import yaml
 
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.gen.splits import SPLITS_VERSION, split_workflows
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.gen.splits import SPLITS_VERSION, split_workflows
 
 
 def main(argv: Iterable[str] = ()) -> int:

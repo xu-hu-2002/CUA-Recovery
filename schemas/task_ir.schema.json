@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/task_ir.schema.json",
-  "title": "DERAIL Task IR (task-ir/1.0)",
-  "$comment": "Execution doc v1.2 section 2.1 / 13. Node and edge structure is the v0.2 task-fragment structure so derail.synthesis.graph and derail.longhorizon.dag apply unchanged; nodes additionally carry reads / produces / writes (app-qualified table, column, entity_ref), route_hint, reversibility_class and a state verifier. produces[].derivation is executable and read-only (sql | expr | literal | upstream | create); writes[] are executed by the interpreter from their value / value_ref (DECISIONS.md D-003, review R1). Input literals must appear in the instruction (D-009 R1).",
+  "$id": "https://recovery.local/schemas/task_ir.schema.json",
+  "title": "RECOVERY Task IR (task-ir/1.0)",
+  "$comment": "Execution doc v1.2 section 2.1 / 13. Node and edge structure is the v0.2 task-fragment structure so recovery.synthesis.graph and recovery.longhorizon.dag apply unchanged; nodes additionally carry reads / produces / writes (app-qualified table, column, entity_ref), route_hint, reversibility_class and a state verifier. produces[].derivation is executable and read-only (sql | expr | literal | upstream | create); writes[] are executed by the interpreter from their value / value_ref (DECISIONS.md D-003, review R1). Input literals must appear in the instruction (D-009 R1).",
   "type": "object",
   "required": [
     "schema_version",
@@ -289,7 +289,7 @@
           "side_effects": {
             "type": "array",
             "items": {
-              "$ref": "https://derail.local/schemas/side_effect.schema.json"
+              "$ref": "https://recovery.local/schemas/side_effect.schema.json"
             }
           },
           "inputs": {

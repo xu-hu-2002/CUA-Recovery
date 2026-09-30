@@ -222,8 +222,8 @@ if (( CONFIRMED == 0 )); then
   exit 0
 fi
 
-if [[ -z "${TMUX:-}" && "${DERAIL_TMUX:-1}" != "0" ]]; then
-  session="derail-collect-${COLLECTION_ID}"
+if [[ -z "${TMUX:-}" && "${RECOVERY_TMUX:-1}" != "0" ]]; then
+  session="recovery-collect-${COLLECTION_ID}"
   session="$(tr -c '[:alnum:]_-' '-' <<< "$session" | sed 's/-$//')"
   tmux has-session -t "=${session}" 2>/dev/null && die \
     "tmux session 已存在：${session}（跑完的旧 session 用 tmux kill-session -t =${session} 删掉）"
@@ -233,7 +233,7 @@ if [[ -z "${TMUX:-}" && "${DERAIL_TMUX:-1}" != "0" ]]; then
   mkdir -p "$COLLECTION_LOG_DIR"
   : > "$COLLECTION_LOG"
   detached_env=(
-    DERAIL_TMUX=0
+    RECOVERY_TMUX=0
     PYTHON_BIN="$PYTHON_BIN"
     COLLECTION_ID="$COLLECTION_ID"
     COLLECT_CONFIG="$COLLECT_CONFIG"
@@ -265,10 +265,10 @@ if [[ -z "${TMUX:-}" && "${DERAIL_TMUX:-1}" != "0" ]]; then
   exit 0
 fi
 
-export DERAIL_TMUX=0
+export RECOVERY_TMUX=0
 export FORMAL_COLLECTION=1
-export DERAIL_OPENAI_API_APPROVED=1
-export DERAIL_OPENAI_API_PURPOSE=mypcbench_npc_replies
+export RECOVERY_OPENAI_API_APPROVED=1
+export RECOVERY_OPENAI_API_PURPOSE=mypcbench_npc_replies
 
 mkdir -p "$RUN_ROOT"
 date +%s > "${RUN_ROOT}/.progress_started_at"
@@ -278,21 +278,21 @@ for agent_id in "${AGENTS[@]}"; do
   export_agent_env "$agent_id"
   if (( RESUME == 0 )) && [[ -d "${RUN_ROOT}/${agent_id}" ]]; then
     stale="$(existing_episodes "$agent_id")"
-    printf '[DERAIL] 清空 %s 的旧结果（%s 个 episode）以便重跑\n' "$agent_id" "$stale"
+    printf '[RECOVERY] 清空 %s 的旧结果（%s 个 episode）以便重跑\n' "$agent_id" "$stale"
     rm -rf "${RUN_ROOT:?}/${agent_id:?}"
   fi
-  printf '\n[DERAIL] ===== %s (NUM_VMS=%s) =====\n' "$agent_id" "$agent_vms"
+  printf '\n[RECOVERY] ===== %s (NUM_VMS=%s) =====\n' "$agent_id" "$agent_vms"
   bash "${SCRIPT_DIR}/collect_trajectories.sh" "$agent_id"
 
   valid=0; empty=0
   while IFS= read -r d; do
     if compgen -G "${d}/step_*.png" >/dev/null; then valid=$((valid+1)); else empty=$((empty+1)); fi
   done < <(find "${RUN_ROOT}/${agent_id}" -name result.txt -printf '%h\n' 2>/dev/null)
-  printf '[DERAIL] %s 完成校验：有效 %s，空壳 %s\n' "$agent_id" "$valid" "$empty"
+  printf '[RECOVERY] %s 完成校验：有效 %s，空壳 %s\n' "$agent_id" "$valid" "$empty"
   if (( empty > valid )); then
     die "${agent_id} 的空壳(${empty}) 多于有效(${valid})；endpoint 很可能中途挂了。
      中止队列，不再跑后面的 agent。检查 ${COLLECTION_LOG} 和 artifacts/serving_logs/。"
   fi
 done
 
-printf '\n[DERAIL] 全部完成：artifacts/raw_rollouts/mypcbench/%s\n' "$COLLECTION_ID"
+printf '\n[RECOVERY] 全部完成：artifacts/raw_rollouts/mypcbench/%s\n' "$COLLECTION_ID"

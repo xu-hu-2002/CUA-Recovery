@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/phase5_hazard.schema.json",
-  "title": "DERAIL Phase 5 terminal hazard record",
+  "$id": "https://recovery.local/schemas/phase5_hazard.schema.json",
+  "title": "RECOVERY Phase 5 terminal hazard record",
   "type": "object",
   "required": [
     "schema_version", "injection_id", "base_world_id", "variant_world_id", "task_id",

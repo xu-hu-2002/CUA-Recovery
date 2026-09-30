@@ -10,13 +10,13 @@ from typing import Any, Dict, List, Sequence, Tuple
 
 import yaml
 
-from derail.annotation.records import Adjudication, HumanAnnotation
-from derail.canonical.actions import action_to_dict
-from derail.canonical.mypcbench import load_canonical_jsonl
-from derail.construction.cases import eligible_depths
-from derail.construction.repair import PrefixAudit, RepairPatch, apply_repair_patches
-from derail.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
-from derail.derived.schema import validate_schema
+from recovery.annotation.records import Adjudication, HumanAnnotation
+from recovery.canonical.actions import action_to_dict
+from recovery.canonical.mypcbench import load_canonical_jsonl
+from recovery.construction.cases import eligible_depths
+from recovery.construction.repair import PrefixAudit, RepairPatch, apply_repair_patches
+from recovery.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
+from recovery.derived.schema import validate_schema
 
 REPORT_SCHEMA_VERSION = "prefix-repair-report/0.1"
 
@@ -177,7 +177,7 @@ def build_consensus(
 
 
 def load_protocol(repository: Path) -> Dict[str, Any]:
-    raw = yaml.safe_load((repository / "configs/benchmark/derail_v1.yaml").read_text("utf-8"))
+    raw = yaml.safe_load((repository / "configs/benchmark/recovery_v1.yaml").read_text("utf-8"))
     return dict(raw.get("prefix_repair") or {})
 
 
@@ -333,7 +333,7 @@ def main() -> int:
     parser.add_argument(
         "--min-reviewers",
         type=int,
-        help="default: prefix_repair.min_reviewers in configs/benchmark/derail_v1.yaml",
+        help="default: prefix_repair.min_reviewers in configs/benchmark/recovery_v1.yaml",
     )
     parser.add_argument("--allow-overwrite", action="store_true")
     parser.add_argument("--repository", type=Path, default=Path(__file__).resolve().parents[2])

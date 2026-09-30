@@ -43,7 +43,7 @@ runtimes:
     torch: 2.8.0+cu128
     transformers: 4.57.0
   evocua_vllm_0_11_0:
-    image: derail/evocua-vllm:0.11.0-transformers4.57.3
+    image: recovery/evocua-vllm:0.11.0-transformers4.57.3
     base_amd64_digest: sha256:d8d39b59e909d2378ac4feeb191f7e7b6f1342477dc66b7c47cec89e9985ad8a
     dockerfile_sha256: df0ed5a2a2ffc5dee81770f76f76d18710e9194365f4e08ad01051c923a6cc4e
     local_image_id_observed_on_build_host: sha256:c4861d44de2b489549d2803faf46488f2a4b6dc56466793a396dede11f52c683

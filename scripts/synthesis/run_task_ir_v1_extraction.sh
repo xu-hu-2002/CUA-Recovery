@@ -3,12 +3,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CRED_ENV="${DERAIL_CRED_ENV:-$HOME/.derail_creds.env}"
+CRED_ENV="${RECOVERY_CRED_ENV:-$HOME/.recovery_creds.env}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
-RUN_ID="${DERAIL_EXTRACTION_RUN_ID:-dev_v1_run_$(date -u +%Y%m%dT%H%M%SZ)}"
-OUTPUT_DIR="${DERAIL_EXTRACTION_OUTPUT_DIR:-$REPO_ROOT/data/synthesis/task_ir_v1/$RUN_ID}"
-WORKERS="${DERAIL_EXTRACTION_WORKERS:-1}"
-: "${DERAIL_VM_DB_DIR:?need DERAIL_VM_DB_DIR (directory of <app>.sqlite copies)}"
+RUN_ID="${RECOVERY_EXTRACTION_RUN_ID:-dev_v1_run_$(date -u +%Y%m%dT%H%M%SZ)}"
+OUTPUT_DIR="${RECOVERY_EXTRACTION_OUTPUT_DIR:-$REPO_ROOT/data/synthesis/task_ir_v1/$RUN_ID}"
+WORKERS="${RECOVERY_EXTRACTION_WORKERS:-1}"
+: "${RECOVERY_VM_DB_DIR:?need RECOVERY_VM_DB_DIR (directory of <app>.sqlite copies)}"
 
 if [[ -f "$CRED_ENV" ]]; then
   set -a; . "$CRED_ENV"; set +a
@@ -29,15 +29,15 @@ case "${OPENAI_BASE_URL:-}" in
   *) echo "WARNING: OPENAI_BASE_URL is not an http(s) URL (length ${#OPENAI_BASE_URL}); ignoring it" >&2; OPENAI_BASE_URL="" ;;
 esac
 
-export DERAIL_OPENAI_API_APPROVED=1
-export DERAIL_OPENAI_API_PURPOSE=task_ir_extraction
+export RECOVERY_OPENAI_API_APPROVED=1
+export RECOVERY_OPENAI_API_PURPOSE=task_ir_extraction
 mkdir -p "$OUTPUT_DIR"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
-echo "run_id=$RUN_ID output=$OUTPUT_DIR db_dir=$DERAIL_VM_DB_DIR base_url_len=${#OPENAI_BASE_URL} key_len=${#OPENAI_API_KEY}"
+echo "run_id=$RUN_ID output=$OUTPUT_DIR db_dir=$RECOVERY_VM_DB_DIR base_url_len=${#OPENAI_BASE_URL} key_len=${#OPENAI_API_KEY}"
 cd "$REPO_ROOT"
 SELECTION="--dev-sample"
 for arg in "$@"; do [[ "$arg" == "--task-id" ]] && SELECTION=""; done
-[[ "${DERAIL_EXTRACTION_ALL_TASKS:-0}" == "1" ]] && SELECTION=""
+[[ "${RECOVERY_EXTRACTION_ALL_TASKS:-0}" == "1" ]] && SELECTION=""
 "$PYTHON_BIN" scripts/synthesis/extract_task_ir_v1.py \
   --tasks third_party/MyPCBench/tasks/final/all_tasks_with_grading.json \
   --splits data/synthesis/source_splits.json \

@@ -12,9 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-from derail.canonical.mypcbench import load_canonical_jsonl, normalize_task_directory
-from derail.derived.layout import DerivedBuild, sha256_file, sha256_json
-from derail.derived.schema import validate_schema
+from recovery.canonical.mypcbench import load_canonical_jsonl, normalize_task_directory
+from recovery.derived.layout import DerivedBuild, sha256_file, sha256_json
+from recovery.derived.schema import validate_schema
 
 
 FINGERPRINT_SCRIPTS = (
@@ -95,7 +95,7 @@ def taxonomy_record(repository: Path) -> dict[str, object]:
 
 
 def implementation_fingerprint(repository: Path) -> str:
-    paths = sorted((repository / "src" / "derail").rglob("*.py"))
+    paths = sorted((repository / "src" / "recovery").rglob("*.py"))
     paths += sorted((repository / "schemas").glob("*.json"))
     paths += [repository / "scripts" / name for name in FINGERPRINT_SCRIPTS]
     return sha256_json([(str(path.relative_to(repository)), sha256_file(path)) for path in paths])
@@ -210,7 +210,7 @@ def main() -> int:
     manifest = build.read_manifest()
     manifest.update(status="canonicalized", normalization_reports=reports)
     manifest["counts"].update(canonical_trajectories=accepted, rejected_trajectories=rejected)
-    from derail.derived.layout import atomic_write_json
+    from recovery.derived.layout import atomic_write_json
     atomic_write_json(build.manifest_path, manifest)
     validate_schema(build.read_manifest(), "derived_build_manifest.schema.json", args.repository)
     if not build.verify_raw_unchanged():

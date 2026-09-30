@@ -8,9 +8,9 @@ import json
 from pathlib import Path
 from typing import Mapping
 
-from derail.adapters import NativeHistoryUnavailableError, get_registration
-from derail.derived.layout import atomic_write_json, sha256_file, sha256_json
-from derail.takeover.selection import select_takeover_failures
+from recovery.adapters import NativeHistoryUnavailableError, get_registration
+from recovery.derived.layout import atomic_write_json, sha256_file, sha256_json
+from recovery.takeover.selection import select_takeover_failures
 
 
 def read_object(path: Path) -> Mapping[str, object]:

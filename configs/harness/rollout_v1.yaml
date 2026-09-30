@@ -1,10 +1,10 @@
 schema_version: rollout-config/1.0
 
 world_id: mypcbench_caf9c754_bake20260719
-image_digest_env: DERAIL_IMAGE_DIGEST
-control_api_url_env: DERAIL_CONTROL_API_URL
-mypcbench_root_env: DERAIL_MYPCBENCH_ROOT
-output_dir_env: DERAIL_ROLLOUT_OUT
+image_digest_env: RECOVERY_IMAGE_DIGEST
+control_api_url_env: RECOVERY_CONTROL_API_URL
+mypcbench_root_env: RECOVERY_MYPCBENCH_ROOT
+output_dir_env: RECOVERY_ROLLOUT_OUT
 
 runtime_config: configs/collection/mypcbench_runtime.yaml
 pause_after_action_s: 2.0

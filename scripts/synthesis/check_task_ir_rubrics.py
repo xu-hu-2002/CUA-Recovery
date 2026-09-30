@@ -12,16 +12,16 @@ import time
 from collections import Counter
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.ir.gold_interpreter import (  # noqa: E402
+from recovery.ir.gold_interpreter import (  # noqa: E402
     GoldInterpreter,
     InterpreterConfig,
     WorldCopy,
 )
-from derail.ir.model import load_task_ir  # noqa: E402
-from derail.ir.rubric_check import RubricCheckConfig, check, context_values, extract_expectations  # noqa: E402
+from recovery.ir.model import load_task_ir  # noqa: E402
+from recovery.ir.rubric_check import RubricCheckConfig, check, context_values, extract_expectations  # noqa: E402
 
 
 def main() -> int:
@@ -29,7 +29,7 @@ def main() -> int:
     parser.add_argument("--ir-dir", type=Path, required=True)
     parser.add_argument("--tasks", type=Path, required=True)
     parser.add_argument("--variables", type=Path, required=True)
-    parser.add_argument("--db-dir", type=Path, default=os.environ.get("DERAIL_VM_DB_DIR"))
+    parser.add_argument("--db-dir", type=Path, default=os.environ.get("RECOVERY_VM_DB_DIR"))
     parser.add_argument("--world-id", required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument(
@@ -40,15 +40,15 @@ def main() -> int:
     parser.add_argument(
         "--rubric-config", type=Path, default=REPO_ROOT / "configs/synthesis/rubric_check_v1.yaml"
     )
-    parser.add_argument("--workdir", default=os.environ.get("DERAIL_TMP_ROOT"))
+    parser.add_argument("--workdir", default=os.environ.get("RECOVERY_TMP_ROOT"))
     parser.add_argument(
         "--files-root",
-        default=os.environ.get("DERAIL_VM_FILES_DIR"),
-        help="copy of /home/user (file facts); default DERAIL_VM_FILES_DIR",
+        default=os.environ.get("RECOVERY_VM_FILES_DIR"),
+        help="copy of /home/user (file facts); default RECOVERY_VM_FILES_DIR",
     )
     args = parser.parse_args()
     if not args.db_dir:
-        raise SystemExit("need --db-dir or DERAIL_VM_DB_DIR")
+        raise SystemExit("need --db-dir or RECOVERY_VM_DB_DIR")
     tasks = {t["id"]: t for t in json.loads(args.tasks.read_text(encoding="utf-8"))}
     variables = json.loads(args.variables.read_text(encoding="utf-8"))
     interpreter = GoldInterpreter(InterpreterConfig.from_yaml(args.interpreter_config))

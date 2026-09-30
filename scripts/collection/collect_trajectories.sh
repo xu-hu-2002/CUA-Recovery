@@ -23,7 +23,7 @@ DRY_RUN="${DRY_RUN:-0}"
 FORMAL_COLLECTION="${FORMAL_COLLECTION:-0}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-DERAIL_AUTO_SERVE="${DERAIL_AUTO_SERVE:-1}"
+RECOVERY_AUTO_SERVE="${RECOVERY_AUTO_SERVE:-1}"
 SERVE_REPLICAS="${SERVE_REPLICAS:-}"
 SERVE_READY_TIMEOUT="${SERVE_READY_TIMEOUT:-3600}"
 SERVE_POLL_SECONDS="${SERVE_POLL_SECONDS:-10}"
@@ -42,11 +42,11 @@ COLLECTION_ID="${COLLECTION_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 ENV_YAML="${ENV_YAML:-${REPO_ROOT}/env.yaml}"
 ROOT_DOTENV="${ROOT_DOTENV:-${REPO_ROOT}/.env}"
 MODELS_LOCK="${MODELS_LOCK:-${REPO_ROOT}/configs/models.lock.yaml}"
-DERAIL_TMUX="${DERAIL_TMUX:-1}"
-DERAIL_OPENAI_API_APPROVED="${DERAIL_OPENAI_API_APPROVED:-0}"
-DERAIL_OPENAI_API_PURPOSE="${DERAIL_OPENAI_API_PURPOSE:-}"
-DERAIL_ANTHROPIC_API_APPROVED="${DERAIL_ANTHROPIC_API_APPROVED:-0}"
-DERAIL_ANTHROPIC_API_PURPOSE="${DERAIL_ANTHROPIC_API_PURPOSE:-}"
+RECOVERY_TMUX="${RECOVERY_TMUX:-1}"
+RECOVERY_OPENAI_API_APPROVED="${RECOVERY_OPENAI_API_APPROVED:-0}"
+RECOVERY_OPENAI_API_PURPOSE="${RECOVERY_OPENAI_API_PURPOSE:-}"
+RECOVERY_ANTHROPIC_API_APPROVED="${RECOVERY_ANTHROPIC_API_APPROVED:-0}"
+RECOVERY_ANTHROPIC_API_PURPOSE="${RECOVERY_ANTHROPIC_API_PURPOSE:-}"
 
 die() {
   printf '错误：%s\n' "$*" >&2
@@ -54,7 +54,7 @@ die() {
 }
 
 info() {
-  printf '[DERAIL collection] %s\n' "$*"
+  printf '[RECOVERY collection] %s\n' "$*"
 }
 
 is_positive_integer() {
@@ -84,32 +84,32 @@ resolve_agent_task_timeout() {
 }
 
 start_in_tmux_if_needed() {
-  [[ "$DERAIL_TMUX" == "0" || -n "${TMUX:-}" ]] && return 0
+  [[ "$RECOVERY_TMUX" == "0" || -n "${TMUX:-}" ]] && return 0
   command -v tmux >/dev/null 2>&1 || die \
-    "DERAIL_TMUX=1 但找不到 tmux；安装 tmux 或显式设置 DERAIL_TMUX=0"
+    "RECOVERY_TMUX=1 但找不到 tmux；安装 tmux 或显式设置 RECOVERY_TMUX=0"
 
-  local session_name="${DERAIL_TMUX_SESSION:-derail-collect-${COLLECTION_ID}}"
+  local session_name="${RECOVERY_TMUX_SESSION:-recovery-collect-${COLLECTION_ID}}"
   session_name="$(tr -c '[:alnum:]_-' '-' <<< "$session_name" | sed 's/-$//')"
   tmux has-session -t "=${session_name}" 2>/dev/null && die \
     "tmux session 已存在：${session_name}"
 
   local -a env_unset=()
-  local -a env_assign=(DERAIL_TMUX=0)
+  local -a env_assign=(RECOVERY_TMUX=0)
   local -a stale_from_tmux=()
   local tmux_global_names=""
   tmux_global_names="$(tmux show-environment -g 2>/dev/null | awk -F= 'NF > 1 { print $1 }' || true)"
   local variable
   for variable in \
-    REPEATS REPEAT_START_INDEX NUM_VMS_OVERRIDE MAX_STEPS DERAIL_BASH_ACCOUNTING BACKEND TIMEOUT_PER_VM TASK_TIMEOUT PORT_BASE DRY_RUN \
+    REPEATS REPEAT_START_INDEX NUM_VMS_OVERRIDE MAX_STEPS RECOVERY_BASH_ACCOUNTING BACKEND TIMEOUT_PER_VM TASK_TIMEOUT PORT_BASE DRY_RUN \
     CONTEXT_IMAGES TASK_SOURCE MYPCBENCH_QWEN_IMAGE_MAX \
     FORMAL_COLLECTION PYTHON_BIN MYPCBENCH_COMMIT MYPCBENCH_ROOT \
     EVOCUA_COMMIT EVOCUA_ROOT OPENCUA_OSWORLD_COMMIT OPENCUA_OSWORLD_ROOT \
     TASKS_FILE OUTPUT_ROOT COLLECTION_ID ROOT_DOTENV ENV_YAML MODELS_LOCK \
     MYPCBENCH_QCOW2 MYPCBENCH_OVMF_CODE MYPCBENCH_OVMF_VARS \
     MYPCBENCH_QEMU_BINARY \
-    DERAIL_AUTO_SERVE SERVE_REPLICAS SERVE_READY_TIMEOUT SERVE_POLL_SECONDS \
+    RECOVERY_AUTO_SERVE SERVE_REPLICAS SERVE_READY_TIMEOUT SERVE_POLL_SECONDS \
     SERVE_STARTUP_GRACE SERVING_PORT_BASE SERVING_LOG_ROOT SERVING_CPUSET HF_CACHE_ROOT \
-    ALLOW_BUSY_GPU CUDA_VISIBLE_DEVICES DERAIL_GPU_COUNT \
+    ALLOW_BUSY_GPU CUDA_VISIBLE_DEVICES RECOVERY_GPU_COUNT \
     ALLOW_NO_KVM MYPCBENCH_DIAG_DIR MYPCBENCH_QWEN_MAX_TOKENS \
     MYPCBENCH_QWEN_HISTORY_N MYPCBENCH_QWEN_CONTEXT_POLICY \
     OPENAI_BASE_URL QWEN35_BASE_URLS QWEN35_BASE_URL \
@@ -120,8 +120,8 @@ start_in_tmux_if_needed() {
     CLAUDE_OPUS_4_8_MODEL GPT55_MODEL \
     OPENAI_ZDR_STATELESS OPENAI_ZDR_KEEP_IMAGES \
     OPENAI_RATE_LIMIT_RETRIES ANTHROPIC_RATE_LIMIT_RETRIES \
-    DERAIL_ANTHROPIC_API_APPROVED DERAIL_ANTHROPIC_API_PURPOSE \
-    DERAIL_OPENAI_API_APPROVED DERAIL_OPENAI_API_PURPOSE \
+    RECOVERY_ANTHROPIC_API_APPROVED RECOVERY_ANTHROPIC_API_PURPOSE \
+    RECOVERY_OPENAI_API_APPROVED RECOVERY_OPENAI_API_PURPOSE \
     COLLECT_CONFIG ALLOW_CONFIG_OVERRIDE; do
     if [[ -n "${!variable+x}" ]]; then
       env_assign+=("${variable}=${!variable}")
@@ -140,7 +140,7 @@ start_in_tmux_if_needed() {
 
   local command_text
   printf -v command_text '%q ' "${command[@]}"
-  command_text+=$'; status=$?; printf "\\n[DERAIL collection] exit=%s\\n" "$status"; exec bash'
+  command_text+=$'; status=$?; printf "\\n[RECOVERY collection] exit=%s\\n" "$status"; exec bash'
   tmux new-session -d -s "$session_name" -n collection -c "$REPO_ROOT" "$command_text"
   tmux new-window -d -t "$session_name" -n monitor -c "$REPO_ROOT" \
     "watch -n 2 nvidia-smi"
@@ -367,12 +367,12 @@ resolve_agent() {
       RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
       ;;
     kimi_k3)
-      RESOLVED_AGENT_TYPE="derail_kimi_k3"
+      RESOLVED_AGENT_TYPE="recovery_kimi_k3"
       RESOLVED_MODEL="${KIMI_K3_MODEL:-kimi-k3}"
       RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
       ;;
     kimi_k3_cuabash)
-      RESOLVED_AGENT_TYPE="derail_kimi_k3_cuabash"
+      RESOLVED_AGENT_TYPE="recovery_kimi_k3_cuabash"
       RESOLVED_MODEL="${KIMI_K3_MODEL:-kimi-k3}"
       RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
       ;;
@@ -399,14 +399,14 @@ resolve_agent() {
       RESOLVED_REQUIRED_ENV="ANTHROPIC_API_KEY"
       ;;
     evocua_32b)
-      RESOLVED_AGENT_TYPE="derail_evocua"
+      RESOLVED_AGENT_TYPE="recovery_evocua"
       RESOLVED_MODEL="${EVOCUA_MODEL:-EvoCUA}"
       RESOLVED_REQUIRED_ENV="LOCAL_ENDPOINT"
       RESOLVED_BASE_URLS_ENV="EVOCUA_BASE_URLS"
       RESOLVED_BASE_URL_ENV="EVOCUA_BASE_URL"
       ;;
     opencua_72b)
-      RESOLVED_AGENT_TYPE="derail_opencua"
+      RESOLVED_AGENT_TYPE="recovery_opencua"
       RESOLVED_MODEL="${OPENCUA_MODEL:-opencua-72b}"
       RESOLVED_REQUIRED_ENV="LOCAL_ENDPOINT"
       RESOLVED_BASE_URLS_ENV="OPENCUA_BASE_URLS"
@@ -431,8 +431,8 @@ default_serve_replicas() {
 
 serving_container_count() {
   local names
-  names="$(docker ps --filter label=derail.project=DERAIL \
-    --filter "label=derail.agent_id=$1" --format '{{.Names}}' 2>/dev/null || true)"
+  names="$(docker ps --filter label=recovery.project=RECOVERY \
+    --filter "label=recovery.agent_id=$1" --format '{{.Names}}' 2>/dev/null || true)"
   if [[ -z "$names" ]]; then
     printf '0\n'
   else
@@ -458,8 +458,8 @@ assert_endpoint_is_ours() {
   port="${port%%/*}"
   [[ "$port" =~ ^[0-9]+$ ]] || return 0
   local published
-  published="$(docker ps --filter label=derail.project=DERAIL \
-    --filter "label=derail.agent_id=${agent_id}" --format '{{.Ports}}' 2>/dev/null || true)"
+  published="$(docker ps --filter label=recovery.project=RECOVERY \
+    --filter "label=recovery.agent_id=${agent_id}" --format '{{.Ports}}' 2>/dev/null || true)"
   grep -q "127\.0\.0\.1:${port}->" <<< "$published" || die \
     "端口 ${port} 上有服务在应答，但它不是 ${agent_id} 的 container（本次发布的端口：${published//$'\n'/ }）；换一段端口重跑：SERVING_PORT_BASE=8100"
 }
@@ -491,7 +491,7 @@ wait_for_endpoints() {
         die "${agent_id} 的 serving container 已退出；日志见 ${SERVING_LOG_ROOT} 下最新的 endpoint_*.log"
       fi
       if (( seen_container == 0 && SECONDS > startup_grace )); then
-        die "${agent_id} 的 serving container 在 ${SERVE_STARTUP_GRACE}s 内没有出现；检查 tmux session derail-serve-* 和 ${SERVING_LOG_ROOT}"
+        die "${agent_id} 的 serving container 在 ${SERVE_STARTUP_GRACE}s 内没有出现；检查 tmux session recovery-serve-* 和 ${SERVING_LOG_ROOT}"
       fi
       (( SECONDS < deadline )) || die \
         "${agent_id} 的 endpoint 在 ${SERVE_READY_TIMEOUT}s 内没有 ready：${url}"
@@ -508,7 +508,7 @@ auto_serve_stop() {
   AUTO_SERVED_AGENT=""
   info "停止自动启动的 endpoint：${agent_id}"
   bash "$SERVE_SCRIPT" stop "$agent_id" || \
-    printf '[DERAIL collection] 警告：停止 %s 失败，请手动检查 docker ps\n' "$agent_id" >&2
+    printf '[RECOVERY collection] 警告：停止 %s 失败，请手动检查 docker ps\n' "$agent_id" >&2
   sleep "${SERVE_SETTLE_SECONDS:-15}"
 }
 
@@ -525,7 +525,7 @@ endpoint_watchdog_start() {
   [[ -n "$urls" ]] || return 0
   (( ENDPOINT_WATCH_INTERVAL > 0 )) || return 0
 
-  ENDPOINT_WATCHDOG_TRIP="$(mktemp -t derail-endpoint-trip.XXXXXX)"
+  ENDPOINT_WATCHDOG_TRIP="$(mktemp -t recovery-endpoint-trip.XXXXXX)"
   rm -f "$ENDPOINT_WATCHDOG_TRIP"
   local trip_file="$ENDPOINT_WATCHDOG_TRIP"
   local interval="$ENDPOINT_WATCH_INTERVAL"
@@ -549,7 +549,7 @@ endpoint_watchdog_start() {
         failures["$url"]=$(( failures["$url"] + 1 ))
         if (( failures["$url"] >= max_failures )); then
           printf '%s\n' "$url" > "$trip_file"
-          printf '[DERAIL collection] endpoint %s 连续 %d 次探测失败，正在中止 runner\n' \
+          printf '[RECOVERY collection] endpoint %s 连续 %d 次探测失败，正在中止 runner\n' \
             "$url" "${failures["$url"]}" >&2
           pkill -TERM -f "run_parallel_tasks.py.*${runner_pattern}" || true
           exit 0
@@ -609,7 +609,7 @@ auto_serve_start() {
   urls="$(serving_base_urls "$replicas")"
   if [[ -n "$urls_variable" ]]; then
     if [[ -n "${!urls_variable:-}" && "${!urls_variable}" != "$urls" ]]; then
-      info "覆盖 ${urls_variable}：${!urls_variable} → ${urls}（DERAIL_AUTO_SERVE=0 可保留 .env 的值）"
+      info "覆盖 ${urls_variable}：${!urls_variable} → ${urls}（RECOVERY_AUTO_SERVE=0 可保留 .env 的值）"
     fi
     export "${urls_variable}=${urls}"
   fi
@@ -630,14 +630,14 @@ is_positive_integer "$CONTEXT_IMAGES" || die "CONTEXT_IMAGES 必须是正整数"
 [[ "$DRY_RUN" == "0" || "$DRY_RUN" == "1" ]] || die "DRY_RUN 只能是 0 或 1"
 [[ "$FORMAL_COLLECTION" == "0" || "$FORMAL_COLLECTION" == "1" ]] || \
   die "FORMAL_COLLECTION 只能是 0 或 1"
-[[ "$DERAIL_TMUX" == "0" || "$DERAIL_TMUX" == "1" ]] || \
-  die "DERAIL_TMUX 只能是 0 或 1"
-[[ "$DERAIL_OPENAI_API_APPROVED" == "0" || "$DERAIL_OPENAI_API_APPROVED" == "1" ]] || \
-  die "DERAIL_OPENAI_API_APPROVED 只能是 0 或 1"
+[[ "$RECOVERY_TMUX" == "0" || "$RECOVERY_TMUX" == "1" ]] || \
+  die "RECOVERY_TMUX 只能是 0 或 1"
+[[ "$RECOVERY_OPENAI_API_APPROVED" == "0" || "$RECOVERY_OPENAI_API_APPROVED" == "1" ]] || \
+  die "RECOVERY_OPENAI_API_APPROVED 只能是 0 或 1"
 [[ "$BACKEND" == "qemu" || "$BACKEND" == "docker" ]] || \
   die "BACKEND 只能是 qemu 或 docker"
-[[ "$DERAIL_AUTO_SERVE" == "0" || "$DERAIL_AUTO_SERVE" == "1" ]] || \
-  die "DERAIL_AUTO_SERVE 只能是 0 或 1"
+[[ "$RECOVERY_AUTO_SERVE" == "0" || "$RECOVERY_AUTO_SERVE" == "1" ]] || \
+  die "RECOVERY_AUTO_SERVE 只能是 0 或 1"
 is_positive_integer "$SERVE_READY_TIMEOUT" || die "SERVE_READY_TIMEOUT 必须是正整数"
 is_positive_integer "$SERVE_POLL_SECONDS" || die "SERVE_POLL_SECONDS 必须是正整数"
 is_positive_integer "$SERVE_STARTUP_GRACE" || die "SERVE_STARTUP_GRACE 必须是正整数"
@@ -647,13 +647,13 @@ fi
 if [[ -n "$NUM_VMS_OVERRIDE" ]]; then
   is_positive_integer "$NUM_VMS_OVERRIDE" || die "NUM_VMS_OVERRIDE 必须是正整数"
 fi
-if [[ "$DERAIL_AUTO_SERVE" == "1" && "$DRY_RUN" == "0" ]]; then
+if [[ "$RECOVERY_AUTO_SERVE" == "1" && "$DRY_RUN" == "0" ]]; then
   [[ -x "$SERVE_SCRIPT" || -f "$SERVE_SCRIPT" ]] || die \
-    "DERAIL_AUTO_SERVE=1 但找不到 serving 脚本：${SERVE_SCRIPT}"
+    "RECOVERY_AUTO_SERVE=1 但找不到 serving 脚本：${SERVE_SCRIPT}"
   command -v curl >/dev/null 2>&1 || die \
-    "DERAIL_AUTO_SERVE=1 需要 curl 探测 endpoint ready；请安装 curl 或设置 DERAIL_AUTO_SERVE=0"
+    "RECOVERY_AUTO_SERVE=1 需要 curl 探测 endpoint ready；请安装 curl 或设置 RECOVERY_AUTO_SERVE=0"
   command -v docker >/dev/null 2>&1 || die \
-    "DERAIL_AUTO_SERVE=1 需要 docker；请安装 docker 或设置 DERAIL_AUTO_SERVE=0"
+    "RECOVERY_AUTO_SERVE=1 需要 docker；请安装 docker 或设置 RECOVERY_AUTO_SERVE=0"
 fi
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "找不到 Python：${PYTHON_BIN}"
 command -v git >/dev/null 2>&1 || die "找不到 git"
@@ -671,8 +671,8 @@ for image_var in OPENAI_ZDR_KEEP_IMAGES MYPCBENCH_QWEN_IMAGE_MAX; do
   export "${image_var}=${CONTEXT_IMAGES}"
 done
 
-export DERAIL_ENVIRONMENT_CONFIG="$ENVIRONMENT_CONFIG"
-export PYTHONPATH="${REPO_ROOT}/src/derail/rollout/site_hook:${PYTHONPATH}"
+export RECOVERY_ENVIRONMENT_CONFIG="$ENVIRONMENT_CONFIG"
+export PYTHONPATH="${REPO_ROOT}/src/recovery/rollout/site_hook:${PYTHONPATH}"
 
 if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   for secret_file in .env env.yaml; do
@@ -692,7 +692,7 @@ PROMPT_SOURCE="${MYPCBENCH_ROOT}/agent-harness/agents/prompts.py"
 [[ -f "$RUNNER" ]] || die "找不到官方 runner：${RUNNER}"
 [[ -f "$PROMPT_SOURCE" ]] || die "找不到官方 prompt source：${PROMPT_SOURCE}"
 
-SOURCE_TASKS_FILE="${TASKS_FILE:-$("$PYTHON_BIN" -m derail.rollout.tasks --source "$TASK_SOURCE")}" \
+SOURCE_TASKS_FILE="${TASKS_FILE:-$("$PYTHON_BIN" -m recovery.rollout.tasks --source "$TASK_SOURCE")}" \
   || die "解析 task_source=${TASK_SOURCE} 失败"
 [[ -f "$SOURCE_TASKS_FILE" ]] || die "找不到 ${TASK_SOURCE} 的任务文件：${SOURCE_TASKS_FILE}"
 if [[ "$TASK_SOURCE" == "mypcbench" ]]; then
@@ -703,7 +703,7 @@ else
   else
     converted_tasks="${OUTPUT_ROOT}/${COLLECTION_ID}/_task_source/${TASK_SOURCE}.json"
   fi
-  task_source_summary="$("$PYTHON_BIN" -m derail.rollout.tasks --source "$TASK_SOURCE" \
+  task_source_summary="$("$PYTHON_BIN" -m recovery.rollout.tasks --source "$TASK_SOURCE" \
     --tasks-file "$SOURCE_TASKS_FILE" --out "$converted_tasks")" \
     || die "转换 ${TASK_SOURCE} 任务失败"
   info "task_source=${TASK_SOURCE}：${task_source_summary}"
@@ -730,7 +730,7 @@ fi
 LOCK_FORMAL_AUTHORIZED="$($PYTHON_BIN - "$MODELS_LOCK" <<'PY'
 from pathlib import Path
 import sys
-from derail.mypcbench.launch_contract import formal_collection_authorized
+from recovery.mypcbench.launch_contract import formal_collection_authorized
 print("1" if formal_collection_authorized(Path(sys.argv[1]).read_text(encoding="utf-8")) else "0")
 PY
 )"
@@ -751,9 +751,9 @@ load_yaml_env "$ENV_YAML"
 load_dotenv "$ROOT_DOTENV"
 
 if [[ "$DRY_RUN" != "1" && -n "${OPENAI_API_KEY:-}" ]]; then
-  [[ "$DERAIL_OPENAI_API_APPROVED" == "1" ]] || die \
-    "检测到 OPENAI_API_KEY，但本次运行未获 API 授权；请先说明用途并在获批后仅对本次命令设置 DERAIL_OPENAI_API_APPROVED=1"
-  case "$DERAIL_OPENAI_API_PURPOSE" in
+  [[ "$RECOVERY_OPENAI_API_APPROVED" == "1" ]] || die \
+    "检测到 OPENAI_API_KEY，但本次运行未获 API 授权；请先说明用途并在获批后仅对本次命令设置 RECOVERY_OPENAI_API_APPROVED=1"
+  case "$RECOVERY_OPENAI_API_PURPOSE" in
     mypcbench_npc_replies)
       info "本次已获批的 OpenAI API 用途：MyPCBench NPC replies；不会用于 judge"
       ;;
@@ -761,7 +761,7 @@ if [[ "$DRY_RUN" != "1" && -n "${OPENAI_API_KEY:-}" ]]; then
       info "本次已获批的 OpenAI API 用途：MyPCBench collection agent 推理；不会用于 judge"
       ;;
     *)
-      die "collection 的 API 用途必须显式为 DERAIL_OPENAI_API_PURPOSE=mypcbench_npc_replies 或 mypcbench_collection_agent"
+      die "collection 的 API 用途必须显式为 RECOVERY_OPENAI_API_PURPOSE=mypcbench_npc_replies 或 mypcbench_collection_agent"
       ;;
   esac
 fi
@@ -771,14 +771,14 @@ if [[ "$DRY_RUN" != "1" && "$IS_FULL_TASK_SET" == "1" ]]; then
 fi
 
 if [[ "$DRY_RUN" != "1" && -n "${ANTHROPIC_API_KEY:-}" ]]; then
-  [[ "$DERAIL_ANTHROPIC_API_APPROVED" == "1" ]] || die \
-    "检测到 ANTHROPIC_API_KEY，但本次运行未获 API 授权；请先说明用途并在获批后仅对本次命令设置 DERAIL_ANTHROPIC_API_APPROVED=1"
-  case "$DERAIL_ANTHROPIC_API_PURPOSE" in
+  [[ "$RECOVERY_ANTHROPIC_API_APPROVED" == "1" ]] || die \
+    "检测到 ANTHROPIC_API_KEY，但本次运行未获 API 授权；请先说明用途并在获批后仅对本次命令设置 RECOVERY_ANTHROPIC_API_APPROVED=1"
+  case "$RECOVERY_ANTHROPIC_API_PURPOSE" in
     mypcbench_collection_agent)
       info "本次已获批的 Anthropic API 用途：MyPCBench collection agent 推理；不会用于 judge"
       ;;
     *)
-      die "collection 的 Anthropic API 用途必须显式为 DERAIL_ANTHROPIC_API_PURPOSE=mypcbench_collection_agent"
+      die "collection 的 Anthropic API 用途必须显式为 RECOVERY_ANTHROPIC_API_PURPOSE=mypcbench_collection_agent"
       ;;
   esac
 fi
@@ -792,10 +792,10 @@ for agent_id in "${AGENTS[@]}"; do
   esac
 done
 
-export DERAIL_REPO_ROOT="$REPO_ROOT"
-export DERAIL_EVOCUA_ROOT="$EVOCUA_ROOT"
-export DERAIL_OPENCUA_OSWORLD_ROOT="$OPENCUA_OSWORLD_ROOT"
-export DERAIL_AGENT_MAX_STEPS="$MAX_STEPS"
+export RECOVERY_REPO_ROOT="$REPO_ROOT"
+export RECOVERY_EVOCUA_ROOT="$EVOCUA_ROOT"
+export RECOVERY_OPENCUA_OSWORLD_ROOT="$OPENCUA_OSWORLD_ROOT"
+export RECOVERY_AGENT_MAX_STEPS="$MAX_STEPS"
 
 QWEN35_ENDPOINT_CONTRACTS_JSON="[]"
 if [[ "$DRY_RUN" == "0" ]]; then
@@ -819,7 +819,7 @@ qwen35_endpoint_preflight() {
 import json
 import os
 import sys
-from derail.mypcbench.launch_contract import LaunchContractError, fetch_vllm_contract
+from recovery.mypcbench.launch_contract import LaunchContractError, fetch_vllm_contract
 
 urls = [url.strip() for url in sys.argv[1].split(",") if url.strip()]
 if not urls:
@@ -895,7 +895,7 @@ info "采集配置: $(realpath --relative-to="$REPO_ROOT" "$COLLECT_CONFIG")"
 info "  max_steps/agent: ${agent_steps_summary}（采集 config 默认 ${MAX_STEPS}）"
 info "  task_timeout/agent: ${agent_timeout_summary}（采集 config 默认 ${TASK_TIMEOUT}s）"
 info "  timeout_per_vm=${TIMEOUT_PER_VM}s backend=${BACKEND} screen=${SCREEN_WIDTH}x${SCREEN_HEIGHT} context_images=${CONTEXT_IMAGES}"
-info "  task_source=${TASK_SOURCE} environment_hooks=$(realpath --relative-to="$REPO_ROOT" "$DERAIL_ENVIRONMENT_CONFIG")"
+info "  task_source=${TASK_SOURCE} environment_hooks=$(realpath --relative-to="$REPO_ROOT" "$RECOVERY_ENVIRONMENT_CONFIG")"
 if (( ${#COLLECT_OVERRIDDEN[@]} > 0 )); then
   info "  ★ ALLOW_CONFIG_OVERRIDE=1，以下用环境变量而非 config：${COLLECT_OVERRIDDEN[*]}"
 fi
@@ -978,11 +978,11 @@ source_files = [
     mypcbench_patch,
     repo_root / "third_party/MyPCBench/agent-harness/agents/qwen_cua.py",
     repo_root / "third_party/MyPCBench/agent-harness/agents/vendored_paper_results/qwen35vl_agent.py",
-    *sorted((repo_root / "src/derail/mypcbench").glob("*.py")),
+    *sorted((repo_root / "src/recovery/mypcbench").glob("*.py")),
     *sorted((repo_root / "prompts/agents").glob("*.txt")),
     *sorted((repo_root / "configs/agents").glob("*.yaml")),
-    *sorted((repo_root / "src/derail/rollout").rglob("*.py")),
-    pathlib.Path(os.environ["DERAIL_ENVIRONMENT_CONFIG"]),
+    *sorted((repo_root / "src/recovery/rollout").rglob("*.py")),
+    pathlib.Path(os.environ["RECOVERY_ENVIRONMENT_CONFIG"]),
     repo_root / "infra/snapshot/changelog_replay.py",
     repo_root / "infra/volatile_columns.json",
     repo_root / "configs/collection/sources.yaml",
@@ -1004,7 +1004,7 @@ source_hashes = {
     for source in source_files
 }
 
-from derail.mypcbench.agent_config import AGENT_ID_BY_TYPE, load_agent_config
+from recovery.mypcbench.agent_config import AGENT_ID_BY_TYPE, load_agent_config
 
 _factory_agents = set(AGENT_ID_BY_TYPE.values())
 agent_live_config = {
@@ -1035,7 +1035,7 @@ manifest = {
         name: os.environ.get(name)
         for name in ("OPENAI_ZDR_KEEP_IMAGES", "MYPCBENCH_QWEN_IMAGE_MAX")
     },
-    "environment_config": os.environ["DERAIL_ENVIRONMENT_CONFIG"],
+    "environment_config": os.environ["RECOVERY_ENVIRONMENT_CONFIG"],
     "timeout_per_vm_seconds": int(os.environ.get("TIMEOUT_PER_VM", "0")) or None,
     "evocua_agent_commit": sys.argv[11],
     "opencua_osworld_agent_commit": sys.argv[12],
@@ -1076,7 +1076,7 @@ for agent_id in "${AGENTS[@]}"; do
   agent_task_timeout_value="$(resolve_agent_task_timeout "$agent_id")"
   (( agent_task_timeout_value < TIMEOUT_PER_VM )) || die \
     "${agent_id} 的 task_timeout(${agent_task_timeout_value}) 必须小于 TIMEOUT_PER_VM"
-  export DERAIL_AGENT_MAX_STEPS="$agent_max_steps_value"
+  export RECOVERY_AGENT_MAX_STEPS="$agent_max_steps_value"
   if [[ "$agent_max_steps_value" != "$MAX_STEPS" ]]; then
     info "${agent_id}：max_steps 取 agent config 声明的 ${agent_max_steps_value}（采集 config 默认 ${MAX_STEPS}）"
   fi
@@ -1088,7 +1088,7 @@ for agent_id in "${AGENTS[@]}"; do
   VLLM_ARGS=()
   endpoint_urls=""
   if [[ "$RESOLVED_REQUIRED_ENV" == "LOCAL_ENDPOINT" ]]; then
-    if [[ "$DERAIL_AUTO_SERVE" == "1" && "$DRY_RUN" == "0" ]]; then
+    if [[ "$RECOVERY_AUTO_SERVE" == "1" && "$DRY_RUN" == "0" ]]; then
       auto_serve_start "$agent_id" "$RESOLVED_BASE_URLS_ENV"
     fi
     endpoint_urls="${!RESOLVED_BASE_URLS_ENV:-}"
@@ -1110,14 +1110,14 @@ for agent_id in "${AGENTS[@]}"; do
     die "${agent_id} 需要环境变量 ${RESOLVED_REQUIRED_ENV}"
   fi
 
-  export DERAIL_AGENT_ID="$agent_id"
+  export RECOVERY_AGENT_ID="$agent_id"
 
   repeat_start_index="${REPEAT_START_INDEX:-1}"
   is_positive_integer "$repeat_start_index" || die "REPEAT_START_INDEX 必须是正整数"
   repeat_end_index=$((repeat_start_index + REPEATS - 1))
   for repeat_index in $(seq "$repeat_start_index" "$repeat_end_index"); do
     result_dir="${run_root}/${agent_id}/repeat_${repeat_index}"
-    container_base="derail-${COLLECTION_ID}-${agent_id}-r${repeat_index}"
+    container_base="recovery-${COLLECTION_ID}-${agent_id}-r${repeat_index}"
     command=(
       "$PYTHON_BIN" "$RUNNER"
       --backend "$BACKEND"
@@ -1184,7 +1184,7 @@ for field in ("num_vms_per_agent", "max_steps_per_agent", "task_timeout_per_agen
 
 target = run_root / f"collection_manifest.{agent_id}.json"
 target.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-print(f"[DERAIL collection] 已留存 {target.name}")
+print(f"[RECOVERY collection] 已留存 {target.name}")
 PY
   fi
 done

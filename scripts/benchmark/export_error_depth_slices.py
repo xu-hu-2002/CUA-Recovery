@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from derail.construction.cases import eligible_depths  # noqa: E402
+from recovery.construction.cases import eligible_depths  # noqa: E402
 
 CASE_SCHEMA_VERSION = "error-depth-slice/0.1"
 
@@ -136,11 +136,11 @@ def main(argv: Iterable[str] = ()) -> int:
     parser.add_argument(
         "--records", default="data/synthesis/phase0_precheck/failure_continuation_records.jsonl"
     )
-    parser.add_argument("--builds-root", default="artifacts/derail_builds")
+    parser.add_argument("--builds-root", default="artifacts/recovery_builds")
     parser.add_argument(
-        "--proposals-dir", default="artifacts/derail_builds/human_labels/cleaning_proposals"
+        "--proposals-dir", default="artifacts/recovery_builds/human_labels/cleaning_proposals"
     )
-    parser.add_argument("--benchmark-config", default="configs/benchmark/derail_v1.yaml")
+    parser.add_argument("--benchmark-config", default="configs/benchmark/recovery_v1.yaml")
     parser.add_argument(
         "--require-error-explicit",
         action=argparse.BooleanOptionalAction,
@@ -215,7 +215,7 @@ def main(argv: Iterable[str] = ()) -> int:
         "builds_root": args.builds_root,
         "proposals_dir": args.proposals_dir,
         "constraint": (
-            "derail.construction.cases.eligible_depths: root + depth <= min(identifiable_at, "
+            "recovery.construction.cases.eligible_depths: root + depth <= min(identifiable_at, "
             "last action), both renumbered after the cleaning proposal's pre-root "
             "drop_candidates are removed; unobserved identifiable_at %s"
             % ("excluded" if require_error_explicit else "kept")

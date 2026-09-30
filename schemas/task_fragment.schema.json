@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/task_fragment.schema.json",
-  "title": "DERAIL semantic task fragment",
+  "$id": "https://recovery.local/schemas/task_fragment.schema.json",
+  "title": "RECOVERY semantic task fragment",
   "type": "object",
   "required": ["schema_version", "fragment_id", "nodes", "edges"],
   "properties": {

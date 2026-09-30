@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail-benchmark.org/schemas/rubric_review.schema.json",
-  "title": "DERAIL Human Rubric Review v0.1",
+  "$id": "https://recovery-benchmark.org/schemas/rubric_review.schema.json",
+  "title": "RECOVERY Human Rubric Review v0.1",
   "$comment": "一名 reviewer 对某条 trajectory 全部 rubric 的独立复核；原始判定不可覆盖，裁决使用独立文件。",
   "type": "object",
   "properties": {
@@ -14,7 +14,7 @@
     "judgments": {
       "type": "array",
       "minItems": 1,
-      "items": {"$ref": "https://derail-benchmark.org/schemas/rubric_review.schema.json#/$defs/judgment"}
+      "items": {"$ref": "https://recovery-benchmark.org/schemas/rubric_review.schema.json#/$defs/judgment"}
     },
     "schema_version": {"const": "0.1.0"}
   },

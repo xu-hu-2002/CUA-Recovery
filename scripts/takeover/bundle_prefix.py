@@ -15,7 +15,7 @@ SRC = REPOSITORY / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from derail.takeover.source_logs import sanitize_visible_response  # noqa: E402
+from recovery.takeover.source_logs import sanitize_visible_response  # noqa: E402
 
 sys.path.insert(0, str(REPOSITORY / "scripts" / "judge"))
 from judge_model_registry import load_config  # noqa: E402
@@ -24,7 +24,7 @@ STALE_RESULTS = ("osworld_full_traj_result.json", "rubric_judge_result.json")
 CONTINUED = "(same model turn as the previous step)"
 PREFIX_DIR = "prefix_replay"
 TOOL_MARK = "[tool] "
-EVIDENCE_KEY = "derail_evidence"
+EVIDENCE_KEY = "recovery_evidence"
 
 
 def _judge_relative(screenshot: Path, replayed: Path, task: Path) -> str:
@@ -56,12 +56,12 @@ def _canonical_steps(selection: list[dict], trajectory_id: str) -> dict[int, dic
     record = next(r for r in selection if r.get("trajectory_id") == trajectory_id)
     canonical = Path(record["canonical_trajectory_uri"])
     if not canonical.is_file():
-        marker = "/artifacts/derail_builds/"
+        marker = "/artifacts/recovery_builds/"
         uri = str(record["canonical_trajectory_uri"])
         relative = uri.split(marker, 1)[1] if marker in uri else ""
-        exact = REPOSITORY / "artifacts/derail_builds" / relative
+        exact = REPOSITORY / "artifacts/recovery_builds" / relative
         matches = [exact] if exact.is_file() else list(
-            (REPOSITORY / "artifacts/derail_builds").glob(
+            (REPOSITORY / "artifacts/recovery_builds").glob(
                 f"*/canonical/{trajectory_id}/trajectory.jsonl"
             )
         )
@@ -209,7 +209,7 @@ def _tool_text(row: dict, file_index: int, messages: list[dict] | None) -> str:
 
 
 def _final_state(task: Path, probe_file: str, max_chars: int) -> dict | None:
-    """s_T from the last line of the task's state probe file (derail.rollout.state_probe)."""
+    """s_T from the last line of the task's state probe file (recovery.rollout.state_probe)."""
     path = task / probe_file
     lines = [line for line in path.read_text(encoding="utf-8").splitlines()
              if line.strip()] if path.is_file() else []

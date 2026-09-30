@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/rollout_trace.schema.json",
-  "title": "DERAIL rollout trace (rollout-trace/1.0)",
+  "$id": "https://recovery.local/schemas/rollout_trace.schema.json",
+  "title": "RECOVERY rollout trace (rollout-trace/1.0)",
   "$comment": "Execution doc v1.2 sections 4.4 / 8.1 / 13: per step the action, its parameters (Params_t), screenshot and a11y hashes, database changes (Delta_t, changelog rows attributed by action_index), observation events and rendered pages (Pages_t). Pages_t of step t covers requests from the last render before action t up to action t+1.",
   "type": "object",
   "required": [
@@ -147,13 +147,13 @@
           "delta": {
             "type": "array",
             "items": {
-              "$ref": "https://derail.local/schemas/changelog_row.schema.json"
+              "$ref": "https://recovery.local/schemas/changelog_row.schema.json"
             }
           },
           "observations": {
             "type": "array",
             "items": {
-              "$ref": "https://derail.local/schemas/observation_event.schema.json"
+              "$ref": "https://recovery.local/schemas/observation_event.schema.json"
             }
           },
           "pages": {

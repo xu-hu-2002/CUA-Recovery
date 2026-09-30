@@ -12,7 +12,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 VLLM_019_IMAGE="vllm/vllm-openai@sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90"
 VLLM_012_IMAGE="vllm/vllm-openai@sha256:f2309d913a07da49ea20b2a694703f4cfcb5ad8e7437ec0f26145479ac01e002"
-EVOCUA_IMAGE="derail/evocua-vllm:0.11.0-transformers4.57.3"
+EVOCUA_IMAGE="recovery/evocua-vllm:0.11.0-transformers4.57.3"
 MODELS_LOCK="${REPO_ROOT}/configs/models.lock.yaml"
 EVOCUA_DOCKERFILE="${REPO_ROOT}/serving/evocua-vllm.Dockerfile"
 EVOCUA_IMAGE_ID="${EVOCUA_IMAGE_ID:-}"
@@ -30,9 +30,9 @@ agent_id:
 
 Replicas are derived, not declared: usable GPUs / tensor_parallel_size, where the
 TP size comes from configs/agents/<agent_id>.yaml and the GPU count from
-nvidia-smi (override with DERAIL_GPU_COUNT / CUDA_VISIBLE_DEVICES). On eight GPUs
+nvidia-smi (override with RECOVERY_GPU_COUNT / CUDA_VISIBLE_DEVICES). On eight GPUs
 that is 4 endpoints for a TP2 model and 1 for TP8. The derived value is also the
-ceiling — asking for more is an error. DERAIL_MAX_ENDPOINTS caps it (default 4,
+ceiling — asking for more is an error. RECOVERY_MAX_ENDPOINTS caps it (default 4,
 matching the SERVING_PORT_BASE..+3 port lane).
 
 This script never calls an endpoint or OpenAI API. After the server logs say ready,
@@ -46,7 +46,7 @@ die() {
 }
 
 info() {
-  printf '[DERAIL serving] %s\n' "$*"
+  printf '[RECOVERY serving] %s\n' "$*"
 }
 
 # shellcheck source=../lib/collection_config.sh
@@ -115,7 +115,7 @@ short_name() {
 }
 
 session_name() {
-  printf 'derail-serve-%s\n' "$(short_name "$1")"
+  printf 'recovery-serve-%s\n' "$(short_name "$1")"
 }
 
 assert_tools() {
@@ -279,7 +279,7 @@ start_model() {
   if (( replicas > ceiling )); then
     die "${agent_id} 在本机最多起 ${ceiling} 个 endpoint
      （可用 GPU $(usable_gpu_count) 张 / tensor_parallel_size $(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id")，
-     再受 DERAIL_MAX_ENDPOINTS=${DERAIL_MAX_ENDPOINTS:-4} 限制）；请求的 ${replicas} 超了。"
+     再受 RECOVERY_MAX_ENDPOINTS=${RECOVERY_MAX_ENDPOINTS:-4} 限制）；请求的 ${replicas} 超了。"
   fi
   info "${agent_id}：可用 GPU $(usable_gpu_count) 张，TP $(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id")，起 ${replicas} 个 endpoint"
 
@@ -314,7 +314,7 @@ start_model() {
 
   for ((index = 0; index < replicas; index++)); do
     local port=$((SERVING_PORT_BASE + index))
-    local container="derail-serve-${short}-r${index}"
+    local container="recovery-serve-${short}-r${index}"
     local gpu_request
     local cpu_set
     gpu_request="\"device=$(agent_gpu_group "$agent_id" "$index")\""
@@ -322,7 +322,7 @@ start_model() {
       || die "SERVING_CPUSET=${SERVING_CPUSET} 切不出 ${replicas} 份"
     local -a docker_command=(
       docker run --rm --name "$container"
-      --label derail.project=DERAIL --label "derail.agent_id=${agent_id}"
+      --label recovery.project=RECOVERY --label "recovery.agent_id=${agent_id}"
       --gpus "$gpu_request" --ipc host --cpuset-cpus "$cpu_set"
       --publish "127.0.0.1:${port}:8000"
       --volume "${HF_CACHE_ROOT}:/root/.cache/huggingface" "${DOCKER_VOLUME_ARGS[@]}"
@@ -332,7 +332,7 @@ start_model() {
     local docker_text
     local log_path="${log_dir}/endpoint_${index}.log"
     printf -v docker_text '%q ' "${docker_command[@]}"
-    local window_text="set -o pipefail; ${docker_text}2>&1 | tee $(printf '%q' "$log_path"); status=\${PIPESTATUS[0]}; printf '\\n[DERAIL serving] container exit=%s\\n' \"\$status\"; exec bash"
+    local window_text="set -o pipefail; ${docker_text}2>&1 | tee $(printf '%q' "$log_path"); status=\${PIPESTATUS[0]}; printf '\\n[RECOVERY serving] container exit=%s\\n' \"\$status\"; exec bash"
     if [[ "$DRY_RUN" == "1" ]]; then
       printf 'tmux window r%d: %s\n' "$index" "$docker_text"
     elif (( index == 0 )); then
@@ -362,8 +362,8 @@ stop_model() {
   session="$(session_name "$agent_id")"
   local -a containers=()
   mapfile -t containers < <(
-    docker ps --filter label=derail.project=DERAIL \
-      --filter "label=derail.agent_id=${agent_id}" --format '{{.ID}}'
+    docker ps --filter label=recovery.project=RECOVERY \
+      --filter "label=recovery.agent_id=${agent_id}" --format '{{.ID}}'
   )
   if (( ${#containers[@]} )); then
     docker stop --time 30 "${containers[@]}"
@@ -382,11 +382,11 @@ status_model() {
     session="$(session_name "$agent_id")"
     tmux has-session -t "=${session}" 2>/dev/null \
       && info "tmux: ${session} running" || info "tmux: ${session} absent"
-    docker ps --filter "label=derail.agent_id=${agent_id}" \
+    docker ps --filter "label=recovery.agent_id=${agent_id}" \
       --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
   else
-    tmux list-sessions 2>/dev/null | grep '^derail-serve-' || true
-    docker ps --filter label=derail.project=DERAIL \
+    tmux list-sessions 2>/dev/null | grep '^recovery-serve-' || true
+    docker ps --filter label=recovery.project=RECOVERY \
       --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
   fi
   nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu \

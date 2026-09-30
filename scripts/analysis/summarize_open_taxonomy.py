@@ -7,10 +7,10 @@ import argparse
 import json
 from pathlib import Path
 
-from derail.annotation.records import Adjudication
-from derail.annotation.taxonomy import summarize_open_codes
-from derail.derived.layout import DerivedBuild, atomic_write_json, sha256_file, sha256_json
-from derail.derived.schema import validate_schema
+from recovery.annotation.records import Adjudication
+from recovery.annotation.taxonomy import summarize_open_codes
+from recovery.derived.layout import DerivedBuild, atomic_write_json, sha256_file, sha256_json
+from recovery.derived.schema import validate_schema
 
 
 def _read(path: Path):

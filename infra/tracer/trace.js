@@ -6,19 +6,19 @@ const http = require("http");
 const Module = require("module");
 const { AsyncLocalStorage } = require("async_hooks");
 
-const TRACE_DIR = process.env.DERAIL_TRACE_DIR || "/data/_trace";
-const CURSOR_FILE = process.env.DERAIL_CURSOR_FILE || "/data/_derail/cursor.json";
-const APP_NAME = process.env.DATABASE_APP_NAME || process.env.DERAIL_APP_NAME || path.basename(process.cwd());
-const MAX_PARAM_CHARS = parseInt(process.env.DERAIL_TRACE_MAX_PARAM_CHARS || "200", 10);
-const MAX_ROWS = parseInt(process.env.DERAIL_TRACE_MAX_ROWS || "50", 10);
-const MAX_ROW_CHARS = parseInt(process.env.DERAIL_TRACE_MAX_ROW_CHARS || "8000", 10);
+const TRACE_DIR = process.env.RECOVERY_TRACE_DIR || "/data/_trace";
+const CURSOR_FILE = process.env.RECOVERY_CURSOR_FILE || "/data/_recovery/cursor.json";
+const APP_NAME = process.env.DATABASE_APP_NAME || process.env.RECOVERY_APP_NAME || path.basename(process.cwd());
+const MAX_PARAM_CHARS = parseInt(process.env.RECOVERY_TRACE_MAX_PARAM_CHARS || "200", 10);
+const MAX_ROWS = parseInt(process.env.RECOVERY_TRACE_MAX_ROWS || "50", 10);
+const MAX_ROW_CHARS = parseInt(process.env.RECOVERY_TRACE_MAX_ROW_CHARS || "8000", 10);
 const requestContext = new AsyncLocalStorage();
 
 let warned = false;
 function warnOnce(err) {
   if (!warned) {
     warned = true;
-    process.stderr.write("[derail-trace] disabled after error: " + (err && err.stack || err) + "\n");
+    process.stderr.write("[recovery-trace] disabled after error: " + (err && err.stack || err) + "\n");
   }
 }
 
@@ -92,7 +92,7 @@ http.Server.prototype.emit = function (event, req, res) {
 };
 
 function wrapDatabase(Database) {
-  if (Database.__derailWrapped) return Database;
+  if (Database.__recoveryWrapped) return Database;
   const originalPrepare = Database.prototype.prepare;
   Database.prototype.prepare = function (sql) {
     const statement = originalPrepare.apply(this, arguments);
@@ -124,7 +124,7 @@ function wrapDatabase(Database) {
     }
     return statement;
   };
-  Database.__derailWrapped = true;
+  Database.__recoveryWrapped = true;
   return Database;
 }
 

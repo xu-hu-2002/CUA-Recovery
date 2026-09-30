@@ -19,8 +19,8 @@ import urllib.request
 from pathlib import Path
 
 BASE_URL = "http://127.0.0.1:5000"
-ROOT = Path("/tmp/derail-phase5-acceptance")
-RULES_PATH = "/opt/derail/volatile_columns.json"
+ROOT = Path("/tmp/recovery-phase5-acceptance")
+RULES_PATH = "/opt/recovery/volatile_columns.json"
 DATABASES = (
     "batbucks", "buzzchat", "cheskepdia", "dinoco-airlines", "etaxi",
     "hangrydash", "hoolicalendar", "hoolishop", "kwik-e-mart", "lockedin",
@@ -57,7 +57,7 @@ def request(path: str, payload=None, raw: bool = False):
 
 def load_replayer():
     spec = importlib.util.spec_from_file_location(
-        "phase5_changelog_replay", "/opt/derail/changelog_replay.py"
+        "phase5_changelog_replay", "/opt/recovery/changelog_replay.py"
     )
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -134,7 +134,7 @@ def untraced_duration(baseline: Path, sql: str) -> float:
     conn = sqlite3.connect(scratch)
     try:
         for (name,) in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'trg_derail_%'"
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'trg_recovery_%'"
         ).fetchall():
             conn.execute(f"DROP TRIGGER IF EXISTS {quote(str(name))}")
         conn.commit()
@@ -221,7 +221,7 @@ def wait_for_changelog_quiescence() -> dict[str, int]:
     stable_polls = 0
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
-        current = request("/derail/seq")["seq"]
+        current = request("/recovery/seq")["seq"]
         if current == previous:
             stable_polls += 1
             if stable_polls >= 5:
@@ -272,18 +272,18 @@ def run_trajectory(index: int, spec: tuple) -> dict:
             f"{json.dumps(reset_failure(reset), sort_keys=True)}"
         )
     set_apps("stop")
-    request("/derail/cursor", {"action_index": -1})
+    request("/recovery/cursor", {"action_index": -1})
     set_apps("start")
     probe_all_apps()
     probe_pages()
     set_apps("stop")
     for db in DATABASES:
         copy_database(f"/data/{db}.sqlite", directory / "baseline" / f"{db}.sqlite")
-    start_seq = request("/derail/seq")["seq"]
-    observation_start = len(request("/derail/observations?action_index=0")["records"])
+    start_seq = request("/recovery/seq")["seq"]
+    observation_start = len(request("/recovery/observations?action_index=0")["records"])
     set_apps("start")
     mutations = [(db, *mutation(db, f" [phase5-{index:02d}]")) for db in databases]
-    request("/derail/cursor", {"action_index": 0})
+    request("/recovery/cursor", {"action_index": 0})
     durations = []
     untraced = []
     for position, (db, sql, _rowid) in enumerate(mutations):
@@ -298,14 +298,14 @@ def run_trajectory(index: int, spec: tuple) -> dict:
     set_apps("stop")
     end_seq = wait_for_changelog_quiescence()
     since = urllib.parse.quote(json.dumps(start_seq, separators=(",", ":")))
-    rows = request(f"/derail/changelog?since={since}")["rows"]
-    observations = request("/derail/observations?action_index=0")["records"][observation_start:]
-    direct = request("/derail/digest")
+    rows = request(f"/recovery/changelog?since={since}")["rows"]
+    observations = request("/recovery/observations?action_index=0")["records"][observation_start:]
+    direct = request("/recovery/digest")
     direct_directory = directory / "direct"
     direct_directory.mkdir(exist_ok=True)
     for db in DATABASES:
         copy_database(f"/data/{db}.sqlite", direct_directory / f"{db}.sqlite")
-    if request("/derail/seq")["seq"] != end_seq:
+    if request("/recovery/seq")["seq"] != end_seq:
         raise RuntimeError(f"{trajectory_id}: database changed during terminal snapshot")
     replayed = replay_digests(directory, rows)
     attributed = [row for row in rows if row["action_index"] == 0]

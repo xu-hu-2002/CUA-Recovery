@@ -5,21 +5,21 @@ local_root: third_party/MyPCBench
 tracked_in_git: false
 
 patches:
-  - path: patches/mypcbench_caf9c754_derail_agents.patch
+  - path: patches/mypcbench_caf9c754_recovery_agents.patch
     applies_to: agent-harness/agents/（含 openai_cuabash.py 的工具轨迹回填）, agent-harness/env.py, agent-harness/run_mypcbench.py, agent-harness/run_parallel_tasks.py
     applied_by: scripts/collection/collect_trajectories.sh
   - path: patches/mypcbench_caf9c754_message_trajectory_agents.patch
     applies_to: agent-harness/agents/claude_cuabash.py, agent-harness/agents/openai_cuabash.py, agent-harness/run_mypcbench.py
-    applied_by: scripts/collection/collect_trajectories.sh（在 DERAIL adapter patch 之后）
+    applied_by: scripts/collection/collect_trajectories.sh（在 RECOVERY adapter patch 之后）
   - path: patches/mypcbench_caf9c754_native_responses_state.patch
     applies_to: agent-harness/agents/openai_cuabash.py, agent-harness/run_mypcbench.py
     applied_by: scripts/collection/collect_trajectories.sh（在 tool-message trajectory patch 之后）
-  - path: patches/mypcbench_caf9c754_derail_judge.patch
+  - path: patches/mypcbench_caf9c754_recovery_judge.patch
     applies_to: agent-harness/utils/osworld_full_traj_judge.py, agent-harness/utils/rubric_judge.py
     applied_by: scripts/setup_third_party.sh
   - path: patches/mypcbench_caf9c754_message_first_judge.patch
     applies_to: agent-harness/utils/osworld_full_traj_judge.py
-    applied_by: scripts/setup_third_party.sh（在 DERAIL judge patch 之后）
+    applied_by: scripts/setup_third_party.sh（在 RECOVERY judge patch 之后）
   - path: patches/mypcbench_caf9c754_judge_resilience_v2.patch
     applies_to: agent-harness/judge_results.py, agent-harness/utils/osworld_full_traj_judge.py
     applied_by: scripts/setup_third_party.sh（在 message-first judge patch 之后）
@@ -28,7 +28,7 @@ owns:
   judge_hyperparameters: configs/judges/mypcbench_rubric.yaml
   collection_runtime: configs/collection/mypcbench_runtime.yaml
   environment: configs/environments/mypcbench_1280x800.yaml
-  environment_hooks: src/derail/rollout/state_probe.py
+  environment_hooks: src/recovery/rollout/state_probe.py
   task_sources: configs/collection/sources.yaml
   agent_identity: configs/agents/*.yaml
 
@@ -41,7 +41,7 @@ snapshots:
 
 judge_prompt_fork:
   date: 2026-08-09
-  patch: patches/mypcbench_caf9c754_derail_judge.patch
+  patch: patches/mypcbench_caf9c754_recovery_judge.patch
   message_priority_patch: patches/mypcbench_caf9c754_message_first_judge.patch
   target: agent-harness/utils/osworld_full_traj_judge.py:FULL_TRAJ_JUDGMENT_SYSTEM
   decided_by: 用户（本次显式决定，两条都适用于全部 agent，不按模型分叉）
@@ -60,7 +60,7 @@ judge_prompt_fork:
     这一改把基准的语义从「能不能像人一样操作桌面软件」移向「能不能把事办成」。
     这是一次显式的方法学选择，必须写进论文，不能当作 bug fix 一笔带过。
   consequence: >-
-    我们的数字自此完全是 DERAIL 自己的尺子，与 mypcbench.com leaderboard 的差距
+    我们的数字自此完全是 RECOVERY 自己的尺子，与 mypcbench.com leaderboard 的差距
     不再仅是判官模型替换，还叠加了评判规则的改动。任何表格都不得并列两者。
   prerequisite: >-
     依赖 message trajectory agents patch 的工具消息回填。旧数据的 traj.jsonl 中
@@ -80,7 +80,7 @@ upstream_defaults:
 
 known_defects:
   - id: tool_call_payload_empty
-    where: agent-harness/run_mypcbench.py:400-405（**上游原生代码**，非 DERAIL patch 引入）
+    where: agent-harness/run_mypcbench.py:400-405（**上游原生代码**，非 RECOVERY patch 引入）
     what: >-
       纯工具轮写进 traj.jsonl 的行里 response 是空字符串（该轮模型只发工具调用、
       不发消息文本），于是 rubric_bundle 的 raw_response_text 为空，判官只看到一行
@@ -96,7 +96,7 @@ known_defects:
     caution: >-
       修它会让我们的判分更忠实，但离上游口径**更远**（上游未修）。不要用它去追 83.6。
       若要修，必须同时用修复后的 harness 重采并重判全部三个 agent，否则模型之间也不可比。
-    derail_fix: >-
+    recovery_fix: >-
       patches/mypcbench_caf9c754_message_trajectory_agents.patch 统一保证工具轮有 message：
       OpenAI 保存 shell/function/computer call 及可见输出，Claude 保存 tool_use/tool_result；
       同轮已有自然语言时追加而不覆盖。runner 对其余 agent 的已执行 action 再做非空兜底。
@@ -111,7 +111,7 @@ known_defects:
       采集侧已修复（2026-08-16，新轨迹）；判分侧由 14 补全（旧轨迹重判即可，无需重采）
 
   - id: silent_abort_no_actions
-    where: agent-harness/run_mypcbench.py（上游原生代码；DERAIL 已补诊断）
+    where: agent-harness/run_mypcbench.py（上游原生代码；RECOVERY 已补诊断）
     what: >-
       predict() 返回空 actions 且 agent 无 pending 时，循环直接 break。上游在
       break 前只写一行 "No actions returned at step N" 日志，response_text 被丢弃、
@@ -119,7 +119,7 @@ known_defects:
     frequency: >-
       这是目前 episode 中断的主要出口：v1 首采 39/39、重跑 14/39（36%）、
       bashfix probe 6/20（30%）。中断的 episode 分数天然接近 0，会系统性压低均分。
-    derail_fix: >-
+    recovery_fix: >-
       break 前把 resp_str 打进日志，并落一行 action="NO_ACTIONS" 的轨迹（done=False，
       info.kind="abort_no_actions"，带 has_pending / consecutive_empty /
       consecutive_api_errors）。据此可区分三种成因：空响应、重试耗尽后的

@@ -21,16 +21,16 @@ for entry in (str(SRC), str(HARNESS)):
 from env import MyPCBenchEnv  # noqa: E402
 from run_mypcbench import get_agent, run_single_example  # noqa: E402
 
-from derail.canonical.mypcbench import load_canonical_jsonl  # noqa: E402
-from derail.derived.layout import atomic_write_json, sha256_file  # noqa: E402
-from derail.mypcbench.agent_config import load_config, resolve_checkpoint  # noqa: E402
-from derail.mypcbench.takeover_agent import PrefixTakeoverAgent  # noqa: E402
-from derail.mypcbench.qwen35_takeover import wrap_qwen35_takeover_target  # noqa: E402
-from derail.mypcbench.claude_takeover import wrap_claude_takeover_target  # noqa: E402
-from derail.mypcbench.openai_takeover import wrap_openai_takeover_target  # noqa: E402
-from derail.rollout.state_probe import EnvironmentHooks  # noqa: E402
-from derail.takeover.diagnosis import load_human_diagnosis_evidence  # noqa: E402
-from derail.takeover.protocol import (  # noqa: E402
+from recovery.canonical.mypcbench import load_canonical_jsonl  # noqa: E402
+from recovery.derived.layout import atomic_write_json, sha256_file  # noqa: E402
+from recovery.mypcbench.agent_config import load_config, resolve_checkpoint  # noqa: E402
+from recovery.mypcbench.takeover_agent import PrefixTakeoverAgent  # noqa: E402
+from recovery.mypcbench.qwen35_takeover import wrap_qwen35_takeover_target  # noqa: E402
+from recovery.mypcbench.claude_takeover import wrap_claude_takeover_target  # noqa: E402
+from recovery.mypcbench.openai_takeover import wrap_openai_takeover_target  # noqa: E402
+from recovery.rollout.state_probe import EnvironmentHooks  # noqa: E402
+from recovery.takeover.diagnosis import load_human_diagnosis_evidence  # noqa: E402
+from recovery.takeover.protocol import (  # noqa: E402
     DEFAULT_CONFIG_PATH,
     ProtocolExclusion,
     load_takeover_config,
@@ -330,9 +330,9 @@ def main() -> int:
     if not configured_model:
         raise RuntimeError(f"target config has no model/checkpoint: {target_config.path}")
     target_model = _runtime_model_name(args.target_agent, configured_model)
-    os.environ["DERAIL_REPO_ROOT"] = str(REPOSITORY)
-    os.environ["DERAIL_AGENT_ID"] = live_target_agent_id
-    os.environ["DERAIL_AGENT_MAX_STEPS"] = str(args.max_steps)
+    os.environ["RECOVERY_REPO_ROOT"] = str(REPOSITORY)
+    os.environ["RECOVERY_AGENT_ID"] = live_target_agent_id
+    os.environ["RECOVERY_AGENT_MAX_STEPS"] = str(args.max_steps)
     os.environ["MYPCBENCH_HOST_API_PORT"] = str(worker_port_base)
     os.environ["MYPCBENCH_HOST_VNC_PORT"] = str(worker_port_base + 1)
     os.environ["MYPCBENCH_HOST_SSH_PORT"] = str(worker_port_base + 3)

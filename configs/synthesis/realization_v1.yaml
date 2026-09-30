@@ -16,8 +16,8 @@ ontology_config: configs/synthesis/ontology_v0.2.yaml
 value_types_config: configs/synthesis/value_types_v0.yaml
 api_invocation_policy:
   requires_explicit_user_approval_per_run: true
-  approval_env: DERAIL_OPENAI_API_APPROVED
-  purpose_env: DERAIL_OPENAI_API_PURPOSE
+  approval_env: RECOVERY_OPENAI_API_APPROVED
+  purpose_env: RECOVERY_OPENAI_API_PURPOSE
   allowed_purposes: [task_ir_extraction, realization]
   credentials_alone_are_not_consent: true
 realizations_per_task: 2

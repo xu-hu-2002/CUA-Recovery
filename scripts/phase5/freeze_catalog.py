@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from derail.phase5.catalog import Budget, select_prefix, validate_hazards_before_freeze
+from recovery.phase5.catalog import Budget, select_prefix, validate_hazards_before_freeze
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:

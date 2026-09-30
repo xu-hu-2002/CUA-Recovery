@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve the single DERAIL judge and its fail-closed runtime settings."""
+"""Resolve the single RECOVERY judge and its fail-closed runtime settings."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ FIELDS = ("protocol", "max_images", "admission", "concurrency", "timeout_seconds
 
 
 def load_config(path: Path | None = None) -> dict:
-    path = Path(path or os.environ.get("DERAIL_JUDGE_CONFIG") or DEFAULT_CONFIG)
+    path = Path(path or os.environ.get("RECOVERY_JUDGE_CONFIG") or DEFAULT_CONFIG)
     config = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(config, dict) or not str(config.get("model") or "").strip():
         raise ValueError(f"judge config has no model: {path}")
@@ -104,7 +104,7 @@ def resolve(registry_path: Path, model: str) -> dict[str, object]:
     missing = [field for field in FIELDS if field not in entry]
     if missing:
         raise ValueError(f"Judge model registry entry {model} is missing: {', '.join(missing)}")
-    allow_candidate = os.environ.get("DERAIL_JUDGE_ALLOW_CANDIDATE") == "1"
+    allow_candidate = os.environ.get("RECOVERY_JUDGE_ALLOW_CANDIDATE") == "1"
     if entry["admission"] != "admitted" and not (allow_candidate and entry["admission"] == "candidate"):
         raise ValueError(
             f"Judge model is not admitted: {model} (state={entry['admission']})"

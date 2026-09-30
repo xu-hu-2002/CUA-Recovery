@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from derail.gen.hazards import HazardConfig  # noqa: E402
+from recovery.gen.hazards import HazardConfig  # noqa: E402
 
 CALENDAR_APP = "hoolicalendar"
 CALENDAR_OVERRIDE_PATH = "/app_overrides/calendar/events/-"

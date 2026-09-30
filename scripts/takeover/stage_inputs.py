@@ -10,9 +10,9 @@ import urllib.parse
 from pathlib import Path
 from typing import Mapping
 
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.rollout.state_probe import EnvironmentHooks
-from derail.takeover.protocol import DEFAULT_CONFIG_PATH, load_takeover_config
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.rollout.state_probe import EnvironmentHooks
+from recovery.takeover.protocol import DEFAULT_CONFIG_PATH, load_takeover_config
 
 
 def read_object(path: Path) -> Mapping[str, object]:

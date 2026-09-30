@@ -8,11 +8,11 @@ import os
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.derived.schema import validate_schema  # noqa: E402
-from derail.world.files import FileInventory  # noqa: E402
+from recovery.derived.schema import validate_schema  # noqa: E402
+from recovery.world.files import FileInventory  # noqa: E402
 
 
 def main() -> int:

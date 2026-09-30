@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.derived.schema import validate_schema
-from derail.longhorizon.world import build_world_graph, load_sources
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.longhorizon.world import build_world_graph, load_sources
 
 
 def main(argv: Iterable[str] = ()) -> int:

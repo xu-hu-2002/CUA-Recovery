@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail-benchmark.org/schemas/canonical_action.schema.json",
-  "title": "DERAIL Canonical Action",
+  "$id": "https://recovery-benchmark.org/schemas/canonical_action.schema.json",
+  "title": "RECOVERY Canonical Action",
   "$comment": "canonical action 是唯一真值；summary、PyAutoGUI 和 native history 都由它派生。",
   "oneOf": [
     {"$ref": "#/$defs/click"},

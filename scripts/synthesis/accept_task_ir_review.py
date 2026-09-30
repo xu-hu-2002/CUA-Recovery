@@ -9,11 +9,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from derail.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
-from derail.derived.schema import validate_schema
-from derail.longhorizon.ontology import Ontology
-from derail.longhorizon.review import ReviewVerdicts, apply_review, latest_by_task
-from derail.longhorizon.types import ValueTypeRegistry
+from recovery.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.longhorizon.ontology import Ontology
+from recovery.longhorizon.review import ReviewVerdicts, apply_review, latest_by_task
+from recovery.longhorizon.types import ValueTypeRegistry
 
 
 def main(argv: Iterable[str] = ()) -> int:

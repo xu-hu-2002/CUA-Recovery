@@ -11,17 +11,17 @@ import time
 from collections import Counter
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.derived.schema import validate_schema  # noqa: E402
-from derail.derived.layout import sha256_file  # noqa: E402
-from derail.failure_analysis.run import (  # noqa: E402
+from recovery.derived.schema import validate_schema  # noqa: E402
+from recovery.derived.layout import sha256_file  # noqa: E402
+from recovery.failure_analysis.run import (  # noqa: E402
     AnalysisConfig,
     analyze_failure,
     annotation_proposal,
 )
-from derail.ir.model import load_task_ir  # noqa: E402
+from recovery.ir.model import load_task_ir  # noqa: E402
 
 
 def is_failure(outcome: dict) -> bool:

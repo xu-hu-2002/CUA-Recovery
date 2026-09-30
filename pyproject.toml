@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "derail-benchmark"
+name = "cua-recovery"
 version = "0.1.0"
 description = "CUA-Recovery benchmark and ReRail pipeline"
 readme = "README.md"
@@ -23,10 +23,10 @@ collection = [
   "openai>=1.30",
   "Pillow>=10",
 ]
-dev = ["pytest>=8", "ruff>=0.8"]
+dev = ["ruff>=0.8"]
 
 [project.scripts]
-derail = "derail.cli:main"
+recovery = "recovery.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -40,6 +40,3 @@ line-length = 100
 
 [tool.ruff.lint]
 ignore = ["UP045"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]

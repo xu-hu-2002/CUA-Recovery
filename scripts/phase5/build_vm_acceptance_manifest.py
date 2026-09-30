@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze the VM and infra identities used by DERAIL Phase 5 acceptance."""
+"""Freeze the VM and infra identities used by RECOVERY Phase 5 acceptance."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 INFRA_FILES = (
-    "control_api_derail.py",
+    "control_api_recovery.py",
     "control_api_patch.py",
     "snapshot/changelog_replay.py",
     "sqlite3_wrapper.sh",
@@ -51,7 +51,7 @@ def build_manifest(args: argparse.Namespace) -> dict:
     }
     return {
         "schema": "vm-acceptance-manifest/1.0",
-        "phase": "derail_phase5",
+        "phase": "recovery_phase5",
         "boot_date": args.boot_date,
         "qcow2": {"sha256": sha256_file(qcow2), "size": qcow2.stat().st_size},
         "mypcbench_commit": git_revision(mypcbench),

@@ -11,7 +11,7 @@ die() {
 }
 
 info() {
-  printf '[DERAIL setup] %s\n' "$*"
+  printf '[RECOVERY setup] %s\n' "$*"
 }
 
 # shellcheck source=lib/third_party.sh

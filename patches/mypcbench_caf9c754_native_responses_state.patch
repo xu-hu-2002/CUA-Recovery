@@ -20,7 +20,7 @@ index f7b8144..e92c151 100644
          # payload doesn't grow ~250KB per step over a 100-step budget.
 @@ -207,6 +209,25 @@ class _OpenAICUABase(OpenAIBaseAgent):
          super().reset(logger)
-         # DERAIL ZDR: each task starts with a fresh replayed history.
+         # RECOVERY ZDR: each task starts with a fresh replayed history.
          self._history.clear()
 +        self._response_audit.clear()
 +
@@ -49,7 +49,7 @@ index f7b8144..e92c151 100644
                  response = self.client.responses.create(**request)
                  if self._zdr_stateless:
 +                    output_items = [self._dump_item(i) for i in response.output]
-                     # DERAIL ZDR: fold this turn into the replayed history.
+                     # RECOVERY ZDR: fold this turn into the replayed history.
                      self._history.extend(input_items)
 -                    self._history.extend(
 -                        self._dump_item(i) for i in response.output
@@ -86,7 +86,7 @@ index e83713d..e339b36 100644
 +    )
 +
 +
- # DERAIL (2026-08-11): perceptual screen digest for the loop-stall detector.
+ # RECOVERY (2026-08-11): perceptual screen digest for the loop-stall detector.
  # Byte-identical md5 is too strict — the desktop clock/cursor changes every
  # second, so a genuinely frozen screen never hashes equal across steps.
 @@ -445,6 +458,7 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,

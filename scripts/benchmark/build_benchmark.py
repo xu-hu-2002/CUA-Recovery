@@ -10,18 +10,18 @@ from typing import Any, Dict
 
 import yaml
 
-from derail.annotation.records import Adjudication, HumanAnnotation
-from derail.annotation.rubric_review import (
+from recovery.annotation.records import Adjudication, HumanAnnotation
+from recovery.annotation.rubric_review import (
     HumanRubricReview,
     RubricReviewAdjudication,
     load_rubric_specs,
 )
-from derail.annotation.taxonomy import error_types_outside_seed
-from derail.canonical.mypcbench import load_canonical_jsonl
-from derail.construction.cases import build_case_plan
-from derail.construction.repair import PrefixAudit, RepairPatch
-from derail.derived.layout import DerivedBuild, atomic_write_json, atomic_write_jsonl, sha256_file
-from derail.derived.schema import validate_schema
+from recovery.annotation.taxonomy import error_types_outside_seed
+from recovery.canonical.mypcbench import load_canonical_jsonl
+from recovery.construction.cases import build_case_plan
+from recovery.construction.repair import PrefixAudit, RepairPatch
+from recovery.derived.layout import DerivedBuild, atomic_write_json, atomic_write_jsonl, sha256_file
+from recovery.derived.schema import validate_schema
 
 
 def _read_json(path: Path):
@@ -32,7 +32,7 @@ def _read_json(path: Path):
 def _require_failed_trajectory(human_rubric_score: Dict[str, Any]) -> None:
     if human_rubric_score["perfect"]:
         raise RuntimeError(
-            "Only failure trajectories may become DERAIL cases; "
+            "Only failure trajectories may become RECOVERY cases; "
             "human rubric review marked every rubric successful"
         )
 
@@ -145,7 +145,7 @@ def main() -> int:
     prefix_audit_raw = _read_json(args.prefix_audit)
     validate_schema(prefix_audit_raw, "prefix_audit.schema.json", repository)
     protocol = yaml.safe_load(
-        (repository / "configs/benchmark/derail_v1.yaml").read_text(encoding="utf-8")
+        (repository / "configs/benchmark/recovery_v1.yaml").read_text(encoding="utf-8")
     )
     prefix_audit = PrefixAudit.from_dict(
         prefix_audit_raw, int(protocol["prefix_repair"]["min_reviewers"])

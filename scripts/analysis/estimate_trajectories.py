@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 
 
 def main() -> int:

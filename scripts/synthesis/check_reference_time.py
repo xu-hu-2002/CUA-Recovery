@@ -10,11 +10,11 @@ import sqlite3
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.ir.extract import V1ExtractorConfig  # noqa: E402
-from derail.ir.rubric_check import expand_variables  # noqa: E402
+from recovery.ir.extract import V1ExtractorConfig  # noqa: E402
+from recovery.ir.rubric_check import expand_variables  # noqa: E402
 
 
 def main() -> int:
@@ -23,11 +23,11 @@ def main() -> int:
         "--config", type=Path, default=REPO_ROOT / "configs/synthesis/task_ir_v1_extractor.yaml"
     )
     parser.add_argument("--variables", type=Path, required=True)
-    parser.add_argument("--db-dir", type=Path, default=os.environ.get("DERAIL_VM_DB_DIR"))
+    parser.add_argument("--db-dir", type=Path, default=os.environ.get("RECOVERY_VM_DB_DIR"))
     parser.add_argument("--probe", action="append", default=[], help="NAME=app.table.column:rowid")
     args = parser.parse_args()
     if not args.db_dir:
-        raise SystemExit("need --db-dir or DERAIL_VM_DB_DIR")
+        raise SystemExit("need --db-dir or RECOVERY_VM_DB_DIR")
     config = V1ExtractorConfig.from_yaml(args.config, REPO_ROOT)
     failures = []
     meta_path = Path(args.db_dir) / "_seed_meta.json"

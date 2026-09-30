@@ -52,8 +52,8 @@ index c888633..6d6182a 100644
  # ---------------------------------------------------------------------------
  
  
-+# DERAIL transient-retry (2026-08-15): recovered from the lost
-+# patches/mypcbench_caf9c754_derail_judge.patch (_with_retries/_is_transient).
++# RECOVERY transient-retry (2026-08-15): recovered from the lost
++# patches/mypcbench_caf9c754_recovery_judge.patch (_with_retries/_is_transient).
 +# Without retries a single 429 / connection / timeout blip fails the rubric
 +# and — before the fail-loud guard below — was silently scored 0.
 +_TRANSIENT_HINTS = (
@@ -141,7 +141,7 @@ index c888633..6d6182a 100644
  
      rubric_results = await asyncio.gather(*[run_one(r) for r in rubrics])
  
-+    # DERAIL fail-loud guard (2026-08-15): a rubric-level API error was
++    # RECOVERY fail-loud guard (2026-08-15): a rubric-level API error was
 +    # silently scored 0 ("Error judging rubric ...: <exc>"), so transient
 +    # timeouts / connection errors / quota saturation wrote fake-zero
 +    # results that the force=no cache skip then made permanent. Any rubric

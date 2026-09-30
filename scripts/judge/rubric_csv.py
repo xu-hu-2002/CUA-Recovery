@@ -17,7 +17,7 @@ from takeover_judge_selection import completed_task_dirs, excluded_task_ids
 REPOSITORY = Path(__file__).resolve().parents[2]
 if str(REPOSITORY / "src") not in sys.path:
     sys.path.insert(0, str(REPOSITORY / "src"))
-from derail.evaluation.metrics import rubric_verdict  # noqa: E402
+from recovery.evaluation.metrics import rubric_verdict  # noqa: E402
 CONDITIONS = ("unaware", "notified", "diagnosed")
 JUDGE_RESULT_NAME = "rubric_judge_result.json"
 RUBRIC_DETAIL_NAME = "osworld_full_traj_result.json"

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/file_inventory.schema.json",
-  "title": "DERAIL file inventory (file-inventory/1.0)",
+  "$id": "https://recovery.local/schemas/file_inventory.schema.json",
+  "title": "RECOVERY file inventory (file-inventory/1.0)",
   "$comment": "Files under the persona's home directory as world entities (doc 2.1). Exposed to the IR as the virtual table files.documents with columns path, name, mime, size, sha256, content, lines; entity ids are file:<relative path> (D-028).",
   "type": "object",
   "required": [

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DOCKERFILE="${SCRIPT_DIR}/evocua-vllm.Dockerfile"
-IMAGE_TAG="${EVOCUA_IMAGE_TAG:-derail/evocua-vllm:0.11.0-transformers4.57.3}"
+IMAGE_TAG="${EVOCUA_IMAGE_TAG:-recovery/evocua-vllm:0.11.0-transformers4.57.3}"
 MODELS_LOCK="${REPO_ROOT}/configs/models.lock.yaml"
 
 die() {
@@ -13,7 +13,7 @@ die() {
 }
 
 info() {
-  printf '[DERAIL serving] %s\n' "$*"
+  printf '[RECOVERY serving] %s\n' "$*"
 }
 
 # shellcheck source=../scripts/lib/collection_config.sh

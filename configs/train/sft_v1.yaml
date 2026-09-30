@@ -3,8 +3,8 @@ schema_version: sft-build-config/2.0
 format: recovery
 
 split:
-  function: derail.gen.splits:split_of
-  loader: derail.gen.splits:load_workflow_splits
+  function: recovery.gen.splits:split_of
+  loader: recovery.gen.splits:load_workflow_splits
   file: data/synthesis/workflow_splits.json
 
 loss:

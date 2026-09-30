@@ -141,8 +141,8 @@ index 0687d5f..f7b8144 100644
          step_summary_parts: List[str] = []
          message_text_parts: List[str] = []
          reasoning_text_parts: List[str] = []
--        # DERAIL: 本轮执行过的 shell 命令 + 输出，供纯工具轮回填 response_text。
-+        # DERAIL: 本轮所有可见 tool call + output，写进 response_text 供轨迹/judge 使用。
+-        # RECOVERY: 本轮执行过的 shell 命令 + 输出，供纯工具轮回填 response_text。
++        # RECOVERY: 本轮所有可见 tool call + output，写进 response_text 供轨迹/judge 使用。
          _tool_transcript: List[str] = []
 
          for item in response.output:
@@ -222,9 +222,9 @@ index 0687d5f..f7b8144 100644
          else:
              response_text = message_text
 
--        # DERAIL: 纯工具轮（模型只发了工具调用、没发消息文本）时，用本轮的命令+输出
+-        # RECOVERY: 纯工具轮（模型只发了工具调用、没发消息文本）时，用本轮的命令+输出
 -        # 充当 response_text，让这一步在轨迹里留下实际内容而不是空串。
-+        # DERAIL: 每个 tool call 都必须进入 response_text，即使同轮也有可见文本。
++        # RECOVERY: 每个 tool call 都必须进入 response_text，即使同轮也有可见文本。
 +        # judge 以 message/action trajectory 为主证据，不能只保存自然语言而丢掉调用。
          #
 -        # 只在 response_text 为空时回填，不覆盖模型真正说过的话；也不参与下面的

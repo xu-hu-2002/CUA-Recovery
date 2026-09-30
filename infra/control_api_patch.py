@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch the MyPCBench control API to serve the DERAIL endpoints."""
+"""Patch the MyPCBench control API to serve the RECOVERY endpoints."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import re
 import shutil
 import sys
 
-MARKER = "# derail-control-api-patch"
+MARKER = "# recovery-control-api-patch"
 FLASK_LINE = re.compile(r"^app\s*=\s*Flask\(__name__\)\s*$", re.MULTILINE)
 PATCHER_DEFAULT_OLD = 'data.get("skip_patchers", False)'
 PATCHER_DEFAULT_NEW = 'data.get("skip_patchers", True)'
@@ -24,10 +24,10 @@ def patched_text(text: str, infra_dir: str) -> str:
     if not match:
         raise SystemExit("could not find 'app = Flask(__name__)' in main.py")
     insertion = (
-        "\n%s\nimport sys as _derail_sys; _derail_sys.path.insert(0, %r)\n"
-        "import os as _derail_os; "
-        "_derail_os.environ.setdefault('PYTHONWARNINGS', 'ignore::DeprecationWarning')\n"
-        "from control_api_derail import register as _derail_register; _derail_register(app)\n"
+        "\n%s\nimport sys as _recovery_sys; _recovery_sys.path.insert(0, %r)\n"
+        "import os as _recovery_os; "
+        "_recovery_os.environ.setdefault('PYTHONWARNINGS', 'ignore::DeprecationWarning')\n"
+        "from control_api_recovery import register as _recovery_register; _recovery_register(app)\n"
         % (MARKER, infra_dir)
     )
     return text[: match.end()] + insertion + text[match.end() :]
@@ -36,7 +36,7 @@ def patched_text(text: str, infra_dir: str) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--main", default="/opt/desktop-seed/server/main.py")
-    parser.add_argument("--infra-dir", default="/opt/derail")
+    parser.add_argument("--infra-dir", default="/opt/recovery")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     with open(args.main, "r", encoding="utf-8") as handle:
@@ -49,10 +49,10 @@ def main(argv=None) -> int:
         print("already patched", file=sys.stderr)
         return 0
     ast.parse(new_text)
-    shutil.copyfile(args.main, args.main + ".derail.bak")
+    shutil.copyfile(args.main, args.main + ".recovery.bak")
     with open(args.main, "w", encoding="utf-8") as handle:
         handle.write(new_text)
-    print("patched %s (backup at %s.derail.bak)" % (args.main, args.main), file=sys.stderr)
+    print("patched %s (backup at %s.recovery.bak)" % (args.main, args.main), file=sys.stderr)
     return 0
 
 

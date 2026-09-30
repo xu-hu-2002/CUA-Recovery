@@ -1,4 +1,4 @@
-judge_id: derail_judge_gpt56_terra
+judge_id: recovery_judge_gpt56_terra
 model: gpt-5.6-terra
 
 same_source_groups:
@@ -20,6 +20,6 @@ final_state:
 temperature: 0.0
 api_invocation_policy:
   requires_explicit_user_approval_per_run: true
-  approval_env: DERAIL_OPENAI_API_APPROVED
-  purpose_env: DERAIL_OPENAI_API_PURPOSE
+  approval_env: RECOVERY_OPENAI_API_APPROVED
+  purpose_env: RECOVERY_OPENAI_API_PURPOSE
   credentials_alone_are_not_consent: true

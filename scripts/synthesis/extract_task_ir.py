@@ -10,15 +10,15 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.longhorizon.extraction import (
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.longhorizon.extraction import (
     ExtractorConfig,
     OpenAICompatibleClient,
     run_extraction,
 )
-from derail.longhorizon.ontology import Ontology
-from derail.longhorizon.types import ValueTypeRegistry
-from derail.longhorizon.world import AppAliases, load_sources
+from recovery.longhorizon.ontology import Ontology
+from recovery.longhorizon.types import ValueTypeRegistry
+from recovery.longhorizon.world import AppAliases, load_sources
 
 PURPOSE = "task_ir_extraction"
 

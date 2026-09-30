@@ -11,7 +11,7 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY / "src"))
 
-from derail.phase5.workload import FrozenPhase5Manifest  # noqa: E402
+from recovery.phase5.workload import FrozenPhase5Manifest  # noqa: E402
 
 DEFAULT_MANIFEST = REPOSITORY / "artifacts/phase5/run-manifest-option-a-20260912.json"
 DEFAULT_SHA256 = "228c209ed2d892c34adc5539884ab7f591de0dd8a27a38a417f2c49642887126"

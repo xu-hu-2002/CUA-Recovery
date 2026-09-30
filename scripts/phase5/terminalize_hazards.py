@@ -7,7 +7,7 @@ import argparse
 import json
 from pathlib import Path
 
-from derail.phase5.executor import apply_results
+from recovery.phase5.executor import apply_results
 
 
 def _jsonl(path: Path) -> list[dict]:

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/failure_annotation.schema.json",
-  "title": "DERAIL enriched failure annotation (failure-annotation/0.1)",
+  "$id": "https://recovery.local/schemas/failure_annotation.schema.json",
+  "title": "RECOVERY enriched failure annotation (failure-annotation/0.1)",
   "$comment": "Human root-cause labels enriched with paper_type/group and the deterministic post-error continuation statistics (manual v0.2 section 14A.1). group is derived from paper_type, never annotated. Horizon fields stay null when not annotated.",
   "type": "object",
   "required": [

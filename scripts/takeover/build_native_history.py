@@ -7,13 +7,13 @@ import argparse
 import json
 from pathlib import Path
 
-from derail.adapters import create_native_history_adapter
-from derail.canonical.mypcbench import load_canonical_jsonl
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.derived.schema import validate_schema
-from derail.replay.verification import ReplayVerification
-from derail.takeover.history import build_native_history_from_replay
-from derail.takeover.protocol import DEFAULT_CONFIG_PATH, load_takeover_config
+from recovery.adapters import create_native_history_adapter
+from recovery.canonical.mypcbench import load_canonical_jsonl
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.replay.verification import ReplayVerification
+from recovery.takeover.history import build_native_history_from_replay
+from recovery.takeover.protocol import DEFAULT_CONFIG_PATH, load_takeover_config
 
 
 def _read(path: Path):

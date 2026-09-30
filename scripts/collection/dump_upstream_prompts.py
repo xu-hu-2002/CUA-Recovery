@@ -40,13 +40,13 @@ def _frozen_datetime() -> type:
 
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
-from derail.mypcbench.agent_config import load_agent_config as _live_config  # noqa: E402
+from recovery.mypcbench.agent_config import load_agent_config as _live_config  # noqa: E402
 
 MYPCBENCH_HARNESS = REPO_ROOT / "third_party" / "MyPCBench" / "agent-harness"
 EVOCUA_ROOT = REPO_ROOT / "third_party" / "EvoCUA"
 OPENCUA_ROOT = REPO_ROOT / "third_party" / "OpenCUA-OSWorld"
 
-DERAIL_PROMPT_DIR = REPO_ROOT / "prompts" / "agents"
+RECOVERY_PROMPT_DIR = REPO_ROOT / "prompts" / "agents"
 SHARED_BLOCK_FILE = "mypcbench_shared_block.txt"
 SHARED_BLOCK_BASH_FILE = "mypcbench_shared_block_bash.txt"
 CONTEXT_SENTINEL = "\n## Persona\n"
@@ -276,7 +276,7 @@ def _shared_block(has_bash: bool = False) -> str:
     return _completion_discipline(keep_bash=has_bash) + _context(has_bash)
 
 
-def sync_derail_prompts(check: bool) -> list[str]:
+def sync_recovery_prompts(check: bool) -> list[str]:
     """Maintain the two shared environment blocks and return any mismatches."""
 
     stale: list[str] = []
@@ -285,7 +285,7 @@ def sync_derail_prompts(check: bool) -> list[str]:
         (SHARED_BLOCK_BASH_FILE, True),
     ):
         context = _shared_block(has_bash)
-        target = DERAIL_PROMPT_DIR / filename
+        target = RECOVERY_PROMPT_DIR / filename
         current = target.read_text(encoding="utf-8") if target.is_file() else ""
         if current == context:
             print(f"[ok]    {target.relative_to(REPO_ROOT)}")
@@ -296,7 +296,7 @@ def sync_derail_prompts(check: bool) -> list[str]:
             target.write_text(context, encoding="utf-8")
             print(f"已写入共享块 -> {target.relative_to(REPO_ROOT)}")
 
-    for path in sorted(DERAIL_PROMPT_DIR.glob("*_mypcbench_system.txt")):
+    for path in sorted(RECOVERY_PROMPT_DIR.glob("*_mypcbench_system.txt")):
         if CONTEXT_SENTINEL in path.read_text(encoding="utf-8"):
             stale.append(path.name)
             print(f"[dup]   {path.relative_to(REPO_ROOT)} 内嵌了环境块副本，请删除")
@@ -428,7 +428,7 @@ def main() -> int:
         target.write_text(rendered, encoding="utf-8")
         print(f"已写入 {target.relative_to(REPO_ROOT)}（{len(text)} 字符）")
 
-    stale.extend(sync_derail_prompts(check=args.check))
+    stale.extend(sync_recovery_prompts(check=args.check))
 
     if stale:
         print(

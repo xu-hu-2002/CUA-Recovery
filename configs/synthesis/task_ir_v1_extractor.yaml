@@ -16,15 +16,15 @@ ontology_config: configs/synthesis/ontology_v0.2.yaml
 value_types_config: configs/synthesis/value_types_v0.yaml
 api_invocation_policy:
   requires_explicit_user_approval_per_run: true
-  approval_env: DERAIL_OPENAI_API_APPROVED
-  purpose_env: DERAIL_OPENAI_API_PURPOSE
+  approval_env: RECOVERY_OPENAI_API_APPROVED
+  purpose_env: RECOVERY_OPENAI_API_PURPOSE
   allowed_purposes:
     - task_ir_extraction
   credentials_alone_are_not_consent: true
 
 v1:
   schema_graph: data/synthesis/world/schema_graph.json
-  database_dir_env: DERAIL_VM_DB_DIR
+  database_dir_env: RECOVERY_VM_DB_DIR
   world_id: mypcbench_caf9c754_bake20260719
   reference_time: "2026-07-19T05:00:01Z"
   reference_time_source: _seed_meta.json#bake_reference_time

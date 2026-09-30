@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/empirical_skeleton.schema.json",
-  "title": "DERAIL empirical or derived composition skeleton",
+  "$id": "https://recovery.local/schemas/empirical_skeleton.schema.json",
+  "title": "RECOVERY empirical or derived composition skeleton",
   "type": "object",
   "required": [
     "schema_version", "skeleton_id", "kind", "motif_family",

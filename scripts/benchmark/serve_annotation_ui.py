@@ -19,10 +19,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
-from derail.annotation.records import Adjudication, AnnotationError, HumanAnnotation
-from derail.construction.cases import eligible_depths
-from derail.derived.layout import DEPTH_GRID, atomic_write_json, sha256_file
-from derail.derived.schema import validate_schema
+from recovery.annotation.records import Adjudication, AnnotationError, HumanAnnotation
+from recovery.construction.cases import eligible_depths
+from recovery.derived.layout import DEPTH_GRID, atomic_write_json, sha256_file
+from recovery.derived.schema import validate_schema
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 MAX_BODY_BYTES = 1 << 20
@@ -158,7 +158,7 @@ class AnnotationService:
         self.build_dir = build_dir
         self.out_dir = out_dir
         self.repository = repository
-        self.ui_dir = repository / "src" / "derail" / "annotation" / "ui"
+        self.ui_dir = repository / "src" / "recovery" / "annotation" / "ui"
         if not (self.ui_dir / "index.html").is_file():
             raise UIError("Annotation UI not found: %s" % (self.ui_dir / "index.html"))
         manifest_path = build_dir / "build_manifest.json"
@@ -1506,7 +1506,7 @@ class MultiBuildAnnotationService:
             )
             for record in records
         }
-        export_stem = build_stems.pop() if len(build_stems) == 1 else "derail"
+        export_stem = build_stems.pop() if len(build_stems) == 1 else "recovery"
         return self.services[0].export_results_jsonl(
             annotator_id,
             task_loader=self.task,
@@ -1551,7 +1551,7 @@ def _quote(value: str) -> str:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "DERAILAnnotationUI/0.1"
+    server_version = "RECOVERYAnnotationUI/0.1"
 
     def __init__(
         self,
@@ -1677,14 +1677,14 @@ class Handler(BaseHTTPRequestHandler):
                     self._download(
                         body,
                         "application/x-ndjson; charset=utf-8",
-                        "derail_%s_compact_results.jsonl" % annotator,
+                        "recovery_%s_compact_results.jsonl" % annotator,
                     )
                 elif export_format == "json":
                     body = json.dumps(records, ensure_ascii=False, indent=2).encode("utf-8")
                     self._download(
                         body,
                         "application/json; charset=utf-8",
-                        "derail_%s_compact_results.json" % annotator,
+                        "recovery_%s_compact_results.json" % annotator,
                     )
                 else:
                     raise UIError("format must be jsonl or json")
@@ -1845,13 +1845,13 @@ def main() -> int:
     parser.add_argument(
         "--require-path-prefix",
         type=Path,
-        default=(Path(os.environ["DERAIL_DATA_ROOT"]) if os.environ.get("DERAIL_DATA_ROOT") else None),
-        help="Refuse to write outside this prefix; defaults to $DERAIL_DATA_ROOT when set.",
+        default=(Path(os.environ["RECOVERY_DATA_ROOT"]) if os.environ.get("RECOVERY_DATA_ROOT") else None),
+        help="Refuse to write outside this prefix; defaults to $RECOVERY_DATA_ROOT when set.",
     )
     parser.add_argument(
         "--token",
-        default=os.environ.get("DERAIL_ANNOTATION_TOKEN", ""),
-        help="Shared access token for every /api route; defaults to $DERAIL_ANNOTATION_TOKEN. "
+        default=os.environ.get("RECOVERY_ANNOTATION_TOKEN", ""),
+        help="Shared access token for every /api route; defaults to $RECOVERY_ANNOTATION_TOKEN. "
         "Required whenever the server is reachable beyond loopback.",
     )
     parser.add_argument(
@@ -1890,7 +1890,7 @@ def main() -> int:
         loopback = args.host == "localhost"
     if not loopback and not args.token and not annotator_tokens:
         raise SystemExit(
-            "--host %s reaches beyond this machine; set --token or $DERAIL_ANNOTATION_TOKEN"
+            "--host %s reaches beyond this machine; set --token or $RECOVERY_ANNOTATION_TOKEN"
             % args.host
         )
 

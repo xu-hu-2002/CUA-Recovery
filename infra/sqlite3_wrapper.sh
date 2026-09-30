@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -u
-REAL="${DERAIL_SQLITE3_REAL:-/usr/bin/sqlite3.real}"
-TRACE_DIR="${DERAIL_TRACE_DIR:-/data/_trace}"
-CURSOR_FILE="${DERAIL_CURSOR_FILE:-/data/_derail/cursor.json}"
+REAL="${RECOVERY_SQLITE3_REAL:-/usr/bin/sqlite3.real}"
+TRACE_DIR="${RECOVERY_TRACE_DIR:-/data/_trace}"
+CURSOR_FILE="${RECOVERY_CURSOR_FILE:-/data/_recovery/cursor.json}"
 LOG="$TRACE_DIR/cli.jsonl"
 
 action_index=-1
@@ -21,13 +21,13 @@ done
 
 stdin_file=""
 if [ ! -t 0 ]; then
-  stdin_file=$(mktemp "${TMPDIR:-/tmp}/derail-sqlite3.XXXXXX")
+  stdin_file=$(mktemp "${TMPDIR:-/tmp}/recovery-sqlite3.XXXXXX")
   cat > "$stdin_file"
   if [ -z "$sql" ]; then sql=$(cat "$stdin_file"); fi
 fi
 
 mkdir -p "$TRACE_DIR" 2>/dev/null
-out_file=$(mktemp "${TMPDIR:-/tmp}/derail-sqlite3-out.XXXXXX")
+out_file=$(mktemp "${TMPDIR:-/tmp}/recovery-sqlite3-out.XXXXXX")
 if [ -n "$stdin_file" ]; then
   "$REAL" "$@" < "$stdin_file" | tee "$out_file"
   status=${PIPESTATUS[0]}

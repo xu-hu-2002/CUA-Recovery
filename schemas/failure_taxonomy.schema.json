@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/failure_taxonomy.schema.json",
-  "title": "DERAIL failure taxonomy mapping (failure-taxonomy/0.1)",
+  "$id": "https://recovery.local/schemas/failure_taxonomy.schema.json",
+  "title": "RECOVERY failure taxonomy mapping (failure-taxonomy/0.1)",
   "type": "object",
   "required": [
     "schema_version", "taxonomy_version", "paper_categories", "category_to_group",

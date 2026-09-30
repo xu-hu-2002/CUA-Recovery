@@ -12,17 +12,17 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.ir.gold_interpreter import (  # noqa: E402
+from recovery.ir.gold_interpreter import (  # noqa: E402
     GoldInterpreter,
     GoldInterpreterError,
     InterpreterConfig,
     WorldCopy,
 )
-from derail.ir.model import load_task_ir  # noqa: E402
-from derail.world.sqlite_fixture import build_world  # noqa: E402
+from recovery.ir.model import load_task_ir  # noqa: E402
+from recovery.world.sqlite_fixture import build_world  # noqa: E402
 
 
 def _pairs(values: List[str]) -> Dict[str, Path]:
@@ -47,13 +47,13 @@ def main() -> int:
     parser.add_argument("--out", required=True, help="output directory (must be on the data disk)")
     parser.add_argument(
         "--files-root",
-        default=os.environ.get("DERAIL_VM_FILES_DIR"),
-        help="copy of /home/user (file facts); default DERAIL_VM_FILES_DIR",
+        default=os.environ.get("RECOVERY_VM_FILES_DIR"),
+        help="copy of /home/user (file facts); default RECOVERY_VM_FILES_DIR",
     )
     parser.add_argument(
         "--workdir",
-        default=os.environ.get("DERAIL_TMP_ROOT"),
-        help="scratch root for database copies (default: DERAIL_TMP_ROOT)",
+        default=os.environ.get("RECOVERY_TMP_ROOT"),
+        help="scratch root for database copies (default: RECOVERY_TMP_ROOT)",
     )
     args = parser.parse_args()
 

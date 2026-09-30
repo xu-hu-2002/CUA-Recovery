@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail-benchmark.org/schemas/evaluation_result.schema.json",
-  "title": "DERAIL Takeover Evaluation Episode v0.2",
+  "$id": "https://recovery-benchmark.org/schemas/evaluation_result.schema.json",
+  "title": "RECOVERY Takeover Evaluation Episode v0.2",
   "type": "object",
   "properties": {
     "run_id": {"type": "string", "minLength": 1},

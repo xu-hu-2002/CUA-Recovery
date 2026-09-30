@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build derail-case/1.0 records from analysed rollouts."""
+"""Build recovery-case/1.0 records from analysed rollouts."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.cases.instantiate import build_cases, dedup_records  # noqa: E402
-from derail.cases.package import write_bundle  # noqa: E402
-from derail.failure_analysis.retrospective import clean_start_step_budget  # noqa: E402
-from derail.cases.repair import repair_prefix  # noqa: E402
-from derail.derived.schema import validate_schema  # noqa: E402
-from derail.longhorizon.ontology import Ontology  # noqa: E402
-from derail.world.volatile import VolatileColumns  # noqa: E402
+from recovery.cases.instantiate import build_cases, dedup_records  # noqa: E402
+from recovery.cases.package import write_bundle  # noqa: E402
+from recovery.failure_analysis.retrospective import clean_start_step_budget  # noqa: E402
+from recovery.cases.repair import repair_prefix  # noqa: E402
+from recovery.derived.schema import validate_schema  # noqa: E402
+from recovery.longhorizon.ontology import Ontology  # noqa: E402
+from recovery.world.volatile import VolatileColumns  # noqa: E402
 
 
 def _task_ir(ir_dir, task_id):
@@ -45,7 +45,7 @@ def main() -> int:
         "--profiles", type=Path, help="profiles.jsonl from build_latent_profiles.py"
     )
     parser.add_argument(
-        "--benchmark-config", type=Path, default=REPO_ROOT / "configs/benchmark/derail_v1.yaml"
+        "--benchmark-config", type=Path, default=REPO_ROOT / "configs/benchmark/recovery_v1.yaml"
     )
     parser.add_argument(
         "--split",
@@ -112,7 +112,7 @@ def main() -> int:
                     require_error_explicit=require_error_explicit,
                 )
                 for case in cases:
-                    validate_schema(case, "derail_case.schema.json", REPO_ROOT)
+                    validate_schema(case, "recovery_case.schema.json", REPO_ROOT)
                 row["cases"] = len(cases)
                 all_cases.extend(cases)
         per_rollout.append(row)

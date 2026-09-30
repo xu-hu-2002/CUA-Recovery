@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from derail.longhorizon.precheck import PrecheckConfig, run_precheck
+from recovery.longhorizon.precheck import PrecheckConfig, run_precheck
 
 
 def main(argv: Iterable[str] = ()) -> int:

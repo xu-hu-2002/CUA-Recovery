@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "DERAIL Raw Agent Trajectory",
+  "title": "RECOVERY Raw Agent Trajectory",
   "$comment": "保留 provider 原始消息和 artifact hash；任何 normalization 都不得覆盖 raw record。",
   "type": "object",
   "properties": {

@@ -1,0 +1,14 @@
+benchmark_id: recovery_v1
+environment: mypcbench_1280x800
+depths: [0, 5, 10, 15, 20, 25]
+require_verified_prefix: true
+require_lossless_lowering: true
+canonical_action_space: canonical_v1
+
+depth_eligibility:
+  require_error_explicit: true
+
+prefix_repair:
+  min_reviewers: 1
+  output_layer: canonical_repaired
+  require_for_takeover: true

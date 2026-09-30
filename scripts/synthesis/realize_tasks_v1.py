@@ -10,13 +10,13 @@ import sys
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.gen.graft import lineage  # noqa: E402
-from derail.gen.pipeline import Candidate, realization_step  # noqa: E402
-from derail.gen.realize import RealizationConfig, style_stats_from_instructions  # noqa: E402
-from derail.ir.extract import V1ExtractorConfig  # noqa: E402
+from recovery.gen.graft import lineage  # noqa: E402
+from recovery.gen.pipeline import Candidate, realization_step  # noqa: E402
+from recovery.gen.realize import RealizationConfig, style_stats_from_instructions  # noqa: E402
+from recovery.ir.extract import V1ExtractorConfig  # noqa: E402
 
 PURPOSE = "realization"
 
@@ -24,7 +24,7 @@ PURPOSE = "realization"
 def rescore(bundle, records, config, persona, instruction_of, done_path) -> int:
     """Offline re-verdict of saved replies (leak / literal rules changed)."""
 
-    from derail.gen.realize import round_trip_compare
+    from recovery.gen.realize import round_trip_compare
 
     rows, counts = [], {}
     for record in records:
@@ -114,7 +114,7 @@ def main() -> int:
     persona = V1ExtractorConfig.from_yaml(args.extractor_config, REPO_ROOT).persona_literals
     client = None
     if args.call_model:
-        from derail.longhorizon.extraction import OpenAICompatibleClient
+        from recovery.longhorizon.extraction import OpenAICompatibleClient
 
         client = OpenAICompatibleClient(config.base, PURPOSE)
     seed_tasks = json.loads(args.tasks.read_text(encoding="utf-8"))

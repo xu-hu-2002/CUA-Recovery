@@ -8,12 +8,12 @@ import importlib
 import json
 from pathlib import Path
 
-from derail.canonical.mypcbench import load_canonical_jsonl
-from derail.construction.cases import DepthInstance
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.derived.schema import validate_schema
-from derail.replay.mypcbench import MyPCBenchVMReplayBackend
-from derail.replay.verification import ReplayPlan, execute_replay_plan
+from recovery.canonical.mypcbench import load_canonical_jsonl
+from recovery.construction.cases import DepthInstance
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.replay.mypcbench import MyPCBenchVMReplayBackend
+from recovery.replay.verification import ReplayPlan, execute_replay_plan
 
 
 def _read(path: Path):

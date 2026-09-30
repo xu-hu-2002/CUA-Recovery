@@ -14,11 +14,11 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY / "src"))
 
-from derail.harness.control_client import DerailControlClient  # noqa: E402
-from derail.harness.env_wrapper import DerailEnvWrapper  # noqa: E402
-from derail.harness.trace_builder import TraceBuilder  # noqa: E402
-from derail.failure_analysis.retrospective import clean_start_step_budget  # noqa: E402
-from derail.phase5.verifier import verify_changelog  # noqa: E402
+from recovery.harness.control_client import RecoveryControlClient  # noqa: E402
+from recovery.harness.env_wrapper import RecoveryEnvWrapper  # noqa: E402
+from recovery.harness.trace_builder import TraceBuilder  # noqa: E402
+from recovery.failure_analysis.retrospective import clean_start_step_budget  # noqa: E402
+from recovery.phase5.verifier import verify_changelog  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,7 +56,7 @@ def load_rows(path: Path, wanted: set[str]) -> tuple[dict, list[dict]]:
 
 def result_path(root: Path, model: str, batch: str, row: dict, seed: int) -> Path:
     return (
-        root / "results/raw/single" / model / "derail_phase5" / batch
+        root / "results/raw/single" / model / "recovery_phase5" / batch
         / row["task_id"] / row["world_variant_id"] / row["instruction_id"] / f"seed_{seed}"
     )
 
@@ -78,11 +78,11 @@ def task_config(row: dict) -> dict:
 
 def run_one(raw_env, get_agent, control, workload: dict, row: dict, args, root: Path) -> dict:
     model = workload["model"]
-    image_digest = required_env("DERAIL_IMAGE_DIGEST")
+    image_digest = required_env("RECOVERY_IMAGE_DIGEST")
     target = result_path(root, model, args.batch, row, args.seed)
     target.mkdir(parents=True, exist_ok=True)
     current_id = rollout_id(row, model, args.seed, image_digest)
-    wrapper = DerailEnvWrapper(
+    wrapper = RecoveryEnvWrapper(
         raw_env,
         control,
         lambda: TraceBuilder(current_id, row["task_id"], row["world_variant_id"], model,
@@ -149,7 +149,7 @@ def terminal_row(row: dict, trace: dict, verdict: dict, target: Path) -> dict:
 def write_terminal(
     root: Path, workload: dict, args, rows: list[dict], errors: list[dict], started: float
 ) -> None:
-    target = root / "results/raw/single" / workload["model"] / "derail_phase5" / args.batch
+    target = root / "results/raw/single" / workload["model"] / "recovery_phase5" / args.batch
     payload = {
         "schema": "phase5-shard-terminal/1.0",
         "model": workload["model"],
@@ -166,13 +166,13 @@ def write_terminal(
 def main() -> int:
     args = parse_args()
     workload, rows = load_rows(args.workload, set(args.combination_id))
-    root = Path(required_env("DERAIL_PHASE5_OUT"))
-    mypcbench = Path(required_env("DERAIL_MYPCBENCH_ROOT"))
+    root = Path(required_env("RECOVERY_PHASE5_OUT"))
+    mypcbench = Path(required_env("RECOVERY_MYPCBENCH_ROOT"))
     sys.path.insert(0, str(mypcbench / "agent-harness"))
     from env import MyPCBenchEnv  # type: ignore
     from run_mypcbench import get_agent  # type: ignore
 
-    control = DerailControlClient(required_env("DERAIL_CONTROL_API_URL"))
+    control = RecoveryControlClient(required_env("RECOVERY_CONTROL_API_URL"))
     started, completed, errors = time.time(), [], []
     raw_env = MyPCBenchEnv()
     try:

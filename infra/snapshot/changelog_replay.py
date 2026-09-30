@@ -55,7 +55,7 @@ def replay(
     applied = skipped = 0
     try:
         for (name,) in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_derail_%'"
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_recovery_%'"
         ).fetchall():
             conn.execute("DROP TRIGGER IF EXISTS %s" % _quote(str(name)))
         conn.execute("PRAGMA foreign_keys = OFF")

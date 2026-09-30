@@ -14,21 +14,21 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.canonical.actions import action_from_dict  # noqa: E402
-from derail.canonical.mypcbench import load_canonical_jsonl  # noqa: E402
-from derail.canonical.trajectory import CanonicalStep  # noqa: E402
-from derail.derived.layout import sha256_file  # noqa: E402
-from derail.gen.verifiers import verify_final_state, world_sources  # noqa: E402
-from derail.ir.gold_interpreter import GoldInterpreter, InterpreterConfig, WorldCopy  # noqa: E402
-from derail.ir.model import load_task_ir  # noqa: E402
-from derail.takeover.diagnosis import HumanDiagnosisEvidence  # noqa: E402
-from derail.rollout.state_probe import EnvironmentHooks  # noqa: E402
-from derail.takeover.protocol import load_takeover_config  # noqa: E402
-from derail.train.build_samples import BuildConfig, target_loss_weights  # noqa: E402
-from derail.train.recovery_gen import (  # noqa: E402
+from recovery.canonical.actions import action_from_dict  # noqa: E402
+from recovery.canonical.mypcbench import load_canonical_jsonl  # noqa: E402
+from recovery.canonical.trajectory import CanonicalStep  # noqa: E402
+from recovery.derived.layout import sha256_file  # noqa: E402
+from recovery.gen.verifiers import verify_final_state, world_sources  # noqa: E402
+from recovery.ir.gold_interpreter import GoldInterpreter, InterpreterConfig, WorldCopy  # noqa: E402
+from recovery.ir.model import load_task_ir  # noqa: E402
+from recovery.takeover.diagnosis import HumanDiagnosisEvidence  # noqa: E402
+from recovery.rollout.state_probe import EnvironmentHooks  # noqa: E402
+from recovery.takeover.protocol import load_takeover_config  # noqa: E402
+from recovery.train.build_samples import BuildConfig, target_loss_weights  # noqa: E402
+from recovery.train.recovery_gen import (  # noqa: E402
     RecoveryConfig,
     generate_recovery,
     recovery_sample,
@@ -119,7 +119,7 @@ def main() -> int:
     parser.add_argument("--backend", choices=("qemu", "docker"), default="qemu")
     parser.add_argument("--client-password", default="password")
     args = parser.parse_args()
-    out = Path(_env("DERAIL_RECOVERY_OUT"))
+    out = Path(_env("RECOVERY_RECOVERY_OUT"))
     config = RecoveryConfig.from_yaml(args.config)
     overrides = {
         "base_agent": args.base_agent,
@@ -140,8 +140,8 @@ def main() -> int:
     from env import MyPCBenchEnv  # type: ignore
     from run_mypcbench import get_agent  # type: ignore
 
-    from derail.mypcbench.agent_config import load_config
-    from derail.mypcbench.takeover_agent import PrefixTakeoverAgent
+    from recovery.mypcbench.agent_config import load_config
+    from recovery.mypcbench.takeover_agent import PrefixTakeoverAgent
 
     cases = _jsonl(args.cases)
     out.mkdir(parents=True, exist_ok=True)

@@ -13,9 +13,9 @@ from typing import Any, Dict, Iterable, List
 
 import yaml
 
-from derail.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
-from derail.derived.schema import validate_schema
-from derail.synthesis.pipeline import SynthesisConfig, SynthesisPipeline
+from recovery.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.synthesis.pipeline import SynthesisConfig, SynthesisPipeline
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:

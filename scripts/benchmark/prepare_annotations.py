@@ -9,14 +9,14 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from derail.canonical.mypcbench import load_canonical_jsonl, normalize_task_directory
-from derail.derived.layout import (
+from recovery.canonical.mypcbench import load_canonical_jsonl, normalize_task_directory
+from recovery.derived.layout import (
     DerivedBuild,
     atomic_write_json,
     sha256_file,
     sha256_json,
 )
-from derail.derived.schema import validate_schema
+from recovery.derived.schema import validate_schema
 
 FINGERPRINT_SCRIPTS = (
     "benchmark/prepare_annotations.py",
@@ -124,7 +124,7 @@ def main() -> int:
     repository = args.repository.resolve()
     implementation_fingerprint = sha256_json(
         {
-            "src_derail": _source_tree_fingerprint(repository / "src" / "derail", ".py"),
+            "src_recovery": _source_tree_fingerprint(repository / "src" / "recovery", ".py"),
             "schemas": _source_tree_fingerprint(repository / "schemas", ".json"),
             "scripts": {
                 path.name: path.read_bytes().hex()

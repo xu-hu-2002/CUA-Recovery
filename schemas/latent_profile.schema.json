@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/latent_profile.schema.json",
-  "title": "DERAIL task latent-horizon profile (latent-profile/1.0)",
+  "$id": "https://recovery.local/schemas/latent_profile.schema.json",
+  "title": "RECOVERY task latent-horizon profile (latent-profile/1.0)",
   "$comment": "Execution doc v1.2 section 6.6 / 13: task-level profile and bucket membership. bucket labels are the sampling-config keys (for example \"1\", \"2-3\", \">=4\", \"verifier_only\"); they are data, not an enum, so the sampling grid can change without a schema bump.",
   "type": "object",
   "required": [

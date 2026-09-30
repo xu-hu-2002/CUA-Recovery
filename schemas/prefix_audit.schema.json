@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail-benchmark.org/schemas/prefix_audit.schema.json",
-  "title": "DERAIL Error-Free Prefix Human Audit v0.2",
+  "$id": "https://recovery-benchmark.org/schemas/prefix_audit.schema.json",
+  "title": "RECOVERY Error-Free Prefix Human Audit v0.2",
   "type": "object",
   "properties": {
     "audit_id": {"type": "string", "minLength": 1},

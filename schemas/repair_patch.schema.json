@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail-benchmark.org/schemas/repair_patch.schema.json",
-  "title": "DERAIL Prefix Repair Patch v0.2",
+  "$id": "https://recovery-benchmark.org/schemas/repair_patch.schema.json",
+  "title": "RECOVERY Prefix Repair Patch v0.2",
   "$comment": "replace repairs pre-root actions; drop removes audited self-recovered detours while retaining source action IDs. All state evidence from the earliest patch onward is invalid until replay.",
   "type": "object",
   "properties": {

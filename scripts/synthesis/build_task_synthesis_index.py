@@ -11,10 +11,10 @@ from typing import Any, Dict, Iterable, List
 
 import yaml
 
-from derail.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
-from derail.derived.schema import validate_schema
-from derail.synthesis.compatibility import TypeSystem, build_compatibility_edges
-from derail.synthesis.skeletons import extract_observed_skeletons
+from recovery.derived.layout import atomic_write_json, atomic_write_jsonl, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.synthesis.compatibility import TypeSystem, build_compatibility_edges
+from recovery.synthesis.skeletons import extract_observed_skeletons
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:

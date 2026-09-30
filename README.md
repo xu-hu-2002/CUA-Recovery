@@ -142,7 +142,7 @@ All parameters live in `configs/`. The defaults follow the paper.
 CUA-Recovery/
 ├── main.py                 # Entry point for every stage
 ├── assets/                 # Figures
-├── src/derail/             # Core package
+├── src/recovery/           # Core package
 │   ├── gen/                # Workflow composition, frozen verifiers, splits
 │   ├── ir/, world/         # Task IR and gold-lineage interpreter
 │   ├── rollout/            # Collection harness and state probes
@@ -162,8 +162,7 @@ CUA-Recovery/
 ├── schemas/                # JSON Schemas for data formats
 ├── analysis/               # Annotation and error-taxonomy statistics
 ├── infra/                  # In-VM state digest and change-log triggers
-├── patches/                # Patches applied to MyPCBench
-└── tests/
+└── patches/                # Patches applied to MyPCBench
 ```
 
 ## Evaluation Metrics
@@ -171,14 +170,6 @@ CUA-Recovery/
 - **Error Awareness Rate (EAR)**: whether the agent explicitly recognizes a problem in the inherited work.
 - **Rubric Score**: weighted fraction of rubric criteria satisfied.
 - **Pass@3**: whether the task is fully completed in at least one of three runs. A run passes only if every criterion is satisfied.
-
-## Tests
-
-```bash
-PYTHONPATH=src python -m pytest -q tests
-```
-
-Tests that need rollout data or local VM database copies are skipped when that data is absent.
 
 ## License
 

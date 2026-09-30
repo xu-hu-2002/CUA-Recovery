@@ -12,16 +12,16 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.ir.extract import V1ExtractorConfig  # noqa: E402
-from derail.ir.fix_loop import run_fix_round  # noqa: E402
-from derail.longhorizon.extraction import OpenAICompatibleClient  # noqa: E402
-from derail.longhorizon.ontology import Ontology  # noqa: E402
-from derail.longhorizon.types import ValueTypeRegistry  # noqa: E402
-from derail.longhorizon.world import AppAliases, load_sources  # noqa: E402
-from derail.world.schema_graph import SchemaGraph  # noqa: E402
+from recovery.ir.extract import V1ExtractorConfig  # noqa: E402
+from recovery.ir.fix_loop import run_fix_round  # noqa: E402
+from recovery.longhorizon.extraction import OpenAICompatibleClient  # noqa: E402
+from recovery.longhorizon.ontology import Ontology  # noqa: E402
+from recovery.longhorizon.types import ValueTypeRegistry  # noqa: E402
+from recovery.longhorizon.world import AppAliases, load_sources  # noqa: E402
+from recovery.world.schema_graph import SchemaGraph  # noqa: E402
 
 PURPOSE = "task_ir_extraction"
 

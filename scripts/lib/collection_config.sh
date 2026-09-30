@@ -38,8 +38,8 @@ config_scalar_required() {
 }
 
 usable_gpu_count() {
-  if [[ -n "${DERAIL_GPU_COUNT:-}" ]]; then
-    printf '%s\n' "$DERAIL_GPU_COUNT"
+  if [[ -n "${RECOVERY_GPU_COUNT:-}" ]]; then
+    printf '%s\n' "$RECOVERY_GPU_COUNT"
     return 0
   fi
   if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -95,11 +95,11 @@ agent_vm_count() {
   if (( gpus < tp )); then
     printf '错误：%s 需要每个 endpoint %s 张卡，本机只有 %s 张可用。\n' \
       "$agent_id" "$tp" "$gpus" >&2
-    printf '       容器里看不到 nvidia-smi 时用 DERAIL_GPU_COUNT 显式声明。\n' >&2
+    printf '       容器里看不到 nvidia-smi 时用 RECOVERY_GPU_COUNT 显式声明。\n' >&2
     return 1
   fi
   count=$((gpus / tp))
-  local ceiling="${DERAIL_MAX_ENDPOINTS:-4}"
+  local ceiling="${RECOVERY_MAX_ENDPOINTS:-4}"
   (( count > ceiling )) && count="$ceiling"
   printf '%s\n' "$count"
 }

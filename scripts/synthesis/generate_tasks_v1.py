@@ -13,14 +13,14 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.derived.schema import validate_schema  # noqa: E402
-from derail.detect.mutations import MutationLibrary  # noqa: E402
-from derail.gen.graft import SearchConfig  # noqa: E402
-from derail.gen.hazards import HazardConfig  # noqa: E402
-from derail.gen.pipeline import (  # noqa: E402
+from recovery.derived.schema import validate_schema  # noqa: E402
+from recovery.detect.mutations import MutationLibrary  # noqa: E402
+from recovery.gen.graft import SearchConfig  # noqa: E402
+from recovery.gen.hazards import HazardConfig  # noqa: E402
+from recovery.gen.pipeline import (  # noqa: E402
     GenerationConfig,
     GoldExecutor,
     generation_record,
@@ -28,12 +28,12 @@ from derail.gen.pipeline import (  # noqa: E402
     run_generation,
     write_bundle,
 )
-from derail.gen.realize import RealizationConfig  # noqa: E402
-from derail.ir.extract import V1ExtractorConfig  # noqa: E402
-from derail.ir.gold_interpreter import GoldInterpreter, InterpreterConfig  # noqa: E402
-from derail.ir.rubric_check import RubricCheckConfig  # noqa: E402
-from derail.longhorizon.types import ValueTypeRegistry  # noqa: E402
-from derail.world.schema_graph import SchemaGraph  # noqa: E402
+from recovery.gen.realize import RealizationConfig  # noqa: E402
+from recovery.ir.extract import V1ExtractorConfig  # noqa: E402
+from recovery.ir.gold_interpreter import GoldInterpreter, InterpreterConfig  # noqa: E402
+from recovery.ir.rubric_check import RubricCheckConfig  # noqa: E402
+from recovery.longhorizon.types import ValueTypeRegistry  # noqa: E402
+from recovery.world.schema_graph import SchemaGraph  # noqa: E402
 
 PURPOSE = "realization"
 
@@ -47,9 +47,9 @@ def main() -> int:
         help="seed tasks json (instruction style stats; grading.rubrics -> composed rubrics)",
     )
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--db-dir", type=Path, default=os.environ.get("DERAIL_VM_DB_DIR"))
-    parser.add_argument("--files-root", default=os.environ.get("DERAIL_VM_FILES_DIR"))
-    parser.add_argument("--workdir", default=os.environ.get("DERAIL_TMP_ROOT"))
+    parser.add_argument("--db-dir", type=Path, default=os.environ.get("RECOVERY_VM_DB_DIR"))
+    parser.add_argument("--files-root", default=os.environ.get("RECOVERY_VM_FILES_DIR"))
+    parser.add_argument("--workdir", default=os.environ.get("RECOVERY_TMP_ROOT"))
     parser.add_argument("--world-id", help="default: extractor config v1.world_id")
     parser.add_argument("--generation-version", default="gen_v1")
     parser.add_argument("--max-seeds", type=int)
@@ -59,8 +59,8 @@ def main() -> int:
     parser.add_argument(
         "--workers",
         type=int,
-        default=int(os.environ.get("DERAIL_GEN_WORKERS", "1")),
-        help="worker processes for the verification stage (default DERAIL_GEN_WORKERS or 1)",
+        default=int(os.environ.get("RECOVERY_GEN_WORKERS", "1")),
+        help="worker processes for the verification stage (default RECOVERY_GEN_WORKERS or 1)",
     )
     cfg = REPO_ROOT / "configs/synthesis"
     parser.add_argument("--extractor-config", type=Path, default=cfg / "task_ir_v1_extractor.yaml")
@@ -76,7 +76,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     if not args.db_dir:
-        raise SystemExit("need --db-dir or DERAIL_VM_DB_DIR")
+        raise SystemExit("need --db-dir or RECOVERY_VM_DB_DIR")
 
     extractor = V1ExtractorConfig.from_yaml(args.extractor_config, REPO_ROOT)
     sampling = yaml.safe_load(args.sampling.read_text(encoding="utf-8"))
@@ -111,7 +111,7 @@ def main() -> int:
     )
     client = None
     if args.realize:
-        from derail.longhorizon.extraction import OpenAICompatibleClient
+        from recovery.longhorizon.extraction import OpenAICompatibleClient
 
         client = OpenAICompatibleClient(config.realization.base, PURPOSE)
     instructions, instruction_of, rubrics = [], {}, {}

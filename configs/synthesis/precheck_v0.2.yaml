@@ -1,6 +1,6 @@
 schema_version: precheck-config/0.2
-labels_csv: analysis/derail_error_taxonomy/results/trajectory_labels.csv
-human_labels_dir: artifacts/derail_builds/human_labels
+labels_csv: analysis/recovery_error_taxonomy/results/trajectory_labels.csv
+human_labels_dir: artifacts/recovery_builds/human_labels
 taxonomy_config: configs/synthesis/failure_taxonomy_v0.1.yaml
 output_dir: data/synthesis/phase0_precheck
 depth_grid: [0, 5, 10, 15, 20, 25]

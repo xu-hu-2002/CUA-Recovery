@@ -8,13 +8,13 @@ import hashlib
 import json
 from pathlib import Path
 
-from derail.adapters import registry_status
-from derail.annotation.taxonomy import error_types_outside_seed
-from derail.construction.cases import DepthInstance
-from derail.derived.layout import DEPTH_GRID, DerivedBuild, atomic_write_json, sha256_file
-from derail.derived.schema import validate_schema
-from derail.replay.verification import ReplayVerification
-from derail.takeover.history import NativeHistoryArtifact
+from recovery.adapters import registry_status
+from recovery.annotation.taxonomy import error_types_outside_seed
+from recovery.construction.cases import DepthInstance
+from recovery.derived.layout import DEPTH_GRID, DerivedBuild, atomic_write_json, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.replay.verification import ReplayVerification
+from recovery.takeover.history import NativeHistoryArtifact
 
 
 def _read(path: Path):

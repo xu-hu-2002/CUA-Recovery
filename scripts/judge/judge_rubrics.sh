@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: tmux new -s derail-judge 'bash scripts/judge/judge_rubrics.sh [COLLECTION_ID [AGENT_ID]]'
+# Usage: tmux new -s recovery-judge 'bash scripts/judge/judge_rubrics.sh [COLLECTION_ID [AGENT_ID]]'
 
 set -Eeuo pipefail
 
@@ -23,7 +23,7 @@ die() {
 }
 
 info() {
-  printf '[DERAIL judge] %s\n' "$*"
+  printf '[RECOVERY judge] %s\n' "$*"
 }
 
 load_dotenv() {
@@ -104,9 +104,9 @@ ENV_MAP = {
     "max_completion_tokens": "MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS",
     "max_retries": "MYPCBENCH_OSWORLD_JUDGE_MAX_RETRIES",
     "concurrency": "MYPCBENCH_OSWORLD_JUDGE_CONCURRENCY",
-    "timeout_seconds": "DERAIL_JUDGE_TIMEOUT",
-    "api_key_env": "DERAIL_JUDGE_API_KEY_ENV",
-    "force_official_endpoint": "DERAIL_JUDGE_FORCE_OFFICIAL_ENDPOINT",
+    "timeout_seconds": "RECOVERY_JUDGE_TIMEOUT",
+    "api_key_env": "RECOVERY_JUDGE_API_KEY_ENV",
+    "force_official_endpoint": "RECOVERY_JUDGE_FORCE_OFFICIAL_ENDPOINT",
     "judge_id": None,
     "status": None,
 }
@@ -158,7 +158,7 @@ JUDGE_IGNORED=()
 load_judge_config "$JUDGE_CONFIG"
 JUDGE_MODEL="$("$PYTHON_BIN" "$REGISTRY_PY" ${JUDGE_MODEL:+"$JUDGE_MODEL"} --print-model)" \
   || die "judge 模型校验失败（configs/judges/default.yaml 是唯一真源）"
-JUDGE_TIMEOUT="${JUDGE_TIMEOUT:-${DERAIL_JUDGE_TIMEOUT:-1000}}"
+JUDGE_TIMEOUT="${JUDGE_TIMEOUT:-${RECOVERY_JUDGE_TIMEOUT:-1000}}"
 
 if [[ -z "$collection_id" ]]; then
   collection_id="$(ls -t "$OUTPUT_ROOT" 2>/dev/null | head -1)"
@@ -178,7 +178,7 @@ case "$JUDGE_MODEL" in
   *)
     [[ -n "${OPENAI_API_KEY:-}" ]] \
       || die "JUDGE_MODEL=${JUDGE_MODEL} 需要 OPENAI_API_KEY"
-    if [[ "${DERAIL_JUDGE_FORCE_OFFICIAL_ENDPOINT:-true}" == "true" \
+    if [[ "${RECOVERY_JUDGE_FORCE_OFFICIAL_ENDPOINT:-true}" == "true" \
        && -n "${OPENAI_BASE_URL:-}" && "${KEEP_OPENAI_BASE_URL:-0}" != "1" ]]; then
       info "忽略 .env 的 OPENAI_BASE_URL（判分走官方 endpoint；要保留就设 KEEP_OPENAI_BASE_URL=1）"
       unset OPENAI_BASE_URL
@@ -244,17 +244,17 @@ force_flag=()
 
 rc_total=0
 {
-  printf '[DERAIL judge] 开始：%s  model=%s  timeout=%ss\n' \
+  printf '[RECOVERY judge] 开始：%s  model=%s  timeout=%ss\n' \
     "$(date '+%F %T')" "$JUDGE_MODEL" "$JUDGE_TIMEOUT"
   for vm_dir in "${targets[@]}"; do
-    printf '\n[DERAIL judge] ===== %s =====\n' "${vm_dir#${run_root}/}"
+    printf '\n[RECOVERY judge] ===== %s =====\n' "${vm_dir#${run_root}/}"
     "$PYTHON_BIN" "$BUNDLE_PY" "$vm_dir" || { rc_total=$?; continue; }
     "$PYTHON_BIN" -u "$JUDGE_SCRIPT" \
       --result_dir "$vm_dir" \
       --timeout "$JUDGE_TIMEOUT" \
       "${force_flag[@]+"${force_flag[@]}"}" || rc_total=$?
   done
-  printf '\n[DERAIL judge] 结束：%s  退出码 %s\n' "$(date '+%F %T')" "$rc_total"
+  printf '\n[RECOVERY judge] 结束：%s  退出码 %s\n' "$(date '+%F %T')" "$rc_total"
 } 2>&1 | tee -a "$judge_log"
 
 (( rc_total == 0 )) || die "有判分目录以退出码 ${rc_total} 结束，看 ${judge_log}"

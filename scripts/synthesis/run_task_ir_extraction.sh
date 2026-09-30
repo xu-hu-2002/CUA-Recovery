@@ -3,11 +3,11 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CRED_ENV="${DERAIL_CRED_ENV:-$HOME/.derail_creds.env}"
+CRED_ENV="${RECOVERY_CRED_ENV:-$HOME/.recovery_creds.env}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
-RUN_ID="${DERAIL_EXTRACTION_RUN_ID:-dev_run_$(date -u +%Y%m%dT%H%M%SZ)}"
-OUTPUT_DIR="${DERAIL_EXTRACTION_OUTPUT_DIR:-$REPO_ROOT/data/synthesis/task_ir/$RUN_ID}"
-WORKERS="${DERAIL_EXTRACTION_WORKERS:-1}"
+RUN_ID="${RECOVERY_EXTRACTION_RUN_ID:-dev_run_$(date -u +%Y%m%dT%H%M%SZ)}"
+OUTPUT_DIR="${RECOVERY_EXTRACTION_OUTPUT_DIR:-$REPO_ROOT/data/synthesis/task_ir/$RUN_ID}"
+WORKERS="${RECOVERY_EXTRACTION_WORKERS:-1}"
 
 if [[ -f "$CRED_ENV" ]]; then
   set -a; . "$CRED_ENV"; set +a
@@ -25,15 +25,15 @@ fi
 
 [[ -n "${OPENAI_API_KEY:-}" ]]  || { echo "FATAL: OPENAI_API_KEY is empty" >&2; exit 1; }
 
-export DERAIL_OPENAI_API_APPROVED=1
-export DERAIL_OPENAI_API_PURPOSE=task_ir_extraction
+export RECOVERY_OPENAI_API_APPROVED=1
+export RECOVERY_OPENAI_API_PURPOSE=task_ir_extraction
 mkdir -p "$OUTPUT_DIR"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
 echo "run_id=$RUN_ID output=$OUTPUT_DIR base_url_len=${#OPENAI_BASE_URL} key_len=${#OPENAI_API_KEY}"
 cd "$REPO_ROOT"
 SELECTION="--dev-sample"
 for arg in "$@"; do [[ "$arg" == "--task-id" ]] && SELECTION=""; done
-[[ "${DERAIL_EXTRACTION_ALL_TASKS:-0}" == "1" ]] && SELECTION=""
+[[ "${RECOVERY_EXTRACTION_ALL_TASKS:-0}" == "1" ]] && SELECTION=""
 "$PYTHON_BIN" scripts/synthesis/extract_task_ir.py \
   --config configs/synthesis/task_ir_extractor.yaml \
   --tasks third_party/MyPCBench/tasks/final/all_tasks_with_grading.json \

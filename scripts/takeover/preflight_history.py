@@ -28,30 +28,30 @@ for entry in (str(SRC), str(HARNESS)):
     if entry not in sys.path:
         sys.path.insert(0, entry)
 
-from derail.adapters import HistoryStep, create_native_history_adapter  # noqa: E402
-from derail.adapters.qwen35 import QWEN35_AGENT_IDS  # noqa: E402
-from derail.derived.layout import atomic_write_json, sha256_file, sha256_json  # noqa: E402
-from derail.mypcbench.agent_config import (  # noqa: E402
-    DERAIL_TOOL_AGENT,
+from recovery.adapters import HistoryStep, create_native_history_adapter  # noqa: E402
+from recovery.adapters.qwen35 import QWEN35_AGENT_IDS  # noqa: E402
+from recovery.derived.layout import atomic_write_json, sha256_file, sha256_json  # noqa: E402
+from recovery.mypcbench.agent_config import (  # noqa: E402
+    RECOVERY_TOOL_AGENT,
     load_agent_config,
     load_config,
     resolve_checkpoint,
 )
-from derail.mypcbench.tool_agent import (  # noqa: E402
+from recovery.mypcbench.tool_agent import (  # noqa: E402
     NativeToolComputerAgent,
     protocol_from_config,
 )
-from derail.mypcbench.qwen35_takeover import wrap_qwen35_takeover_target  # noqa: E402
-from derail.mypcbench.claude_takeover import wrap_claude_takeover_target  # noqa: E402
-from derail.takeover.diagnosis import load_human_diagnosis_evidence  # noqa: E402
-from derail.takeover.protocol import (  # noqa: E402
+from recovery.mypcbench.qwen35_takeover import wrap_qwen35_takeover_target  # noqa: E402
+from recovery.mypcbench.claude_takeover import wrap_claude_takeover_target  # noqa: E402
+from recovery.takeover.diagnosis import load_human_diagnosis_evidence  # noqa: E402
+from recovery.takeover.protocol import (  # noqa: E402
     DEFAULT_CONFIG_PATH,
     ProtocolExclusion,
     load_takeover_config,
     load_takeover_steps,
     takeover_prefix,
 )
-from derail.takeover.source_logs import load_trajectory_log  # noqa: E402
+from recovery.takeover.source_logs import load_trajectory_log  # noqa: E402
 
 
 _STATE_HISTORY_ROLES = {
@@ -519,7 +519,7 @@ def main() -> int:
             if args.target_agent == "claude_opus_4_8"
             else load_config(live_agent_id)
         )
-        os.environ.setdefault("DERAIL_REPO_ROOT", str(REPOSITORY))
+        os.environ.setdefault("RECOVERY_REPO_ROOT", str(REPOSITORY))
         if args.target_agent in QWEN35_AGENT_IDS:
             from run_mypcbench import get_agent
 
@@ -595,9 +595,9 @@ def main() -> int:
             live_agent = wrap_claude_takeover_target(upstream, args.target_agent)
             requested_max_tokens = int(upstream.max_tokens)
             claude_live = True
-        elif config is None or config.scaffold != DERAIL_TOOL_AGENT:
+        elif config is None or config.scaffold != RECOVERY_TOOL_AGENT:
             raise RuntimeError(
-                "live token preflight currently requires a derail_tool_agent target"
+                "live token preflight currently requires a recovery_tool_agent target"
             )
         else:
             target_model = str(

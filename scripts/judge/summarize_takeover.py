@@ -16,7 +16,7 @@ REPOSITORY = SCRIPT_DIR.parents[1]
 for path in (SCRIPT_DIR, REPOSITORY / "src"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
-from derail.evaluation.metrics import pass_at_k, rubric_verdict  # noqa: E402
+from recovery.evaluation.metrics import pass_at_k, rubric_verdict  # noqa: E402
 from judge_model_registry import configured_model, load_config  # noqa: E402
 
 _SPEC = importlib.util.spec_from_file_location("takeover_ear", SCRIPT_DIR / "error_awareness.py")

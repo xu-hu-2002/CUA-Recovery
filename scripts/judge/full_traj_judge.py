@@ -31,7 +31,7 @@ def with_section(text: str, section: str) -> str:
 
 
 def load_upstream(section: str):
-    spec = importlib.util.spec_from_file_location("derail_osworld", UPSTREAM)
+    spec = importlib.util.spec_from_file_location("recovery_osworld", UPSTREAM)
     if spec is None or spec.loader is None:
         raise SystemExit("cannot load upstream full-trajectory judge")
     module = importlib.util.module_from_spec(spec)

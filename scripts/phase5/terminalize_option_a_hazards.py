@@ -8,7 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from derail.phase5.hazard_records import assert_manifest_safe, terminalize
+from recovery.phase5.hazard_records import assert_manifest_safe, terminalize
 
 
 def read_jsonl(path: Path) -> list[dict]:

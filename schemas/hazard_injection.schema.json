@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://derail.local/schemas/hazard_injection.schema.json",
-  "title": "DERAIL hazard injection record (hazard-injection/1.0)",
+  "$id": "https://recovery.local/schemas/hazard_injection.schema.json",
+  "title": "RECOVERY hazard injection record (hazard-injection/1.0)",
   "$comment": "Execution doc v1.2 section 7.3 / 13: injector type, target edge, persona diff, profile before and after, gold-branch uniqueness check, and the realism provenance (base rate before and after; the after rate may not exceed twice the base rate). Variant world cases only enter E2 and hazard-grouped appendix tables.",
   "type": "object",
   "required": [

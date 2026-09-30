@@ -8,15 +8,15 @@ import importlib
 import json
 from pathlib import Path
 
-from derail.canonical.actions import action_to_dict
-from derail.canonical.mypcbench import load_canonical_jsonl
-from derail.construction.cases import DepthInstance
-from derail.derived.layout import atomic_write_json, sha256_file
-from derail.derived.schema import validate_schema
-from derail.evaluation.records import EvaluationEpisode
-from derail.evaluation.takeover import run_takeover_episode
-from derail.replay.verification import ReplayPlan, ReplayVerification, execute_replay_plan
-from derail.takeover.history import NativeHistoryArtifact, build_native_history_from_replay
+from recovery.canonical.actions import action_to_dict
+from recovery.canonical.mypcbench import load_canonical_jsonl
+from recovery.construction.cases import DepthInstance
+from recovery.derived.layout import atomic_write_json, sha256_file
+from recovery.derived.schema import validate_schema
+from recovery.evaluation.records import EvaluationEpisode
+from recovery.evaluation.takeover import run_takeover_episode
+from recovery.replay.verification import ReplayPlan, ReplayVerification, execute_replay_plan
+from recovery.takeover.history import NativeHistoryArtifact, build_native_history_from_replay
 
 
 def _read(path: Path):

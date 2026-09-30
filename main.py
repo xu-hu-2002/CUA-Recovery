@@ -68,7 +68,7 @@ COMMANDS = {
         "select_takeover_failures": ("benchmark/select_takeover_failures.py", "List valid failure trajectories for takeover."),
         "export_error_depth_slices": ("benchmark/export_error_depth_slices.py", "Export takeover prefixes per agent and depth."),
         "analyze_failures_v1": ("benchmark/analyze_failures_v1.py", "Automatic failure analysis over rollout traces."),
-        "build_cases_v1": ("benchmark/build_cases_v1.py", "Build derail-case records from analysed rollouts."),
+        "build_cases_v1": ("benchmark/build_cases_v1.py", "Build recovery-case records from analysed rollouts."),
     },
     "takeover": {
         "run": ("takeover/run.sh", "Launch prefix-takeover rollouts."),

@@ -13,7 +13,7 @@ from typing import Dict, Iterable, List, Sequence
 
 CHANGELOG_TABLE = "_changelog"
 CURSOR_TABLE = "_cursor"
-TRIGGER_PREFIX = "trg_derail_"
+TRIGGER_PREFIX = "trg_recovery_"
 DEFAULT_SKIP = ("sqlite_sequence", "sqlite_stat1", CHANGELOG_TABLE, CURSOR_TABLE)
 CURSOR_UNSET = -1
 

@@ -11,12 +11,12 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.cases.gold_action import gold_action  # noqa: E402
-from derail.derived.schema import validate_schema  # noqa: E402
-from derail.train.build_samples import (  # noqa: E402
+from recovery.cases.gold_action import gold_action  # noqa: E402
+from recovery.derived.schema import validate_schema  # noqa: E402
+from recovery.train.build_samples import (  # noqa: E402
     FORMATS,
     BuildConfig,
     balance_check_weights,

@@ -11,11 +11,11 @@ third_party_paths() {
   MYPCBENCH_ROOT="${MYPCBENCH_ROOT:-${repo_root}/third_party/MyPCBench}"
   EVOCUA_ROOT="${EVOCUA_ROOT:-${repo_root}/third_party/EvoCUA}"
   OPENCUA_OSWORLD_ROOT="${OPENCUA_OSWORLD_ROOT:-${repo_root}/third_party/OpenCUA-OSWorld}"
-  MYPCBENCH_PATCH="${repo_root}/patches/mypcbench_caf9c754_derail_agents.patch"
+  MYPCBENCH_PATCH="${repo_root}/patches/mypcbench_caf9c754_recovery_agents.patch"
   MYPCBENCH_MESSAGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_message_trajectory_agents.patch"
   MYPCBENCH_NATIVE_RESPONSES_PATCH="${repo_root}/patches/mypcbench_caf9c754_native_responses_state.patch"
   MYPCBENCH_GPT55_RESILIENCE_PATCH="${repo_root}/patches/mypcbench_caf9c754_gpt55_recollection_resilience.patch"
-  MYPCBENCH_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_derail_judge.patch"
+  MYPCBENCH_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_recovery_judge.patch"
   MYPCBENCH_MESSAGE_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_message_first_judge.patch"
   MYPCBENCH_JUDGE_RESILIENCE_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_resilience_v2.patch"
   MYPCBENCH_JUDGE_REASONING_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_reasoning_effort_low.patch"
@@ -77,7 +77,7 @@ setup_mypcbench() {
     "$MYPCBENCH_REPOSITORY" "$MYPCBENCH_COMMIT" "$MYPCBENCH_ROOT" "MyPCBench"
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
     "$MYPCBENCH_GPT55_RESILIENCE_PATCH" >/dev/null 2>&1; then
-    info "MyPCBench DERAIL adapter + native Responses + GPT-5.5 resilience hooks 已存在"
+    info "MyPCBench RECOVERY adapter + native Responses + GPT-5.5 resilience hooks 已存在"
     return
   fi
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
@@ -87,7 +87,7 @@ setup_mypcbench() {
     return
   fi
   apply_mypcbench_patch_series \
-    "$MYPCBENCH_PATCH" "DERAIL adapter" \
+    "$MYPCBENCH_PATCH" "RECOVERY adapter" \
     "$MYPCBENCH_MESSAGE_PATCH" "tool-message trajectory"
   apply_mypcbench_patch \
     "$MYPCBENCH_NATIVE_RESPONSES_PATCH" "native Responses state"
@@ -98,7 +98,7 @@ setup_mypcbench() {
 setup_mypcbench_judge() {
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
     "$MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH" >/dev/null 2>&1; then
-    info "MyPCBench DERAIL judge chain + fail-on-errors hook 已存在"
+    info "MyPCBench RECOVERY judge chain + fail-on-errors hook 已存在"
     return
   fi
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
@@ -112,7 +112,7 @@ setup_mypcbench_judge() {
     if ! git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
       "$MYPCBENCH_JUDGE_RESILIENCE_PATCH" >/dev/null 2>&1; then
       apply_mypcbench_patch_series \
-        "$MYPCBENCH_JUDGE_PATCH" "DERAIL judge" \
+        "$MYPCBENCH_JUDGE_PATCH" "RECOVERY judge" \
         "$MYPCBENCH_MESSAGE_JUDGE_PATCH" "message-first judge"
       apply_mypcbench_patch \
         "$MYPCBENCH_JUDGE_RESILIENCE_PATCH" "judge resilience v2"

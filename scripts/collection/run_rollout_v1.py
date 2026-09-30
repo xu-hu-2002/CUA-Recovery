@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a batch of (task, world, agent, seed) rollouts with the DERAIL ledgers."""
+"""Run a batch of (task, world, agent, seed) rollouts with the RECOVERY ledgers."""
 
 from __future__ import annotations
 
@@ -13,14 +13,14 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(os.environ.get("DERAIL_REPO_ROOT", Path(__file__).resolve().parents[2]))
+REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from derail.harness.control_client import ControlApiError, DerailControlClient  # noqa: E402
-from derail.harness.env_wrapper import DerailEnvWrapper  # noqa: E402
-from derail.harness.trace_builder import TraceBuilder  # noqa: E402
-from derail.rollout.state_probe import EnvironmentHooks, install  # noqa: E402
-from derail.rollout.tasks import load_source_tasks  # noqa: E402
+from recovery.harness.control_client import ControlApiError, RecoveryControlClient  # noqa: E402
+from recovery.harness.env_wrapper import RecoveryEnvWrapper  # noqa: E402
+from recovery.harness.trace_builder import TraceBuilder  # noqa: E402
+from recovery.rollout.state_probe import EnvironmentHooks, install  # noqa: E402
+from recovery.rollout.tasks import load_source_tasks  # noqa: E402
 
 
 def _env(name: str, required: bool = True) -> str:
@@ -30,7 +30,7 @@ def _env(name: str, required: bool = True) -> str:
     return value
 
 
-def preflight(control: DerailControlClient, config: dict, image_digest: str) -> dict:
+def preflight(control: RecoveryControlClient, config: dict, image_digest: str) -> dict:
     try:
         status = control.status()
     except ControlApiError as exc:
@@ -57,7 +57,7 @@ def main() -> int:
     parser.add_argument(
         "--config", type=Path, default=REPO_ROOT / "configs/harness/rollout_v1.yaml"
     )
-    parser.add_argument("--agent", action="append", default=[], help="DERAIL agent id(s)")
+    parser.add_argument("--agent", action="append", default=[], help="RECOVERY agent id(s)")
     parser.add_argument("--task-id", action="append", default=[])
     parser.add_argument("--seed", type=int, action="append", default=[])
     parser.add_argument("--task-source", help="configs/collection/sources.yaml 的来源名")
@@ -94,7 +94,7 @@ def main() -> int:
         "reading %s (%d tasks)\nwriting %s" % (task_source, len(tasks), out),
         file=sys.stderr,
     )
-    control = DerailControlClient(control_url)
+    control = RecoveryControlClient(control_url)
     preflight(control, config, image_digest)
     out.mkdir(parents=True, exist_ok=True)
     frame = tuple(config.get("frame", (1280, 800)))
@@ -115,7 +115,7 @@ def main() -> int:
                     ("%s%s%d%s" % (task["id"], agent_id, seed, image_digest)).encode()
                 ).hexdigest()[:8],
             )
-            wrapper = DerailEnvWrapper(
+            wrapper = RecoveryEnvWrapper(
                 raw_env,
                 control,
                 lambda: TraceBuilder(
@@ -133,7 +133,7 @@ def main() -> int:
             agent = get_agent(agent_id, env=wrapper)
             target = out / task["id"] / agent_id / ("seed_%d" % seed)
             target.mkdir(parents=True, exist_ok=True)
-            raw_env.derail_probe_dir = target
+            raw_env.recovery_probe_dir = target
             obs = wrapper.reset(task_config=task)
             done, steps = False, 0
             while not done and steps < budget and time.time() - tick < task_timeout:
