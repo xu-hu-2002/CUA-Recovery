@@ -1,0 +1,423 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/derail_case.schema.json",
+  "title": "DERAIL case record (derail-case/0.1 | derail-case/1.0)",
+  "$comment": "One (failure, depth) instance. Dispatch is by schema_version: derail-case/0.1 (manual v0.2 section 14A.4) or derail-case/1.0 (execution doc v1.2 section 10.4: predicted latent horizon and observability class of the root-cause node, measured horizons, prefix modality, analysis path). Migration 0.1 -> 1.0: keep every field, add the eight required 1.0 fields; nothing is renamed (docs/DERAIL_V1_BUILD_LOG.md).",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/v0_1"
+    },
+    {
+      "$ref": "#/$defs/v1_0"
+    }
+  ],
+  "$defs": {
+    "v0_1": {
+      "type": "object",
+      "title": "derail-case/0.1",
+      "required": [
+        "schema_version",
+        "case_id",
+        "task_id",
+        "source_rollout_id",
+        "source_agent",
+        "verification_path",
+        "error_depth",
+        "root_cause_action_index",
+        "paper_type",
+        "paper_category",
+        "group",
+        "reversibility_stratum",
+        "high_consequence",
+        "post_error_steps_available",
+        "root_action_signature",
+        "status",
+        "merged_from",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "derail-case/0.1"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_rollout_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification_path": {
+          "enum": [
+            "pending",
+            "auto",
+            "human",
+            "human_and_auto"
+          ]
+        },
+        "error_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "root_cause_action_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "paper_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "paper_category": {
+          "enum": [
+            "planning",
+            "perception",
+            "execution",
+            "termination"
+          ]
+        },
+        "group": {
+          "enum": [
+            "local",
+            "long_horizon",
+            "termination"
+          ]
+        },
+        "reversibility_stratum": {
+          "enum": [
+            "reversible",
+            "irreversible"
+          ]
+        },
+        "high_consequence": {
+          "type": "boolean"
+        },
+        "root_cause_reversibility_class": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "downstream_commit_class": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "post_error_steps_available": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "root_action_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "injected_history_ref": {
+          "type": "string"
+        },
+        "snapshot_ref": {
+          "type": "string"
+        },
+        "evaluator_ref": {
+          "type": "string"
+        },
+        "evaluator_source": {
+          "enum": [
+            "official_mypcbench",
+            "compiled_task_ir_verifier"
+          ]
+        },
+        "takeover_step_budget": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "task_horizon_bucket": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "verified",
+            "DUPLICATE_CASE",
+            "EFFECTIVELY_COMPLETE",
+            "UNRECOVERABLE_BY_CONSTRUCTION"
+          ]
+        },
+        "merged_from": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "provenance": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "v1_0": {
+      "type": "object",
+      "title": "derail-case/1.0",
+      "required": [
+        "schema_version",
+        "case_id",
+        "task_id",
+        "source_rollout_id",
+        "source_agent",
+        "verification_path",
+        "error_depth",
+        "root_cause_action_index",
+        "paper_type",
+        "paper_category",
+        "group",
+        "reversibility_stratum",
+        "high_consequence",
+        "post_error_steps_available",
+        "root_action_signature",
+        "status",
+        "merged_from",
+        "provenance",
+        "world_id",
+        "predicted_latent_horizon_semantic",
+        "predicted_observability_class",
+        "measured_semantic_horizon",
+        "measured_action_horizon",
+        "horizon_censored",
+        "prefix_modality",
+        "analysis_path"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "derail-case/1.0"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_rollout_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification_path": {
+          "enum": [
+            "pending",
+            "auto",
+            "human",
+            "human_and_auto"
+          ]
+        },
+        "error_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "root_cause_action_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "paper_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "paper_category": {
+          "enum": [
+            "planning",
+            "perception",
+            "execution",
+            "termination"
+          ]
+        },
+        "group": {
+          "enum": [
+            "local",
+            "long_horizon",
+            "termination"
+          ]
+        },
+        "reversibility_stratum": {
+          "enum": [
+            "reversible",
+            "irreversible"
+          ]
+        },
+        "high_consequence": {
+          "type": "boolean"
+        },
+        "root_cause_reversibility_class": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "downstream_commit_class": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "post_error_steps_available": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "root_action_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "injected_history_ref": {
+          "type": "string"
+        },
+        "snapshot_ref": {
+          "type": "string"
+        },
+        "evaluator_ref": {
+          "type": "string"
+        },
+        "evaluator_source": {
+          "enum": [
+            "official_mypcbench",
+            "compiled_task_ir_verifier"
+          ]
+        },
+        "takeover_step_budget": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "task_horizon_bucket": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "verified",
+            "DUPLICATE_CASE",
+            "EFFECTIVELY_COMPLETE",
+            "UNRECOVERABLE_BY_CONSTRUCTION"
+          ]
+        },
+        "merged_from": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "provenance": {
+          "type": "object"
+        },
+        "world_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root_cause_node_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "predicted_latent_horizon_semantic": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "predicted_observability_class": {
+          "enum": [
+            "required_next",
+            "required_later",
+            "incidental_only",
+            "verifier_only",
+            "silent",
+            null
+          ]
+        },
+        "measured_semantic_horizon": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "measured_action_horizon": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "horizon_censored": {
+          "type": "boolean"
+        },
+        "prefix_modality": {
+          "enum": [
+            "gui",
+            "cli",
+            "mixed"
+          ]
+        },
+        "analysis_path": {
+          "enum": [
+            "auto",
+            "vlm_confirmed",
+            "human_confirmed"
+          ]
+        },
+        "failure_analysis_ref": {
+          "type": "string"
+        },
+        "prefix_repair_ref": {
+          "type": "string"
+        },
+        "replay_verification_ref": {
+          "type": "string"
+        },
+        "gold_action": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "gold-action/1.0: programme-derived correct action at the root cause (D-046)",
+          "required": [
+            "schema_version",
+            "kind",
+            "node_id",
+            "parameters",
+            "gold_writes",
+            "continue_with",
+            "source"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

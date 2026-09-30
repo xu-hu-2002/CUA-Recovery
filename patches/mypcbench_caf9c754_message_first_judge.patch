@@ -1,0 +1,75 @@
+diff --git a/agent-harness/utils/osworld_full_traj_judge.py b/agent-harness/utils/osworld_full_traj_judge.py
+index 8bd5676..3b838e6 100644
+--- a/agent-harness/utils/osworld_full_traj_judge.py
++++ b/agent-harness/utils/osworld_full_traj_judge.py
+@@ -121,16 +121,20 @@ FULL_TRAJ_JUDGMENT_SYSTEM = """You are an expert evaluator of desktop-agent traj
+ You will receive:
+ - The user task (for context).
+ - ONE specific rubric item with a criterion and (optional) verification description.
+-- The agent's full action history (one line per step). A step may be a GUI action,
+-  or a tool call such as a shell command, shown together with the output it returned.
+-- Every screenshot from the trajectory, in chronological order.
++- The agent's full message/action trajectory (one entry per step), including model
++  messages, tool calls, tool outputs, and executed GUI actions.
++- Screenshots from the trajectory, in chronological order, as supplementary visual
++  evidence for details that the message/action trajectory cannot establish directly.
+
+ Your goal is to decide whether this single rubric item is satisfied by the trajectory.
+
+ Evaluation rules:
+ - Judge ONLY the one rubric item you are given; ignore all other implicit requirements.
+-- Ground your judgment in what the trajectory actually shows -- screenshots, GUI
+-  actions, AND tool calls together with their recorded output. Do not invent state.
++- Treat the message/action trajectory as the PRIMARY evidence. Read it step by step and
++  prioritize recorded model messages, executed actions, tool calls, and tool outputs.
++  Use screenshots only as SECONDARY corroborating evidence, especially for visual-only
++  state or when the textual trajectory is ambiguous. Do not infer failure merely because
++  a completed operation is not clearly visible in a screenshot.
+ - Evidence counts regardless of its form. A requirement met through a tool call whose
+   output appears in the action history is satisfied even when no screenshot depicts it.
+   Conversely, a claim that appears ONLY in the agent's final message, with no
+@@ -227,12 +231,11 @@ def _build_history_and_images(
+         if not isinstance(step, dict):
+             continue
+         parts: list[str] = []
+-        # Raw response: short reasoning summary if present
++        # The recorded model/tool message is primary evidence; retain enough of it to
++        # include commands, outputs, and structured tool arguments.
+         raw = (step.get("raw_response_text") or "").strip()
+         if raw:
+-            # Truncate per-step raw response to keep the prompt tight; the
+-            # screenshots are the primary evidence.
+-            parts.append(f"Response: {raw[:600].strip()}")
++            parts.append(f"Message: {raw[:4000].strip()}")
+         parsed = step.get("parsed_action_obj")
+         action_text = ""
+         if isinstance(parsed, dict):
+@@ -253,6 +256,10 @@ def _build_history_and_images(
+                         action_text = pa_path.read_text(encoding="utf-8", errors="ignore").strip()[:400]
+                     except Exception:
+                         action_text = ""
++        if action_text and action_text != "NO_ACTIONS" and not raw:
++            raise JudgeCallError(
++                f"trajectory step {i} has action {action_text!r} but no recorded message"
++            )
+         if action_text:
+             parts.append(f"Action: {action_text}")
+         if parts:
+@@ -541,7 +548,7 @@ def _user_text_for_rubric(
+         f"User Task (context only): {task_instruction}\n\n"
+         "Evaluate ONLY this rubric item:\n"
+         + "\n".join(rubric_lines)
+-        + f"\n\nFull Action History:\n{action_history}\n\n"
++        + f"\n\nPrimary Message/Action Trajectory:\n{action_history}\n\n"
+         f"Screenshots attached below: {n_screenshots} "
+         f"(trajectory had {n_steps} total step(s)).\n\n"
+         f"Decide whether the rubric ({rubric['id']}) is satisfied. "
+@@ -564,7 +571,7 @@ def _shared_prefix_text(
+     """
+     return (
+         f"User Task (context only): {task_instruction}\n\n"
+-        f"Full Action History:\n{action_history}\n\n"
++        f"Primary Message/Action Trajectory:\n{action_history}\n\n"
+         f"Screenshots attached below: {n_screenshots} "
+         f"(trajectory had {n_steps} total step(s))."
+     )

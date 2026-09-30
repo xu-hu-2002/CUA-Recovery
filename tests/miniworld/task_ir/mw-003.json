@@ -1,0 +1,578 @@
+{
+ "schema_version": "task-ir/1.0",
+ "task_id": "mw-003",
+ "source_task_id": null,
+ "world_id": "miniworld",
+ "instruction": "Find the HooliWork channel where I have posted the most messages and add a 30-minute event to my Work calendar tomorrow at 3pm titled \"Channel review: #<channel>\".",
+ "reference_time": "2026-04-06T09:00:00",
+ "nodes": [
+  {
+   "node_id": "n1",
+   "op": "retrieve",
+   "app": "workbuzz",
+   "semantic_goal": "List my channel messages",
+   "route_hint": [
+    "/channel/:id"
+   ],
+   "reads": [
+    {
+     "table": "workbuzz.messages",
+     "column": "sender_email",
+     "entity_ref": "messages:*"
+    },
+    {
+     "table": "workbuzz.messages",
+     "column": "channel_id",
+     "entity_ref": "messages:*"
+    },
+    {
+     "table": "workbuzz.messages",
+     "column": "deleted_at",
+     "entity_ref": "messages:*"
+    }
+   ],
+   "produces": [
+    {
+     "name": "rows",
+     "type": "MessageRow",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT id, channel_id FROM messages WHERE sender_email = :owner_email AND deleted_at IS NULL ORDER BY id",
+      "returns": "rows"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "owner_email",
+     "type": "Email",
+     "grounding": "person:michael_scott",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "michael.scott@dundermifflin.com"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "rows",
+     "type": "MessageRow",
+     "grounding": "derived:n1:rows",
+     "source": "upstream",
+     "cardinality": "many"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n2",
+   "op": "aggregate",
+   "app": "workbuzz",
+   "semantic_goal": "Count messages per channel",
+   "route_hint": [],
+   "reads": [],
+   "produces": [
+    {
+     "name": "counts",
+     "type": "CountByChannel",
+     "derivation": {
+      "kind": "expr",
+      "expr": "count_by(rows, \"channel_id\")"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "rows",
+     "type": "MessageRow",
+     "grounding": "derived:n1:rows",
+     "source": "upstream",
+     "cardinality": "many"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "counts",
+     "type": "CountByChannel",
+     "grounding": "derived:n2:counts",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n3",
+   "op": "decide",
+   "app": "workbuzz",
+   "semantic_goal": "Pick the channel with the most messages",
+   "route_hint": [],
+   "reads": [],
+   "produces": [
+    {
+     "name": "top_channel_id",
+     "type": "ChannelRef",
+     "derivation": {
+      "kind": "expr",
+      "expr": "argmax(counts)"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "counts",
+     "type": "CountByChannel",
+     "grounding": "derived:n2:counts",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "top_channel_id",
+     "type": "ChannelRef",
+     "grounding": "derived:n3:top_channel_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n3",
+    "kind": "derived",
+    "predicate": "top_channel_id == expected",
+    "observability": "derived_from_observable",
+    "expected": 1
+   },
+   "critical": false
+  },
+  {
+   "node_id": "n4",
+   "op": "resolve",
+   "app": "workbuzz",
+   "semantic_goal": "Read the channel name",
+   "route_hint": [
+    "/channel/:id"
+   ],
+   "reads": [
+    {
+     "table": "workbuzz.channels",
+     "column": "name",
+     "entity_ref": "derived:n3:top_channel_id"
+    }
+   ],
+   "produces": [
+    {
+     "name": "channel_name",
+     "type": "Text",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT name FROM channels WHERE id = :channel_id",
+      "returns": "scalar"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "channel_id",
+     "type": "ChannelRef",
+     "grounding": "derived:n3:top_channel_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "channel_name",
+     "type": "Text",
+     "grounding": "derived:n4:channel_name",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n5",
+   "op": "resolve",
+   "app": "hoolicalendar",
+   "semantic_goal": "Find the primary Work calendar",
+   "route_hint": [
+    "/calendar"
+   ],
+   "reads": [
+    {
+     "table": "hoolicalendar.calendars",
+     "column": "is_primary",
+     "entity_ref": "calendars:*"
+    },
+    {
+     "table": "hoolicalendar.calendars",
+     "column": "user_email",
+     "entity_ref": "calendars:*"
+    }
+   ],
+   "produces": [
+    {
+     "name": "calendar_id",
+     "type": "CalendarRef",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT id FROM calendars WHERE user_email = :owner_email AND is_primary = 1",
+      "returns": "scalar"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "owner_email",
+     "type": "Email",
+     "grounding": "person:michael_scott",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "michael.scott@dundermifflin.com"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "calendar_id",
+     "type": "CalendarRef",
+     "grounding": "derived:n5:calendar_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n6",
+   "op": "decide",
+   "app": "hoolicalendar",
+   "semantic_goal": "Compose title and time window",
+   "route_hint": [],
+   "reads": [],
+   "produces": [
+    {
+     "name": "title",
+     "type": "Text",
+     "derivation": {
+      "kind": "expr",
+      "expr": "fmt(\"Channel review: #{}\", channel_name)"
+     }
+    },
+    {
+     "name": "start",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "expr",
+      "expr": "at_time(date_add(date_of(reference_time), 1), \"15:00\")"
+     }
+    },
+    {
+     "name": "end",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "expr",
+      "expr": "date_add(start, minutes=30)"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "channel_name",
+     "type": "Text",
+     "grounding": "derived:n4:channel_name",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "title",
+     "type": "Text",
+     "grounding": "derived:n6:title",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "start",
+     "type": "DateTime",
+     "grounding": "derived:n6:start",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "end",
+     "type": "DateTime",
+     "grounding": "derived:n6:end",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n7",
+   "op": "create",
+   "app": "hoolicalendar",
+   "semantic_goal": "Create the calendar event",
+   "route_hint": [
+    "/event/new"
+   ],
+   "reads": [],
+   "produces": [
+    {
+     "name": "event_id",
+     "type": "EventRef",
+     "derivation": {
+      "kind": "create",
+      "table": "hoolicalendar.events"
+     }
+    }
+   ],
+   "writes": [
+    {
+     "table": "hoolicalendar.events",
+     "column": "calendar_id",
+     "entity_ref": "derived:n7:event_id",
+     "effect_type": "create_event",
+     "value_ref": "calendar_id"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "user_email",
+     "entity_ref": "derived:n7:event_id",
+     "effect_type": "create_event",
+     "value_ref": "owner_email"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "title",
+     "entity_ref": "derived:n7:event_id",
+     "effect_type": "create_event",
+     "value_ref": "title"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "start_at",
+     "entity_ref": "derived:n7:event_id",
+     "effect_type": "create_event",
+     "value_ref": "start"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "end_at",
+     "entity_ref": "derived:n7:event_id",
+     "effect_type": "create_event",
+     "value_ref": "end"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "organizer_email",
+     "entity_ref": "derived:n7:event_id",
+     "effect_type": "create_event",
+     "value_ref": "owner_email"
+    }
+   ],
+   "reversibility_class": "R1",
+   "side_effects": [
+    {
+     "effect_id": "fx-n7",
+     "effect_type": "create_event",
+     "target_ref": "derived:n7:event_id",
+     "reversibility_class": "R1",
+     "commit_scope": "local_app",
+     "compensation_available": true,
+     "compensating_effect_type": "delete_event",
+     "compensation_verifier_id": null,
+     "checkpoint_required": false,
+     "checkpoint_id": null,
+     "restore_verifier_id": null
+    }
+   ],
+   "inputs": [
+    {
+     "port_id": "calendar_id",
+     "type": "CalendarRef",
+     "grounding": "derived:n5:calendar_id",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "title",
+     "type": "Text",
+     "grounding": "derived:n6:title",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "start",
+     "type": "DateTime",
+     "grounding": "derived:n6:start",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "end",
+     "type": "DateTime",
+     "grounding": "derived:n6:end",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "owner_email",
+     "type": "Email",
+     "grounding": "person:michael_scott",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "michael.scott@dundermifflin.com"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "event_id",
+     "type": "EventRef",
+     "grounding": "derived:n7:event_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n7",
+    "kind": "sql",
+    "predicate": "SELECT title = :title AND start_at = :start AND end_at = :end AND calendar_id = :calendar_id FROM events WHERE id = :event_id",
+    "observability": "environment_state"
+   },
+   "critical": true
+  }
+ ],
+ "edges": [
+  {
+   "edge_id": "e1",
+   "from": {
+    "node_id": "n1",
+    "port_id": "rows"
+   },
+   "to": {
+    "node_id": "n2",
+    "port_id": "rows"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e2",
+   "from": {
+    "node_id": "n2",
+    "port_id": "counts"
+   },
+   "to": {
+    "node_id": "n3",
+    "port_id": "counts"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e3",
+   "from": {
+    "node_id": "n3",
+    "port_id": "top_channel_id"
+   },
+   "to": {
+    "node_id": "n4",
+    "port_id": "channel_id"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e4",
+   "from": {
+    "node_id": "n4",
+    "port_id": "channel_name"
+   },
+   "to": {
+    "node_id": "n6",
+    "port_id": "channel_name"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e5",
+   "from": {
+    "node_id": "n5",
+    "port_id": "calendar_id"
+   },
+   "to": {
+    "node_id": "n7",
+    "port_id": "calendar_id"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e6",
+   "from": {
+    "node_id": "n6",
+    "port_id": "title"
+   },
+   "to": {
+    "node_id": "n7",
+    "port_id": "title"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e7",
+   "from": {
+    "node_id": "n6",
+    "port_id": "start"
+   },
+   "to": {
+    "node_id": "n7",
+    "port_id": "start"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e8",
+   "from": {
+    "node_id": "n6",
+    "port_id": "end"
+   },
+   "to": {
+    "node_id": "n7",
+    "port_id": "end"
+   },
+   "kind": "data_dependency"
+  }
+ ],
+ "final_verifier": {
+  "verifier_id": "final-mw-003",
+  "kind": "sql",
+  "predicate": "SELECT count(*) = 1 FROM events WHERE title = 'Channel review: #general' AND start_at = '2026-04-07T15:00:00' AND end_at = '2026-04-07T15:30:00' AND calendar_id = 1",
+  "observability": "environment_state",
+  "app": "hoolicalendar"
+ },
+ "provenance": {
+  "author": "hand-written miniworld fixture"
+ }
+}

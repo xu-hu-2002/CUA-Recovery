@@ -1,0 +1,24 @@
+{
+ "schema_version": "volatile-columns/1.0",
+ "patterns": [
+  "^(created|updated|modified|deleted|edited|completed|cancelled|archived)_at$",
+  "^timestamp$",
+  "^last_[a-z_]*(at|time)$",
+  "^(created|updated)_by(_actor_id|_vm_id)?$",
+  "^(status_expires_at|dnd_until|send_at)$",
+  "^(world_id|actor_id|vm_id|canonical_id|canonical_key|canonical_[a-z_]+_key)$",
+  "^unread_count$"
+ ],
+ "keep": {
+  "hoolicalendar.events": [
+   "start_at",
+   "end_at"
+  ],
+  "workbuzz.reminders": [
+   "remind_at"
+  ],
+  "hoolicalendar.event_reminders": [
+   "minutes_before"
+  ]
+ }
+}

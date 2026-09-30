@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/derived_build_manifest.schema.json",
+  "title": "DERAIL Derived Build Manifest v0.2",
+  "type": "object",
+  "properties": {
+    "build_id": {"type": "string", "minLength": 1},
+    "schema_version": {"const": "0.2.0"},
+    "status": {"enum": ["initialized", "canonicalized", "annotated", "pending_replay", "validated", "rejected"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "depths": {"const": [0, 5, 10, 15, 20, 25]},
+    "raw_immutable": {"const": true},
+    "source_collection": {
+      "type": "object",
+      "properties": {
+        "collection_id": {"type": "string", "minLength": 1},
+        "uri": {"type": "string", "minLength": 1},
+        "manifest_uri": {"type": "string", "minLength": 1},
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "tree_sha256_at_init": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "required": ["collection_id", "uri", "manifest_uri", "manifest_sha256", "tree_sha256_at_init"],
+      "additionalProperties": false
+    },
+    "git_commit": {"type": "string", "minLength": 1},
+    "builder_config": {"type": "object"},
+    "builder_config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "taxonomy": {
+      "type": "object",
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "frozen": {"type": "boolean"},
+        "mode": {"enum": ["open_coding", "frozen"]},
+        "uri": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "labels": {
+          "description": "Allowed labels only when frozen; retained as the current candidate list during open coding.",
+          "type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true
+        },
+        "seed_labels": {
+          "description": "Prompts for human open coding, never an enum while mode=open_coding.",
+          "type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true
+        }
+      },
+      "required": ["version", "frozen", "mode", "uri", "sha256", "labels", "seed_labels"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"frozen": {"const": true}}, "required": ["frozen"]},
+          "then": {"properties": {"mode": {"const": "frozen"}}},
+          "else": {"properties": {"mode": {"const": "open_coding"}}}
+        }
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "canonical_trajectories": {"type": "integer", "minimum": 0},
+        "rejected_trajectories": {"type": "integer", "minimum": 0},
+        "candidate_cases": {"type": "integer", "minimum": 0},
+        "accepted_cases": {"type": "integer", "minimum": 0},
+        "rejected_cases": {"type": "integer", "minimum": 0}
+      },
+      "required": ["canonical_trajectories", "rejected_trajectories", "candidate_cases", "accepted_cases", "rejected_cases"],
+      "additionalProperties": false
+    },
+    "normalization_reports": {"type": "array", "items": {"type": "object"}},
+    "case_index": {"type": "array", "items": {"type": "object"}}
+  },
+  "required": [
+    "build_id", "schema_version", "status", "created_at", "depths", "raw_immutable",
+    "source_collection", "git_commit", "builder_config", "builder_config_sha256",
+    "taxonomy", "counts"
+  ],
+  "additionalProperties": false
+}

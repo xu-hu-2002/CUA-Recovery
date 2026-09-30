@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/canonical_action.schema.json",
+  "title": "DERAIL Canonical Action",
+  "$comment": "canonical action 是唯一真值；summary、PyAutoGUI 和 native history 都由它派生。",
+  "oneOf": [
+    {"$ref": "#/$defs/click"},
+    {"$ref": "#/$defs/type"},
+    {"$ref": "#/$defs/hotkey"},
+    {"$ref": "#/$defs/key_transition"},
+    {"$ref": "#/$defs/mouse_button_transition"},
+    {"$ref": "#/$defs/no_op"},
+    {"$ref": "#/$defs/scroll"},
+    {"$ref": "#/$defs/horizontal_scroll"},
+    {"$ref": "#/$defs/move"},
+    {"$ref": "#/$defs/drag"},
+    {"$ref": "#/$defs/wait"},
+    {"$ref": "#/$defs/shell"},
+    {"$ref": "#/$defs/terminate"}
+    ,{"$ref": "#/$defs/sequence"}
+  ],
+  "$defs": {
+    "frame": {
+      "type": "object",
+      "properties": {
+        "frame_width": {"type": "integer", "minimum": 1, "default": 1280},
+        "frame_height": {"type": "integer", "minimum": 1, "default": 800}
+      }
+    },
+    "click": {
+      "type": "object",
+      "properties": {
+        "kind": {"enum": ["click", "double_click"]},
+        "x_px": {"type": "integer", "minimum": 0},
+        "y_px": {"type": "integer", "minimum": 0},
+        "button": {"enum": ["left", "right", "middle"], "default": "left"},
+        "target": {"type": "string"},
+        "frame_width": {"type": "integer", "minimum": 1, "default": 1280},
+        "frame_height": {"type": "integer", "minimum": 1, "default": 800}
+      },
+      "required": ["kind", "x_px", "y_px"],
+      "additionalProperties": false
+    },
+    "type": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "type"},
+        "text": {"type": "string"},
+        "press_enter": {"type": "boolean", "default": false},
+        "clear_existing": {"type": "boolean", "default": false},
+        "interval_s": {"type": "number", "minimum": 0, "default": 0}
+      },
+      "required": ["kind", "text"],
+      "additionalProperties": false
+    },
+    "hotkey": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "hotkey"},
+        "keys": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "maxItems": 32}
+      },
+      "required": ["kind", "keys"],
+      "additionalProperties": false
+    },
+    "key_transition": {
+      "type": "object",
+      "properties": {
+        "kind": {"enum": ["key_down", "key_up"]},
+        "key": {"type": "string", "minLength": 1}
+      },
+      "required": ["kind", "key"],
+      "additionalProperties": false
+    },
+    "mouse_button_transition": {
+      "type": "object",
+      "properties": {
+        "kind": {"enum": ["mouse_down", "mouse_up"]},
+        "button": {"enum": ["left", "right", "middle"], "default": "left"}
+      },
+      "required": ["kind"],
+      "additionalProperties": false
+    },
+    "no_op": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "no_op"},
+        "reason": {"type": "string", "minLength": 1}
+      },
+      "required": ["kind", "reason"],
+      "additionalProperties": false
+    },
+    "scroll": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "scroll"},
+        "x_px": {"type": "integer", "minimum": 0},
+        "y_px": {"type": "integer", "minimum": 0},
+        "delta_y": {"type": "integer"},
+        "frame_width": {"type": "integer", "minimum": 1, "default": 1280},
+        "frame_height": {"type": "integer", "minimum": 1, "default": 800}
+      },
+      "required": ["kind", "x_px", "y_px", "delta_y"],
+      "additionalProperties": false
+    },
+    "horizontal_scroll": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "horizontal_scroll"},
+        "x_px": {"type": "integer", "minimum": 0},
+        "y_px": {"type": "integer", "minimum": 0},
+        "delta_x": {"type": "integer"},
+        "frame_width": {"type": "integer", "minimum": 1, "default": 1280},
+        "frame_height": {"type": "integer", "minimum": 1, "default": 800}
+      },
+      "required": ["kind", "x_px", "y_px", "delta_x"],
+      "additionalProperties": false
+    },
+    "move": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "move"},
+        "x_px": {"type": "integer", "minimum": 0},
+        "y_px": {"type": "integer", "minimum": 0},
+        "frame_width": {"type": "integer", "minimum": 1, "default": 1280},
+        "frame_height": {"type": "integer", "minimum": 1, "default": 800}
+      },
+      "required": ["kind", "x_px", "y_px"],
+      "additionalProperties": false
+    },
+    "drag": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "drag"},
+        "start_x_px": {"type": "integer", "minimum": 0},
+        "start_y_px": {"type": "integer", "minimum": 0},
+        "end_x_px": {"type": "integer", "minimum": 0},
+        "end_y_px": {"type": "integer", "minimum": 0},
+        "button": {"enum": ["left", "right", "middle"], "default": "left"},
+        "duration_s": {"type": "number", "minimum": 0, "default": 0.5},
+        "frame_width": {"type": "integer", "minimum": 1, "default": 1280},
+        "frame_height": {"type": "integer", "minimum": 1, "default": 800}
+      },
+      "required": ["kind", "start_x_px", "start_y_px", "end_x_px", "end_y_px"],
+      "additionalProperties": false
+    },
+    "wait": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "wait"},
+        "seconds": {"type": "number", "minimum": 0}
+      },
+      "required": ["kind", "seconds"],
+      "additionalProperties": false
+    },
+    "shell": {
+      "type": "object",
+      "$comment": "One provider shell tool call; commands remain grouped for action-depth accounting.",
+      "properties": {
+        "kind": {"const": "shell"},
+        "commands": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1
+        },
+        "timeout_ms": {"type": "integer", "minimum": 1, "default": 120000},
+        "max_output_length": {"type": "integer", "minimum": 1, "default": 8192}
+      },
+      "required": ["kind", "commands"],
+      "additionalProperties": false
+    },
+    "terminate": {
+      "type": "object",
+      "properties": {
+        "kind": {"const": "terminate"},
+        "status": {"enum": ["success", "failure"]},
+        "answer": {"type": "string"}
+      },
+      "required": ["kind", "status"],
+      "additionalProperties": false
+    },
+    "sequence": {
+      "type": "object",
+      "$comment": "One MyPCBench env.step containing multiple primitives; counts as one global action.",
+      "properties": {
+        "kind": {"const": "sequence"},
+        "actions": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"$ref": "#/$defs/click"},
+              {"$ref": "#/$defs/type"},
+              {"$ref": "#/$defs/hotkey"},
+              {"$ref": "#/$defs/key_transition"},
+              {"$ref": "#/$defs/mouse_button_transition"},
+              {"$ref": "#/$defs/no_op"},
+              {"$ref": "#/$defs/scroll"},
+              {"$ref": "#/$defs/horizontal_scroll"},
+              {"$ref": "#/$defs/move"},
+              {"$ref": "#/$defs/drag"},
+              {"$ref": "#/$defs/wait"},
+              {"$ref": "#/$defs/shell"},
+              {"$ref": "#/$defs/terminate"}
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["kind", "actions"],
+      "additionalProperties": false
+    }
+  }
+}

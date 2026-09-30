@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/schema_graph.schema.json",
+  "title": "DERAIL schema graph (schema-graph/1.0)",
+  "$comment": "Execution doc v1.2 section 2.1 / brief world/schema_graph.py: the entity-relation graph over the application databases. Nodes are tables (entity types), edges are explicit foreign keys or name-inferred references (DECISIONS.md D-015). Table names are app-qualified as everywhere else.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "graph_id",
+    "databases",
+    "relations",
+    "excluded_tables",
+    "config_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "schema-graph/1.0"
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "databases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "app",
+          "file_sha256",
+          "tables"
+        ],
+        "properties": {
+          "app": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "source_path": {
+            "type": "string"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "columns",
+                "row_count",
+                "primary_key"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "type",
+                      "notnull",
+                      "primary_key"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "notnull": {
+                        "type": "boolean"
+                      },
+                      "primary_key": {
+                        "type": "boolean"
+                      },
+                      "default": {}
+                    },
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                },
+                "row_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "primary_key": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "ddl_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "from_table",
+          "from_column",
+          "to_table",
+          "to_column",
+          "kind",
+          "rule",
+          "confidence"
+        ],
+        "properties": {
+          "from_table": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+\\.[A-Za-z0-9_]+$"
+          },
+          "from_column": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to_table": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z0-9_-]+\\.[A-Za-z0-9_]+$"
+          },
+          "to_column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "explicit",
+              "inferred",
+              "polymorphic"
+            ]
+          },
+          "rule": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type_column": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "excluded_tables": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "config_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "inferred_ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "min_confidence_for_generation": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "additionalProperties": false
+}

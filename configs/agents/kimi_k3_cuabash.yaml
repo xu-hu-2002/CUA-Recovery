@@ -1,0 +1,75 @@
+# 论文 Kimi-K3 的正式配置（GUI + 命令行，05:12）。实验 ID 仍记作 kimi_k3。
+#
+# 最初是 kimi_k3 的 GUI+bash 对照组（2026-08-20 立项）。
+#
+# 背景：kimi_k3 走 derail_tool_agent，只有 9 个 GUI 动作、零 bash —— F3 实测
+# s1 全片 109 次 pyautogui.write 内嵌 shell 命令（模型自己开 GUI 终端打字），
+# 24/46 任务打满 100 步。这不是模型不愿用 bash，是 harness 没给（四层证据见
+# results/COLLECTION_LOG.md 2026-08-20 条目）。
+#
+# 本组保留 kimi_k3（GUI-only）的全部结果与口径，只翻转工具面：同一装配路径、
+# 逐项相同的协议参数，仅 enable_bash=true + 对应 prompt。两组构成
+# "GUI-only vs GUI+bash" 的公平对比；跨组差异归因工具面而非能力。
+#
+# bash 语义（与 qwen_cuabash 不同，必须写进论文）：bash 在 predict 内部执行、
+# 结果以 tool 消息回填后继续对话，不消耗 runner 的 max_steps 步数 —— 对齐
+# gpt_5_5 shell_call 的 agent-internal 语义。单步 bash 轮上限见 tool_agent.py
+# _MAX_BASH_ROUNDS_PER_STEP：F5 正式全量（上限 8）实测 ~54% 任务熔断，
+# 2026-08-23 起放宽到 16（先 shard_1 配对 A/B，见 runs/f5_cuabash_ab16_shard1_20260823.sh）；
+# 输出截断 8192 字符/流。
+#
+# 除以下三项外，所有 live 字段与 kimi_k3.yaml 逐项相同（由
+# tests/test_agent_config.py 金标锁定）：
+#   - system_prompt_file / enable_bash / agent_id / agent_type / status。
+agent_id: kimi_k3_cuabash
+family: kimi
+scaffold: derail_tool_agent
+agent_type: derail_kimi_k3_cuabash
+model: kimi-k3
+api_gateway: routify_openai_compatible
+output_format: openai_compatible_function_calling
+scaffold_origin: derail_general_vlm
+live_adapter: derail.mypcbench.factory.create_mypcbench_agent
+# VM 并发度。托管 API 不占卡，上限是配额而非显存 —— 网关侧 rpm_limit 实测 60。
+# bash 轮会增加每步的请求数（一步内可发多次 chat.completions），4 VM 起步仍留
+# 有余量，正式采集前用 smoke 核对实际 rpm。
+num_vms: 4
+observed_rpm_limit: 60
+# live —— SafePyAutoGUICompiler 的枚举值。1280x800 是 VM 显示分辨率。
+coordinate_protocol: absolute_pixels
+# live —— prompts/agents/ 下的文件名，由 tool_agent._read_frozen_prompt() 读取。
+system_prompt_file: kimi_k3_cuabash_mypcbench_system.txt
+# live —— null = 请求省略 temperature（显式传参会 400）。
+temperature: null
+# live —— reasoning tokens 计入这个预算，与 kimi_k3 同值。
+max_tokens: 4096
+# live —— 上下文策略与 kimi_k3 逐项相同（history_n=100 / image_max=20 /
+# fold_size=10 + Previous actions）。
+max_images_in_context: 20
+# live —— 保留完整消息的 turn 数（上游 history_n）。
+history_turns: 100
+# live —— 折叠图片的粒度（上游 fold_size）。
+image_fold_size: 10
+# live —— 窗口外 turn 的动作压成 `Previous actions:` 附在当前 user 消息上。
+previous_action_log: true
+# live
+tool_choice: auto
+# live —— 与 kimi_k3 同值，两组失败分布可比。
+schema_repair_attempts: 2
+# live —— 与 kimi_k3 同口径的保守单交互。
+multi_tool_policy: one_interaction_plus_collapsed_waits
+# live
+alternating_action_repeat_limit: 0
+# live
+stalled_state_step_limit: 0
+# live —— 本组的存在意义：bash 工具面开启。
+enable_bash: true
+
+# scroll 单位缺陷与 kimi_k3 相同（同一网关同一模型）；clamp 修复同样生效。
+scroll_unit_understanding: pixels_mistaken_for_notches_requires_clamp
+
+# 01_collect_all.sh 预估时长用；不影响采集行为。借用 kimi_k3 的估算，bash 轮
+# 会略增单步请求次数，smoke 后更新。
+eta_step_seconds: 24.0
+eta_step_seconds_source: 借用 kimi_k3 预估（网关 60 rpm 与 4 VM 反推），smoke 后更新
+status: smoke10_resubmitted_20260822_queueing_task01a025b717e3ab26b1c960444b278b84

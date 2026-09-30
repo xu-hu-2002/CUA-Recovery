@@ -1,0 +1,82 @@
+# Semantic ontology for long-horizon task synthesis (manual v0.2, sections 2.1, 5.1, 5.2).
+#
+# Everything here is protocol vocabulary, not an environment- or experiment-specific value.
+# Bump `schema_version` (minor for additive enum members, major for semantic changes) when
+# editing; downstream records carry the version they were validated against.
+schema_version: ontology/0.2
+
+# Abstract semantic operations used for structure statistics (section 5.2).  The loader
+# cross-checks this list against ``derail.synthesis.graph.OPERATIONS`` so the two cannot drift.
+operations:
+  - retrieve
+  - resolve
+  - filter
+  - compare
+  - aggregate
+  - verify
+  - decide
+  - create
+  - modify
+  - delete
+  - communicate
+  - confirm
+
+# Operations that may legally carry a state-changing side effect.  Read-only operations must
+# have an empty ``side_effects`` array and reversibility class R0.
+state_changing_operations:
+  - create
+  - modify
+  - delete
+  - communicate
+
+dependency_edge_kinds:
+  - data_dependency
+  - state_dependency
+  - control_dependency
+
+# Consequence / reversibility classes (section 2.1).  R0 is a node-level class only; a concrete
+# side effect must be R1, R2 or R3.
+reversibility_classes:
+  R0: No persistent state change (browse, query, navigate).
+  R1: Local modification undoable inside the same application (an unsaved draft edit).
+  R2: Destructive or overwriting modification recoverable through version, backup or reset.
+  R3: Commitment to a shared or external system that ordinary undo cannot fully revert.
+side_effect_reversibility_classes: [R1, R2, R3]
+# Strictly irreversible for ``irreversible_action_depth``; R2 is high-consequence only.
+irreversible_classes: [R3]
+high_consequence_classes: [R2, R3]
+
+# Concrete effect types (section 5.1).  They are separate from the abstract operation and are
+# the unit the safety policy (section 11.3) reasons about.
+# ``category`` is the coarse v0.1 effect category (create/modify/delete/send/submit/pay) used
+# by the public module interface and the pairwise conflict checks.
+effect_types:
+  write_file: {default_class: R1, category: create}
+  overwrite_file: {default_class: R2, category: modify}
+  delete_file: {default_class: R2, category: delete}
+  create_event: {default_class: R1, category: create}
+  modify_event: {default_class: R1, category: modify}
+  delete_event: {default_class: R2, category: delete}
+  create_record: {default_class: R1, category: create}
+  modify_record: {default_class: R1, category: modify}
+  delete_record: {default_class: R2, category: delete}
+  send_message: {default_class: R3, category: send}
+  submit_form: {default_class: R3, category: submit}
+  place_order: {default_class: R3, category: submit}
+  cancel_order: {default_class: R3, category: modify}
+  make_payment: {default_class: R3, category: pay}
+
+commit_scopes:
+  - local_app
+  - local_filesystem
+  - shared_environment
+  - external_sandbox
+
+# Classes for which a checkpoint must exist before the effect executes (section 11.3).
+checkpoint_required_classes: [R2, R3]
+
+milestone_observability:
+  - environment_state
+  - auditable_tool_output
+  - derived_from_observable
+  - unobservable

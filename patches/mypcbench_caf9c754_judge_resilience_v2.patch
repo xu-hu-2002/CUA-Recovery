@@ -1,0 +1,243 @@
+diff --git a/agent-harness/judge_results.py b/agent-harness/judge_results.py
+index d06288f..7e04818 100644
+--- a/agent-harness/judge_results.py
++++ b/agent-harness/judge_results.py
+@@ -65,12 +65,15 @@ def judge_one(task_dir: Path, command: str, timeout: int, force: bool) -> dict:
+             # A cached result that doesn't map to a score is a cached judge
+             # failure — surface it as judge_error so the summary tally is
+             # honest (don't let a stale-error result dir read as clean).
+-            return {
+-                "task_id": task_id,
+-                "status": "cached" if _unit is not None else "judge_error",
+-                "score": _unit,
+-                "raw": cached.get("result"),
+-            }
++            if _unit is not None:
++                return {
++                    "task_id": task_id,
++                    "status": "cached",
++                    "score": _unit,
++                    "raw": cached.get("result"),
++                }
++            # A cached error is not a completed judgment. Retry it in place;
++            # successful cached results remain untouched.
+         except (ValueError, OSError):
+             pass  # fall through and re-judge
+ 
+diff --git a/agent-harness/utils/osworld_full_traj_judge.py b/agent-harness/utils/osworld_full_traj_judge.py
+index c888633..6d6182a 100644
+--- a/agent-harness/utils/osworld_full_traj_judge.py
++++ b/agent-harness/utils/osworld_full_traj_judge.py
+@@ -59,6 +59,7 @@ import mimetypes
+ import os
+ import re
+ import sys
++import random
+ from pathlib import Path
+ from typing import Any
+ 
+@@ -283,7 +284,10 @@ def _make_openai_client():
+     except Exception as exc:
+         print(json.dumps({"error": f"openai import failed: {exc}"}))
+         raise SystemExit(2)
+-    kwargs: dict[str, Any] = {"api_key": api_key}
++    # The explicit retry loop below owns retry classification and timing.
++    # Disable the SDK's hidden retries so concurrency and retry budgets remain
++    # observable and do not multiply unexpectedly.
++    kwargs: dict[str, Any] = {"api_key": api_key, "max_retries": 0}
+     base_url = (os.environ.get("OPENAI_BASE_URL") or "").strip()
+     if base_url:
+         kwargs["base_url"] = base_url
+@@ -385,6 +389,60 @@ async def _judge_one_rubric_openai(
+ # ---------------------------------------------------------------------------
+ 
+ 
++# DERAIL transient-retry (2026-08-15): recovered from the lost
++# patches/mypcbench_caf9c754_derail_judge.patch (_with_retries/_is_transient).
++# Without retries a single 429 / connection / timeout blip fails the rubric
++# and — before the fail-loud guard below — was silently scored 0.
++_TRANSIENT_HINTS = (
++    "429", "rate limit", "rate_limit", "timeout", "timed out", "temporarily",
++    "overloaded", "connection", "529", "503", "502", "500",
++)
++
++
++def _is_transient_error(exc: Exception) -> bool:
++    status = getattr(exc, "status_code", None)
++    if isinstance(status, int):
++        if status == 429 or status >= 500:
++            return True
++        if 400 <= status < 500:
++            return False
++    name = type(exc).__name__.lower()
++    if any(k in name for k in ("ratelimit", "timeout", "connection", "apierror")):
++        return True
++    return any(h in str(exc).lower() for h in _TRANSIENT_HINTS)
++
++
++def _retry_delay(exc: Exception, attempt: int) -> float:
++    response = getattr(exc, "response", None)
++    headers = getattr(response, "headers", {}) or {}
++    retry_after = headers.get("retry-after") or headers.get("Retry-After")
++    try:
++        advertised = float(retry_after)
++    except (TypeError, ValueError):
++        advertised = 0.0
++    base = advertised if advertised > 0 else 2.0 * (2 ** attempt)
++    return min(60.0, base * random.uniform(0.8, 1.2))
++
++
++async def _with_retries(fn, *, what: str, attempts: int = 4):
++    last: Exception | None = None
++    for i in range(attempts):
++        try:
++            return await fn()
++        except Exception as exc:
++            last = exc
++            if not _is_transient_error(exc) or i == attempts - 1:
++                raise
++            wait = _retry_delay(exc, i)
++            print(
++                f"warning: {what} transient failure ({exc}); "
++                f"retry {i + 1}/{attempts - 1} in {wait:.0f}s",
++                file=sys.stderr,
++            )
++            await asyncio.sleep(wait)
++    raise last  # pragma: no cover
++
++
+ async def main_async() -> None:
+     mock_score = (
+         os.environ.get("MYPCBENCH_RUBRIC_JUDGE_MOCK_SCORE", "").strip()
+@@ -443,8 +501,11 @@ async def main_async() -> None:
+                 task_instruction, rubric, action_history, len(screenshot_assets), n_steps
+             )
+             try:
+-                return await _judge_one_rubric_gemini(
+-                    genai_module, client, model, user_text, screenshot_assets
++                return await _with_retries(
++                    lambda: _judge_one_rubric_gemini(
++                        genai_module, client, model, user_text, screenshot_assets
++                    ),
++                    what=f"rubric {rubric['id']}",
+                 )
+             except Exception as exc:
+                 return False, f"Error judging rubric {rubric['id']}: {exc}"
+@@ -456,8 +517,11 @@ async def main_async() -> None:
+                 task_instruction, rubric, action_history, len(screenshot_assets), n_steps
+             )
+             try:
+-                return await _judge_one_rubric_openai(
+-                    client, model, user_text, screenshot_assets
++                return await _with_retries(
++                    lambda: _judge_one_rubric_openai(
++                        client, model, user_text, screenshot_assets
++                    ),
++                    what=f"rubric {rubric['id']}",
+                 )
+             except Exception as exc:
+                 return False, f"Error judging rubric {rubric['id']}: {exc}"
+@@ -479,6 +543,26 @@ async def main_async() -> None:
+ 
+     rubric_results = await asyncio.gather(*[run_one(r) for r in rubrics])
+ 
++    # DERAIL fail-loud guard (2026-08-15): a rubric-level API error was
++    # silently scored 0 ("Error judging rubric ...: <exc>"), so transient
++    # timeouts / connection errors / quota saturation wrote fake-zero
++    # results that the force=no cache skip then made permanent. Any rubric
++    # error must abort this unit with a nonzero exit so the wrapper records
++    # judge_error (retryable) instead of a fake numeric score.
++    errored = [
++        r for r in rubric_results
++        if str(r.get("reasoning", "")).startswith("Error judging rubric")
++    ]
++    if errored:
++        print(json.dumps({
++            "error": (
++                f"{len(errored)}/{len(rubric_results)} rubric judge calls "
++                f"failed; refusing to write a fake score: "
++                f"{str(errored[0].get('reasoning'))[:200]}"
++            )
++        }))
++        sys.exit(3)
++
+     total_w = sum(r["weight"] for r in rubric_results) or 1.0
+     total_s = sum(r["weight"] for r in rubric_results if r["success"])
+     final_fraction = max(0.0, min(1.0, total_s / total_w))
+diff --git a/agent-harness/utils/rubric_judge.py b/agent-harness/utils/rubric_judge.py
+index efc92e7..34ed722 100644
+--- a/agent-harness/utils/rubric_judge.py
++++ b/agent-harness/utils/rubric_judge.py
+@@ -10,6 +10,7 @@ import json
+ import os
+ import re
+ import shlex
++import signal
+ import subprocess
+ from dataclasses import dataclass
+ from pathlib import Path
+@@ -314,26 +315,28 @@ def run_rubric_judge_command(
+     # block exceed ARG_MAX and subprocess fork dies with E2BIG, aborting
+     # the whole grading run. The judges re-open the file via _PATH.
+ 
++    process = subprocess.Popen(
++        command if isinstance(command, str) else shlex.join(command),
++        shell=True,
++        cwd=save_dir_abs,
++        env=env,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        text=True,
++        start_new_session=True,
++    )
+     try:
+-        result = subprocess.run(
+-            command if isinstance(command, str) else shlex.join(command),
+-            shell=True,
+-            cwd=save_dir_abs,
+-            env=env,
+-            capture_output=True,
+-            text=True,
+-            check=False,
+-            timeout=timeout,
+-        )
++        stdout, stderr = process.communicate(timeout=timeout)
+     except subprocess.TimeoutExpired:
++        _terminate_process_group(process)
+         return [command, "timeout", f"Judge timed out after {timeout}s", ""]
+ 
+-    stdout = (result.stdout or "").strip()
+-    stderr = (result.stderr or "").strip()
+-    if result.returncode != 0:
++    stdout = (stdout or "").strip()
++    stderr = (stderr or "").strip()
++    if process.returncode != 0:
+         return [
+             command,
+-            str(result.returncode),
++            str(process.returncode),
+             stdout,
+             stderr,
+         ]
+@@ -344,6 +347,21 @@ def run_rubric_judge_command(
+     return parsed_score
+ 
+ 
++def _terminate_process_group(process: subprocess.Popen, grace_seconds: float = 2.0) -> None:
++    """Reap the judge and every descendant that inherited its pipes."""
++    try:
++        os.killpg(process.pid, signal.SIGTERM)
++        process.communicate(timeout=grace_seconds)
++        return
++    except (ProcessLookupError, subprocess.TimeoutExpired):
++        pass
++    try:
++        os.killpg(process.pid, signal.SIGKILL)
++    except ProcessLookupError:
++        pass
++    process.communicate()
++
++
+ def default_rubric_judge_env(agent_model: str = "") -> dict[str, str]:
+     """Pick the rubric-judge model + provider for the spawned judge subprocess.
+ 

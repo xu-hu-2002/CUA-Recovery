@@ -1,0 +1,53 @@
+[
+  {
+    "id": "counterfactual-f008",
+    "app": "batbucks",
+    "instruction": "What if I sold all my GameStop and Rivian and rolled the whole thing into VTI? Use cost basis (no live prices) and show me what my portfolio would look like before and after, with percentages. Use LibreOffice Calc to report this.",
+    "apps_involved": [
+      "BatBucks",
+      "LibreOffice Calc"
+    ],
+    "category": "counterfactual",
+    "difficulty": "medium",
+    "grading": {
+      "type": "llm_judge",
+      "rubrics": [
+        {
+          "criterion": "Agent computes the GameStop + Rivian cost-basis sum from the seeded holdings (GME shares × avg_cost + RIVN shares × avg_cost) and reports that consolidation pool figure",
+          "type": "llm_judge",
+          "weight": 0.16
+        },
+        {
+          "criterion": "Agent reports the new total VTI position after the roll (existing VTI shares plus the additional shares funded by the GameStop+Rivian sell)",
+          "type": "llm_judge",
+          "weight": 0.16
+        },
+        {
+          "criterion": "Presents a before/after portfolio composition with percentages showing how each position changes",
+          "type": "llm_judge",
+          "weight": 0.13
+        },
+        {
+          "criterion": "Notes explicitly that the calculation uses cost basis (not market price) per the user's request",
+          "type": "llm_judge",
+          "weight": 0.14
+        },
+        {
+          "criterion": "Agent lists Michael's current BatBucks holdings (live count from /api/holdings) with shares times avg_cost before computing the GameStop and Rivian sell pool",
+          "type": "llm_judge",
+          "weight": 0.13
+        },
+        {
+          "criterion": "Agent divides the consolidation pool by VTI's avg_cost and reports the count of additional VTI shares to purchase from the GameStop+Rivian sell proceeds",
+          "type": "llm_judge",
+          "weight": 0.13
+        },
+        {
+          "criterion": "Agent produces the before/after report in LibreOffice Calc (opens Calc, enters the portfolio data and percentages into a spreadsheet, and saves or presents the file)",
+          "type": "llm_judge",
+          "weight": 0.15
+        }
+      ]
+    }
+  }
+]

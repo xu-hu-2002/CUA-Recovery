@@ -1,0 +1,406 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/replay_verification.schema.json",
+  "title": "DERAIL replay verification (v0.2 attempt record | replay-verification/1.0)",
+  "$comment": "Two branches: the v0.2 per-attempt record consumed by scripts/05_replay_instance.py and 09_validate_benchmark.py, and the replay-verification/1.0 per-case record of execution doc v1.2 section 10.2 (three replays per depth; all must match the original changelog prefix and page sequence; a mismatching depth is PREFIX_REPLAY_MISMATCH and is not instantiated).",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/v0_2"
+    },
+    {
+      "$ref": "#/$defs/v1_0"
+    }
+  ],
+  "$defs": {
+    "v0_2": {
+      "type": "object",
+      "properties": {
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "build_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "root_cause_action_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "depth": {
+          "enum": [
+            0,
+            2,
+            5,
+            10,
+            15
+          ]
+        },
+        "replay_end_action_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "canonical_actions_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonical_trajectory_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "instruction_sha256": {
+          "type": "string"
+        },
+        "task_config_sha256": {
+          "type": "string"
+        },
+        "state_probe_config_sha256": {
+          "type": "string"
+        },
+        "vm_session_id": {
+          "type": "string"
+        },
+        "execution_mode": {
+          "enum": [
+            "dry_run",
+            "synthetic",
+            "vm"
+          ]
+        },
+        "snapshot_restored": {
+          "type": "boolean"
+        },
+        "executed_action_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "per_action_log": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action_index_global": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "action_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "result": {
+                "type": "string"
+              },
+              "observation_before_uri": {
+                "type": "string"
+              },
+              "observation_before_sha256": {
+                "type": "string"
+              },
+              "observation_after_uri": {
+                "type": "string"
+              },
+              "observation_after_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_index_global",
+              "action_sha256",
+              "result"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "state_fingerprint": {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "screenshot_sha256": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "components",
+            "screenshot_sha256",
+            "sha256"
+          ],
+          "additionalProperties": false
+        },
+        "expected_state_sha256": {
+          "type": "string"
+        },
+        "automated_checks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "accepted_for_release": {
+          "type": "boolean"
+        },
+        "reviewer_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "rejection_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "attempt_id",
+        "build_id",
+        "case_id",
+        "instance_id",
+        "task_id",
+        "root_cause_action_index",
+        "depth",
+        "replay_end_action_index",
+        "canonical_actions_sha256",
+        "canonical_trajectory_sha256",
+        "snapshot_sha256",
+        "instruction_sha256",
+        "task_config_sha256",
+        "state_probe_config_sha256",
+        "vm_session_id",
+        "execution_mode",
+        "snapshot_restored",
+        "executed_action_indices",
+        "per_action_log",
+        "state_fingerprint",
+        "expected_state_sha256",
+        "automated_checks",
+        "accepted_for_release",
+        "reviewer_ids",
+        "rejection_reasons"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "enum": [
+                  "dry_run",
+                  "synthetic"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "accepted_for_release": {
+                "const": false
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false,
+      "title": "replay verification attempt (v0.2, per attempt)"
+    },
+    "v1_0": {
+      "type": "object",
+      "title": "replay verification (replay-verification/1.0, per case across depths)",
+      "required": [
+        "schema_version",
+        "rollout_id",
+        "task_id",
+        "world_id",
+        "root_cause_action_index",
+        "repaired_prefix_ref",
+        "required_attempts",
+        "depths",
+        "execution_mode",
+        "snapshot_sha256",
+        "verification_version"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "replay-verification/1.0"
+        },
+        "case_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rollout_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "world_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root_cause_action_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repaired_prefix_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "depths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "depth",
+              "replay_end_action_index",
+              "attempts",
+              "passed",
+              "code"
+            ],
+            "properties": {
+              "depth": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "replay_end_action_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "attempt_index",
+                    "changelog_match",
+                    "page_sequence_match",
+                    "state_sha256"
+                  ],
+                  "properties": {
+                    "attempt_index": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "changelog_match": {
+                      "type": "boolean"
+                    },
+                    "page_sequence_match": {
+                      "type": "boolean"
+                    },
+                    "state_sha256": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "first_mismatch_action_index": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "log_ref": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "minItems": 0
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "code": {
+                "enum": [
+                  null,
+                  "PREFIX_REPLAY_MISMATCH",
+                  "SNAPSHOT_RESTORE_FAILED",
+                  "DEPTH_UNAVAILABLE"
+                ]
+              },
+              "human_review": {
+                "enum": [
+                  "not_required",
+                  "pending",
+                  "accepted",
+                  "rejected"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "execution_mode": {
+          "enum": [
+            "dry_run",
+            "synthetic",
+            "vm"
+          ]
+        },
+        "snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "image_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verification_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provenance": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

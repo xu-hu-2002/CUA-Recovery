@@ -1,0 +1,323 @@
+{
+ "schema_version": "task-ir/1.0",
+ "task_id": "mw-004",
+ "source_task_id": null,
+ "world_id": "miniworld",
+ "instruction": "Open Documents/Dundies_2026_Categories.txt, find which award category lists Darryl, and DM Darryl Philbin on HooliWork: \"You're up for <category> at the Dundies.\"",
+ "reference_time": "2026-04-06T09:00:00",
+ "nodes": [
+  {
+   "node_id": "n1",
+   "op": "retrieve",
+   "app": "files",
+   "semantic_goal": "Read the categories file",
+   "route_hint": [
+    "files:Documents/Dundies_2026_Categories.txt"
+   ],
+   "reads": [
+    {
+     "table": "files.documents",
+     "column": "content",
+     "entity_ref": "file:Documents/Dundies_2026_Categories.txt"
+    }
+   ],
+   "produces": [
+    {
+     "name": "category",
+     "type": "Text",
+     "derivation": {
+      "kind": "file",
+      "path": "Documents/Dundies_2026_Categories.txt",
+      "op": "regex",
+      "pattern": "^- ([^(]+?) \\(Darryl\\)"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [],
+   "outputs": [
+    {
+     "port_id": "category",
+     "type": "Text",
+     "grounding": "derived:n1:category",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n1",
+    "kind": "derived",
+    "predicate": "category == expected",
+    "expected": "Best Office DJ",
+    "observability": "derived_from_observable"
+   },
+   "critical": false
+  },
+  {
+   "node_id": "n2",
+   "op": "resolve",
+   "app": "workbuzz",
+   "semantic_goal": "Find the DM with Darryl",
+   "route_hint": [
+    "/dm/:id"
+   ],
+   "reads": [
+    {
+     "table": "workbuzz.dms",
+     "column": "participant_names",
+     "entity_ref": "derived:n2:dm_id"
+    },
+    {
+     "table": "workbuzz.dms",
+     "column": "is_group",
+     "entity_ref": "derived:n2:dm_id"
+    }
+   ],
+   "produces": [
+    {
+     "name": "dm_id",
+     "type": "DmRef",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT id FROM dms WHERE is_group = 0 AND participant_names LIKE '%' || :name || '%' ORDER BY id LIMIT 1",
+      "returns": "scalar"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "name",
+     "type": "Text",
+     "grounding": "literal",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "Darryl Philbin"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "dm_id",
+     "type": "DmRef",
+     "grounding": "derived:n2:dm_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n2",
+    "kind": "derived",
+    "predicate": "dm_id == expected",
+    "expected": 6,
+    "observability": "derived_from_observable"
+   },
+   "critical": false
+  },
+  {
+   "node_id": "n3",
+   "op": "decide",
+   "app": "workbuzz",
+   "semantic_goal": "Compose the message",
+   "route_hint": [],
+   "reads": [],
+   "produces": [
+    {
+     "name": "message",
+     "type": "Text",
+     "derivation": {
+      "kind": "expr",
+      "expr": "fmt(\"You're up for {} at the Dundies.\", strip(category))"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "category",
+     "type": "Text",
+     "grounding": "derived:n1:category",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "message",
+     "type": "Text",
+     "grounding": "derived:n3:message",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n4",
+   "op": "communicate",
+   "app": "workbuzz",
+   "semantic_goal": "Send the DM",
+   "route_hint": [
+    "/dm/:id"
+   ],
+   "reads": [],
+   "produces": [
+    {
+     "name": "message_id",
+     "type": "MessageRef",
+     "derivation": {
+      "kind": "create",
+      "table": "workbuzz.dm_messages"
+     }
+    }
+   ],
+   "writes": [
+    {
+     "table": "workbuzz.dm_messages",
+     "column": "dm_id",
+     "entity_ref": "derived:n4:message_id",
+     "effect_type": "send_message",
+     "value_ref": "dm_id"
+    },
+    {
+     "table": "workbuzz.dm_messages",
+     "column": "sender_email",
+     "entity_ref": "derived:n4:message_id",
+     "effect_type": "send_message",
+     "value_ref": "sender_email"
+    },
+    {
+     "table": "workbuzz.dm_messages",
+     "column": "sender_name",
+     "entity_ref": "derived:n4:message_id",
+     "effect_type": "send_message",
+     "value": "Michael Scott"
+    },
+    {
+     "table": "workbuzz.dm_messages",
+     "column": "content",
+     "entity_ref": "derived:n4:message_id",
+     "effect_type": "send_message",
+     "value_ref": "message"
+    },
+    {
+     "table": "workbuzz.dm_messages",
+     "column": "timestamp",
+     "entity_ref": "derived:n4:message_id",
+     "effect_type": "send_message",
+     "value_ref": "reference_time"
+    }
+   ],
+   "reversibility_class": "R3",
+   "side_effects": [
+    {
+     "effect_id": "fx-n4",
+     "effect_type": "send_message",
+     "target_ref": "derived:n2:dm_id",
+     "reversibility_class": "R3",
+     "commit_scope": "shared_environment",
+     "compensation_available": false,
+     "compensating_effect_type": null,
+     "compensation_verifier_id": null,
+     "checkpoint_required": true,
+     "checkpoint_id": null,
+     "restore_verifier_id": null
+    }
+   ],
+   "inputs": [
+    {
+     "port_id": "dm_id",
+     "type": "DmRef",
+     "grounding": "derived:n2:dm_id",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "message",
+     "type": "Text",
+     "grounding": "derived:n3:message",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "sender_email",
+     "type": "Email",
+     "grounding": "person:michael_scott",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "michael.scott@dundermifflin.com"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "message_id",
+     "type": "MessageRef",
+     "grounding": "derived:n4:message_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n4",
+    "kind": "sql",
+    "predicate": "SELECT content = :message AND dm_id = :dm_id FROM dm_messages WHERE id = :message_id",
+    "observability": "environment_state"
+   },
+   "critical": true
+  }
+ ],
+ "edges": [
+  {
+   "edge_id": "e1",
+   "from": {
+    "node_id": "n1",
+    "port_id": "category"
+   },
+   "to": {
+    "node_id": "n3",
+    "port_id": "category"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e2",
+   "from": {
+    "node_id": "n3",
+    "port_id": "message"
+   },
+   "to": {
+    "node_id": "n4",
+    "port_id": "message"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e3",
+   "from": {
+    "node_id": "n2",
+    "port_id": "dm_id"
+   },
+   "to": {
+    "node_id": "n4",
+    "port_id": "dm_id"
+   },
+   "kind": "data_dependency"
+  }
+ ],
+ "final_verifier": {
+  "verifier_id": "final-mw-004",
+  "kind": "sql",
+  "app": "workbuzz",
+  "predicate": "SELECT count(*) > 0 FROM dm_messages WHERE dm_id = 6 AND sender_email = 'michael.scott@dundermifflin.com' AND content LIKE '%Best Office DJ%'",
+  "observability": "environment_state"
+ },
+ "provenance": {
+  "author": "hand-written miniworld fixture (file fact layer)"
+ }
+}

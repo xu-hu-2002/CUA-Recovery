@@ -1,0 +1,53 @@
+# DERAIL 唯一 judge 与评测口径（论文 02_formulation「Rollouts and Evaluation」、
+# 05_experiments「Agents, metrics, and protocols」、附录 D/F）。
+#
+# 正式路径只有一个 judge 模型，所有入口都从这里读：
+#   clean-start rubric judge  scripts/02_judge_rubrics.sh
+#   takeover rubric judge     scripts/run_judge.sh（artifacts/takeover/run_takeover_judge.sh、scripts/rock/run_takeover.sh 调它）
+#   EAR judge                 scripts/13_takeover_error_awareness.py
+# 解析与校验在 scripts/judge_model_registry.py。环境变量 / CLI 给出不同模型时直接报错；
+# 临时试验必须显式 ALLOW_CONFIG_OVERRIDE=1（会在日志里点名），正式跑数改这里。
+# 判官超参数（max_images、并发、reasoning_effort…）仍在 mypcbench_rubric.yaml
+# （官方端点）与 routify_model_registry.json（网关）里，这里只定"谁来判"和"怎么汇总"。
+
+judge_id: derail_judge_gpt56_terra
+model: gpt-5.6-terra
+
+# 被测对象不能兼任 judge。judge 与被测 agent（agent_id、configs/agents/<id>.yaml 的
+# model、takeover_launch.json 的 target_model）归一化后相同，或落在下面同一组里，即报错。
+same_source_groups:
+  - [gpt-5.6-terra, gpt-5.6-sol, gpt-5.6-luna]
+
+# Error-Awareness judge（附录 D:183-200）。
+ear:
+  # 读接管后的前 N 段推理；null = 全部（附录 D prompt 的写法）。G:23 写的是 first three，设 3 即复现那一口径。
+  max_segments: null
+  # 缺制品（没跑、runner 报错、没有推理记录）的 episode：
+  #   exclude          从分母中排除，CSV 的 n_missing 列单独报数（默认）
+  #   count_as_unaware 留在分母里按"未察觉"计
+  missing_policy: exclude
+  # 接管每个 state 跑 aggregation.repeats 次（repeat_<k>/）时 EAR 的计数单位（论文未写）：
+  #   episode  每个 repeat 的每条 episode 各算一次（默认）
+  #   state    每个 state 算一次，任一 repeat 判 aware 即 aware
+  repeat_unit: episode
+
+# Pass@k 与 Rubric Score 汇总（02:12）。
+aggregation:
+  # 每个任务 / state 跑几次；任一次 V=1 即 solved。
+  repeats: 3
+  # 没有有效判分的任务 / state（n/a、infra 失败、缺 run）是否按失败留在分母里。
+  missing_counts_as_failure: true
+
+# bundle 里最终状态 s_T 摘要（scripts/14_takeover_bundle_prefix.py 写入）：取任务目录里
+# 采集侧状态探针文件（environment_config 的 state_probe_file）最后一行的 probe_output，
+# 截到 max_chars 个字符。
+final_state:
+  max_chars: 8000
+  environment_config: configs/environments/mypcbench_1280x800.yaml
+
+temperature: 0.0
+api_invocation_policy:
+  requires_explicit_user_approval_per_run: true
+  approval_env: DERAIL_OPENAI_API_APPROVED
+  purpose_env: DERAIL_OPENAI_API_PURPOSE
+  credentials_alone_are_not_consent: true

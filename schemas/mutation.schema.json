@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/mutation.schema.json",
+  "title": "DERAIL mutation record (mutation/1.0)",
+  "$comment": "Execution doc v1.2 sections 6.1-6.3 / 13: (node, mutation_type, mutated_value_ref), static and dynamic latent horizon (semantic steps), observability class, the node and pages where the contamination becomes visible, silent / verifier_only flags. Static mode leaves latent_horizon_dynamic null.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "node_id",
+    "mutation_type",
+    "mutated_value_ref",
+    "latent_horizon_static",
+    "latent_horizon_dynamic",
+    "observability_class",
+    "static_class",
+    "cross_app",
+    "visible_node_id",
+    "visible_pages",
+    "contradiction_visible",
+    "silent",
+    "verifier_rejects",
+    "mode"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mutation/1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mutation_type": {
+      "enum": [
+        "entity_other",
+        "entity_same_name",
+        "date_plus_minus_day",
+        "date_plus_minus_week",
+        "time_zone_shift_hour",
+        "date_other_field",
+        "amount_pct",
+        "amount_unit",
+        "amount_neighbor_transaction",
+        "amount_omit_fee",
+        "list_omit_element",
+        "list_extra_element",
+        "list_reorder",
+        "boolean_flip",
+        "text_stale_version",
+        "text_similar_entity",
+        "write_other_entity",
+        "write_mutated_value",
+        "write_omit",
+        "write_duplicate"
+      ]
+    },
+    "mutated_value_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "original_value_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "latent_horizon_static": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "latent_horizon_dynamic": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "observability_class": {
+      "enum": [
+        "required_next",
+        "required_later",
+        "incidental_only",
+        "verifier_only",
+        "silent"
+      ]
+    },
+    "static_class": {
+      "enum": [
+        "immediate",
+        "same_app_later",
+        "cross_app",
+        "verifier_only"
+      ]
+    },
+    "cross_app": {
+      "type": "boolean"
+    },
+    "visible_node_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visible_pages": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "contradiction_visible": {
+      "type": "boolean"
+    },
+    "silent": {
+      "type": "boolean"
+    },
+    "verifier_rejects": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/prefix_audit.schema.json",
+  "title": "DERAIL Error-Free Prefix Human Audit v0.2",
+  "type": "object",
+  "properties": {
+    "audit_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "minLength": 1},
+    "source_trajectory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "root_cause_action_index": {"type": "integer", "minimum": 0},
+    "audit_end_action_index": {"type": "integer", "minimum": 0},
+    "audited_prefix_action_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}, "uniqueItems": true},
+    "unrelated_error_action_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}, "uniqueItems": true},
+    "repair_patch_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "reviewer_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+    "rationale": {"type": "string", "minLength": 1},
+    "approved": {"const": true},
+    "schema_version": {"const": "0.2.0"}
+  },
+  "required": [
+    "audit_id", "case_id", "source_trajectory_sha256", "root_cause_action_index",
+    "audit_end_action_index",
+    "audited_prefix_action_indices", "unrelated_error_action_indices", "repair_patch_ids",
+    "reviewer_ids", "evidence_refs", "rationale", "approved", "schema_version"
+  ],
+  "additionalProperties": false
+}

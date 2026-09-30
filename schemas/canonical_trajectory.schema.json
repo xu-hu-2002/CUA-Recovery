@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/canonical_trajectory.schema.json",
+  "title": "DERAIL Canonical Executed Action Record v0.2",
+  "$comment": "JSONL 每行是一个 executed action。科学定义只引用 action_index_global；turn_index 可重复。",
+  "type": "object",
+  "properties": {
+    "step_id": {"type": "integer", "minimum": 0, "deprecated": true},
+    "action_index_global": {"type": "integer", "minimum": 0},
+    "turn_index": {"type": "integer", "minimum": 0},
+    "action_index_within_turn": {"type": "integer", "minimum": 0},
+    "observation_before_sha256": {"type": "string"},
+    "observation_before_uri": {"type": "string"},
+    "action": {"$ref": "canonical_action.schema.json"},
+    "action_summary": {"type": "string", "minLength": 1},
+    "observation_after_sha256": {"type": "string"},
+    "observation_after_uri": {"type": "string"},
+    "tool_result": {"type": "string"},
+    "source_agent": {"type": "string"},
+    "source_step_id": {"type": ["integer", "null"], "minimum": 0},
+    "source_action_timestamp": {"type": "string"},
+    "source_record_uri": {"type": "string"},
+    "repaired": {"type": "boolean"},
+    "repair_patch_id": {"type": "string"}
+  },
+  "required": [
+    "action_index_global",
+    "turn_index",
+    "action_index_within_turn",
+    "observation_before_sha256",
+    "observation_before_uri",
+    "action",
+    "action_summary",
+    "observation_after_sha256",
+    "observation_after_uri",
+    "repaired"
+  ],
+  "additionalProperties": false
+}

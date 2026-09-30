@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/training_sample.schema.json",
+  "title": "DERAIL training sample (training-sample/1.0)",
+  "$comment": "Execution doc v1.2 section 10A: one step-level SFT sample. input = instruction + history + current observation; target = ledger + check marker + thought + action. loss_weights follow 10A.3 (input 0, action 1, thought and ledger 0.5 as the starting point, check marker class-balanced). Detection samples must carry the three program-verified evidence references.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "sample_id",
+    "sample_kind",
+    "source",
+    "rollout_id",
+    "task_id",
+    "agent",
+    "truncation_action_index",
+    "input",
+    "target",
+    "loss_weights",
+    "hint_level",
+    "teacher",
+    "modality",
+    "split",
+    "cluster_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "training-sample/1.0"
+    },
+    "sample_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sample_kind": {
+      "enum": [
+        "base",
+        "detection",
+        "recovery",
+        "verification",
+        "negative"
+      ]
+    },
+    "source": {
+      "enum": [
+        "real_rollout",
+        "synthetic_fault"
+      ]
+    },
+    "rollout_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "truncation_action_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "instruction",
+        "history",
+        "observation_ref"
+      ],
+      "properties": {
+        "instruction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "action_index",
+              "action",
+              "observation_ref"
+            ],
+            "properties": {
+              "action_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "thought": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "action": {},
+              "observation_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "observation_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "ledger",
+        "check",
+        "thought",
+        "action"
+      ],
+      "properties": {
+        "ledger": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "value",
+              "source_action_index",
+              "source_ref"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "value": {},
+              "source_action_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "source_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "check": {
+          "enum": [
+            "consistent",
+            "inconsistent"
+          ]
+        },
+        "thought": {
+          "type": "string"
+        },
+        "action": {}
+      },
+      "additionalProperties": false
+    },
+    "evidence_refs": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "contradiction_fact": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "carried_value_ref": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "affected_write_ref": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "verified": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "loss_weights": {
+      "type": "object",
+      "required": [
+        "input",
+        "action",
+        "thought",
+        "ledger",
+        "check"
+      ],
+      "properties": {
+        "input": {
+          "type": "number",
+          "minimum": 0
+        },
+        "action": {
+          "type": "number",
+          "minimum": 0
+        },
+        "thought": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ledger": {
+          "type": "number",
+          "minimum": 0
+        },
+        "check": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "hint_level": {
+      "enum": [
+        "none",
+        "l1_step",
+        "l2_evidence",
+        "l3_state_diff"
+      ]
+    },
+    "teacher": {
+      "enum": [
+        "self",
+        "external",
+        "none"
+      ]
+    },
+    "modality": {
+      "enum": [
+        "gui",
+        "cli",
+        "mixed"
+      ]
+    },
+    "split": {
+      "enum": [
+        "train",
+        "test"
+      ]
+    },
+    "cluster_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

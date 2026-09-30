@@ -1,0 +1,2705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DERAIL failure annotation</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --line: #d8dce3;
+    --text: #1b1f24;
+    --muted: #667085;
+    --accent: #2f6feb;
+    --root: #d1382c;
+    --ident: #b8860b;
+    --evid: #1f8a55;
+    --bad: #b42318;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 13px/1.5 ui-sans-serif, system-ui, "Helvetica Neue", "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+    color: var(--text); background: var(--bg);
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header .grow { flex: 1; }
+  .filter-field { display: flex; align-items: center; gap: 5px; }
+  .filter-field > span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .filter-field select { width: auto; min-width: 150px; }
+  .filter-field.task select { min-width: 250px; max-width: 430px; }
+  .filter-field.annotator select { min-width: 210px; max-width: 330px; }
+  .tag {
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 4px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted);
+    white-space: nowrap;
+  }
+  main {
+    --left-pane-width: 340px;
+    --right-pane-width: 400px;
+    flex: 1; display: grid;
+    grid-template-columns: var(--left-pane-width) 6px minmax(320px, 1fr) 6px var(--right-pane-width);
+    min-height: 0; overflow: hidden;
+  }
+  main > section { min-height: 0; overflow: auto; background: var(--panel); }
+  .pane-resizer {
+    position: relative; background: #eef0f3; touch-action: none; z-index: 2;
+  }
+  .pane-resizer::after {
+    content: ""; position: absolute; background: #aeb5c0; opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .pane-resizer:hover::after,
+  .pane-resizer:focus-visible::after,
+  .pane-resizer.dragging::after { opacity: 1; }
+  .pane-resizer.vertical { cursor: col-resize; }
+  .pane-resizer.vertical::after { inset: 0 2px; width: 2px; }
+  .pane-resizer.horizontal { flex: 0 0 6px; cursor: row-resize; }
+  .pane-resizer.horizontal::after { inset: 2px 0; height: 2px; }
+  body.resizing { user-select: none; }
+  body.resizing iframe, body.resizing img { pointer-events: none; }
+
+  /* ---- step list ---- */
+  .trajectory-pane { display: flex; flex-direction: column; overflow: hidden; }
+  .steps { padding: 0; overflow: auto; min-height: 0; }
+  .clean-toolbar {
+    display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 8px;
+    border-bottom: 1px solid var(--line); background: #f8fafc;
+  }
+  .clean-toolbar .selection-count { flex: 1; color: var(--muted); font-size: 11px; }
+  .clean-toolbar button { min-width: 28px; }
+  .step {
+    display: grid; grid-template-columns: 20px 36px 56px 1fr; gap: 8px; align-items: center;
+    padding: 6px 8px; border-bottom: 1px solid #eef0f3; cursor: pointer;
+  }
+  .step:hover { background: #f0f4ff; }
+  .step.sel { background: #e3ecff; box-shadow: inset 3px 0 0 var(--accent); }
+  .step .idx {
+    font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--muted); text-align: right;
+  }
+  .step .thumb {
+    width: 56px; height: 34px; object-fit: cover; object-position: top left;
+    border: 1px solid var(--line); border-radius: 2px; background: #eee;
+  }
+  .step .sum {
+    font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .step.removed { opacity: .52; background: #f3f4f6; }
+  .step.removed .sum { text-decoration: line-through; }
+  .step .range-check { width: 15px; height: 15px; margin: 0; cursor: pointer; }
+  .step .range-check:disabled { cursor: not-allowed; }
+  .step .range-restore { width: 20px; padding: 0; border: 0; background: transparent; }
+  .step .range-placeholder { width: 15px; height: 15px; }
+  .step .marks { grid-column: 4; font-size: 10px; letter-spacing: .5px; }
+  .m { display: inline-block; padding: 0 4px; border-radius: 3px; color: #fff; margin-right: 4px; }
+  .m.root  { background: var(--root); }
+  .m.ident { background: var(--ident); }
+  .m.drop  { background: #555b66; }
+
+  /* ---- viewer ---- */
+  .viewer {
+    --task-brief-height: 220px;
+    --meta-height: 84px;
+    display: flex; flex-direction: column; height: 100%; min-height: 0;
+  }
+  .task-brief {
+    flex: 0 0 var(--task-brief-height); min-height: 96px; overflow: auto;
+    padding: 8px 10px; border-bottom: 1px solid var(--line); background: #f8fafc;
+  }
+  .task-brief .brief-head {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;
+  }
+  .task-brief .brief-head strong { font-size: 12px; }
+  .task-brief .brief-meta { color: var(--muted); font-size: 11px; }
+  .task-score {
+    margin-left: auto; padding: 2px 6px; border: 1px solid var(--line);
+    border-radius: 4px; background: #fff; font: 11px/1.2 ui-monospace, Menlo, monospace;
+  }
+  .task-score.pass { color: var(--evid); border-color: var(--evid); }
+  .task-score.fail { color: var(--bad); border-color: var(--bad); }
+  .perfect-success-tag {
+    padding: 3px 7px; border: 1px solid var(--evid); border-radius: 4px;
+    background: #eaf7f0; color: #0d5c39; font-weight: 700;
+  }
+  .perfect-success-panel {
+    margin: 8px 0; padding: 12px; border-left: 3px solid var(--evid);
+    background: #eaf7f0; color: #0d5c39;
+  }
+  .perfect-success-panel strong { display: block; margin-bottom: 3px; font-size: 15px; }
+  .wrong-rollout-tag {
+    padding: 3px 7px; border: 1px solid #b42318; border-radius: 4px;
+    background: #fff1f0; color: #8a1c13; font-weight: 700;
+  }
+  .wrong-rollout-panel {
+    margin: 8px 0; padding: 12px; border-left: 3px solid #b42318;
+    background: #fff1f0; color: #8a1c13;
+  }
+  .wrong-rollout-panel strong { display: block; margin-bottom: 3px; font-size: 15px; }
+  #wrongRollout.active {
+    border-color: #b42318; background: #fff1f0; color: #8a1c13; font-weight: 700;
+  }
+  .task-brief .instruction { font-size: 12px; line-height: 1.45; }
+  .task-brief details { margin-top: 5px; }
+  .task-brief summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+  .rubrics { margin: 5px 0 0; padding: 0; list-style: none; }
+  .rubric {
+    display: grid; grid-template-columns: 30px 1fr 42px 46px; gap: 7px; align-items: center;
+    padding: 3px 0; border-top: 1px solid #e7eaf0; font-size: 11px;
+  }
+  .rubric code { color: var(--accent); }
+  .rubric .weight { color: var(--muted); text-align: right; }
+  .rubric-score-input {
+    width: 42px !important; padding: 2px 4px !important; text-align: center;
+    font: 11px/1 ui-monospace, Menlo, monospace !important;
+  }
+  .rubric-total {
+    display: flex; justify-content: flex-end; gap: 16px;
+    padding-top: 5px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px;
+  }
+  .rubric-total strong { color: var(--text); font-family: ui-monospace, Menlo, monospace; }
+  .viewer .bar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 6px 10px; border-bottom: 1px solid var(--line);
+  }
+  .viewer .shot {
+    flex: 1 1 auto; min-height: 120px; overflow: auto;
+    background: #2b2f36; display: grid; place-items: center;
+  }
+  .viewer .shot img { max-width: 100%; display: block; }
+  .viewer .shot .none { color: #aab; font-size: 12px; padding: 40px; text-align: center; }
+  .viewer .meta {
+    flex: 0 0 var(--meta-height); min-height: 36px;
+    padding: 6px 10px; color: var(--muted);
+    font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-word; overflow: auto;
+  }
+
+  /* ---- form ---- */
+  .form { padding: 10px 12px 40px; }
+  .form h3 {
+    margin: 16px 0 6px; font-size: 12px; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--muted);
+  }
+  .form h3:first-child { margin-top: 0; }
+  .pick {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: 5px; margin-bottom: 6px; background: #fbfcfe;
+  }
+  .pick b { font: 12px/1 ui-monospace, Menlo, monospace; }
+  .pick .val { flex: 1; font: 12px/1 ui-monospace, Menlo, monospace; }
+  .pick .val.empty { color: var(--bad); }
+  .decision-help {
+    margin: -2px 0 7px; padding-left: 8px; border-left: 2px solid var(--line);
+    color: var(--muted); font-size: 11px; line-height: 1.4;
+  }
+  .horizon-result {
+    margin: 7px 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px;
+    background: #f8fafc; font-size: 11px;
+  }
+  .horizon-result strong { font-family: ui-monospace, Menlo, monospace; }
+  .horizon-result .invalid { color: var(--bad); }
+  button {
+    font: inherit; padding: 4px 9px; border: 1px solid var(--line); background: #fff;
+    border-radius: 4px; cursor: pointer; color: var(--text);
+  }
+  button:hover { background: #f0f4ff; border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:disabled { background: #b9c4d8; border-color: #b9c4d8; cursor: not-allowed; }
+  button.tiny { padding: 1px 6px; font-size: 11px; }
+  .grp { margin-bottom: 8px; }
+  .grp > .gname { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  label.chk { display: block; padding: 1px 0; cursor: pointer; }
+  label.chk input { margin-right: 6px; }
+  label.chk code { font-size: 11px; }
+  label.chk .label-zh { margin-left: 7px; color: var(--muted); font-size: 11px; }
+  .label-row { margin-bottom: 3px; }
+  .label-row-head { display: flex; align-items: flex-start; gap: 6px; }
+  .label-row-head > label.chk { flex: 1; min-width: 0; margin-bottom: 2px; }
+  .new-label-marker { margin-right: 5px; color: var(--accent); font-size: 10px; }
+  .open-label-controls { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; }
+  .open-label-controls select { width: 104px; padding: 1px 3px; font-size: 10px; }
+  .open-label-controls button { height: 23px; padding: 0 5px; font-size: 10px; }
+  .open-label-controls button.open-label-delete { width: 23px; padding: 0; font-size: 15px; }
+  .type-step-editor {
+    display: grid; grid-template-columns: 1fr auto; gap: 5px; margin: 0 0 7px 22px;
+  }
+  .type-step-editor[hidden] { display: none; }
+  .type-step-editor input { min-width: 0; padding: 3px 6px; font-size: 11px; }
+  .type-step-editor button { white-space: nowrap; }
+  .type-evidence-input {
+    grid-column: 1 / -1; min-height: 54px !important; padding: 5px 6px !important;
+    font-size: 11px !important;
+  }
+  .chips { display: grid; gap: 4px; margin-top: 4px; }
+  .extra-label-row {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: start;
+    padding-bottom: 7px; border-bottom: 1px solid #eef0f3;
+  }
+  .extra-label-row .type-evidence-input { grid-column: 2 / -1; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px 2px 7px;
+    border: 1px solid var(--evid); border-radius: 10px; font-size: 11px; color: #0d5c39;
+    background: #eaf7f0;
+  }
+  .chip button { border: 0; background: transparent; padding: 0 2px; color: #0d5c39; }
+  input[type=text], textarea, select, input[type=number] {
+    width: 100%; font: inherit; padding: 5px 7px;
+    border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--text);
+  }
+  textarea { min-height: 96px; resize: vertical; }
+  .row { display: flex; gap: 6px; }
+  .row input { flex: 1; min-width: 0; }
+  .row button { flex: 0 0 auto; white-space: nowrap; }
+  .new-label-row { display: grid; grid-template-columns: minmax(110px, 150px) minmax(0, 1fr) auto; }
+  .new-label-row select, .new-label-row input { min-width: 0; }
+  .new-label-row .new-label-description { grid-column: 1 / -1; }
+  .clean-current { margin: 6px 0; }
+  .clean-list { margin: 6px 0; padding: 0; list-style: none; }
+  .clean-list li {
+    display: grid; grid-template-columns: 56px 1fr auto; gap: 6px; align-items: center;
+    padding: 4px 0; border-top: 1px solid #eef0f3; font-size: 11px;
+  }
+  .clean-list code { color: #555b66; }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .errors { margin: 10px 0; padding: 0 0 0 18px; color: var(--bad); font-size: 12px; }
+  .errors:empty { display: none; }
+  .ok { color: #0d5c39; font-size: 12px; margin: 10px 0; }
+  .gate {
+    position: fixed; inset: 0; background: #f6f7f9; display: grid; place-items: center;
+    padding: 40px; text-align: center; z-index: 10;
+  }
+  .gate[hidden] { display: none; }
+  .gate code { background: #fff; padding: 2px 6px; border: 1px solid var(--line); border-radius: 3px; }
+  .login {
+    width: min(360px, 100%); text-align: left;
+  }
+  .login h2 { margin: 0 0 8px; font-size: 18px; }
+  .login p { margin: 0 0 14px; color: var(--muted); }
+  .login form { display: flex; gap: 8px; }
+  .login input { min-width: 0; }
+  .login .error { min-height: 20px; margin: 6px 0 0; color: var(--bad); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate" hidden></div>
+
+<header>
+  <strong>DERAIL failure annotation</strong>
+  <label class="filter-field"><span>Agent</span><select id="agentSel"></select></label>
+  <label class="filter-field"><span>Category</span><select id="categorySel"></select></label>
+  <label class="filter-field task"><span>Task</span><select id="taskSel"></select></label>
+  <label class="filter-field annotator"><span>Annotator</span>
+    <select id="annotatorProgress" title="Submitted progress by annotator and agent"></select>
+  </label>
+  <button class="tiny" id="changeAnnotator" title="Sign in with a different annotator ID">Change ID</button>
+  <span class="tag" id="tagTaxonomy">taxonomy —</span>
+  <span class="tag" id="tagCount">— actions</span>
+  <span class="grow"></span>
+  <span class="tag" id="tagSaved">Unsaved</span>
+  <button class="tiny" id="saveNow" title="Write this draft to a recoverable server-side JSON file">Save Now / 保存</button>
+  <button class="tiny" id="previousTask" title="Save this draft, then open the previous task in this agent and category">Back / 上一条</button>
+  <button class="tiny" id="nextTask" title="Save this draft, then open the next unsubmitted task">Next / 下一条</button>
+  <button class="tiny" id="exportResults" title="Download compact analysis-ready results as JSONL">Export JSONL / 导出</button>
+</header>
+
+<main id="layout">
+  <section class="trajectory-pane" id="leftPane">
+    <div class="clean-toolbar" id="cleanToolbar">
+      <span class="selection-count" id="rangeSelectionCount">Select a recovered detour</span>
+      <button class="tiny" id="removeRange" title="Remove the selected contiguous steps" aria-label="Remove selected steps">Delete</button>
+      <button class="tiny" id="toggleRemoved" title="Show or hide removed steps">Show removed</button>
+    </div>
+    <div class="steps" id="steps"></div>
+  </section>
+
+  <div class="pane-resizer vertical" id="leftPaneResizer" role="separator"
+       aria-orientation="vertical" tabindex="0" title="Drag to resize the action list; double-click to reset"></div>
+
+  <section id="centerPane">
+    <div class="viewer" id="viewerPane">
+      <div class="task-brief" id="taskBriefPane">
+        <div class="brief-head">
+          <strong>Task Description</strong>
+          <span class="brief-meta" id="taskBriefMeta"></span>
+          <span class="task-score" id="taskScore">Task Score: —</span>
+        </div>
+        <div class="instruction" id="taskInstruction"></div>
+        <details open>
+          <summary id="rubricSummary">Rubrics</summary>
+          <ol class="rubrics" id="rubrics"></ol>
+          <div class="rubric-total">
+            <span id="rubricProgress">Incomplete</span>
+            <span>Weighted Rubric Score: <strong id="rubricScore">—</strong></span>
+          </div>
+        </details>
+      </div>
+      <div class="pane-resizer horizontal" id="taskBriefResizer" role="separator"
+           aria-orientation="horizontal" tabindex="0" title="Drag to resize the task and rubric area; double-click to reset"></div>
+      <div class="bar">
+        <button id="btnBefore" class="tiny">before</button>
+        <button id="btnAfter" class="tiny">after</button>
+        <span class="grow" style="flex:1"></span>
+        <span class="perfect-success-tag" id="perfectSuccessTag" hidden>Perfect Success</span>
+        <span class="wrong-rollout-tag" id="wrongRolloutTag" hidden>Needs Rerun</span>
+        <button class="tiny" id="clearTask"
+                title="Clear only your draft or submission for this task; other annotators and tasks are unaffected">Clear / 清除</button>
+        <button class="tiny" id="wrongRollout" aria-pressed="false"
+                title="Mark this trajectory as the wrong rollout; no scoring or failure annotation will be submitted">Set Wrong Rollout</button>
+        <button class="tiny" data-act="root">Set Root Cause (R)</button>
+        <button class="tiny" data-act="ident">Set Clear Failure (I)</button>
+      </div>
+      <div class="shot" id="shot"></div>
+      <div class="pane-resizer horizontal" id="metaResizer" role="separator"
+           aria-orientation="horizontal" tabindex="0" title="Drag to resize action metadata; double-click to reset"></div>
+      <div class="meta" id="meta"></div>
+    </div>
+  </section>
+
+  <div class="pane-resizer vertical" id="rightPaneResizer" role="separator"
+       aria-orientation="vertical" tabindex="0" title="Drag to resize the annotation panel; double-click to reset"></div>
+
+  <section id="rightPane">
+    <div class="form">
+      <div class="hint" style="margin:0 0 8px">
+        Complete this panel once per trajectory, not once per screenshot.
+      </div>
+      <div class="perfect-success-panel" id="perfectSuccessPanel" hidden>
+        <strong>Perfect Success</strong>
+        Task Score = 1. No failure annotation or Clean Prefix Review is required.
+      </div>
+      <div class="wrong-rollout-panel" id="wrongRolloutPanel" hidden>
+        <strong>Wrong Rollout · Needs Rerun</strong>
+        This trajectory is invalid and must be rerun. Rubric scoring and failure annotation are skipped.
+      </div>
+      <div id="failureFields">
+      <h3>1 · Locate the Failure</h3>
+      <div class="decision-help">
+        Select an action on the left, then use the buttons above. Root Cause and Clear Failure are
+        separate judgments and may refer to the same action.
+      </div>
+      <div class="pick">
+        <b style="color:var(--root)">Root cause</b>
+        <span class="val empty" id="valRoot">Not selected</span>
+        <button class="tiny" id="clrRoot">Clear</button>
+      </div>
+      <div class="decision-help">
+        <b>Root Cause:</b> an action that sent the trajectory off course and was not later corrected
+        by the agent. Do not count a recoverable mistake the agent successfully fixes; prefer the
+        most fundamental cause over a later symptom.
+      </div>
+      <div class="pick">
+        <b style="color:var(--ident)">Clear failure</b>
+        <span class="val empty" id="valIdent">Not selected</span>
+        <button class="tiny" id="clrIdent">Clear</button>
+      </div>
+      <div class="decision-help">
+        <b>Clear Failure (Identifiable):</b> the step where the screenshot or trace provides enough
+        evidence to determine that the overall task has failed.
+      </div>
+      <label class="chk"><input type="checkbox" id="noHorizon">The overall task failure never becomes clear by the end of the trajectory</label>
+      <div class="horizon-result">
+        Detection Delay / Error Horizon: <strong id="horizonValue">—</strong>
+        <div class="hint">Calculated automatically in executed actions, not screenshots.</div>
+        <div style="margin-top:4px">
+          Takeover Depth Checkpoints: <strong id="depthValue">—</strong>
+        </div>
+        <div class="hint">Each checkpoint is Root Cause + configured depth.</div>
+      </div>
+
+      <h3>2 · Error Types / 错误类型（多选，开放编码 / multi-select, open coding）</h3>
+      <div id="labelGroups"></div>
+      <div class="row new-label-row">
+        <select id="newLabelCategory" aria-label="New label category">
+          <option value="">Category / 分类</option>
+          <option value="planning">规划 · planning</option>
+          <option value="perception">感知 · perception</option>
+          <option value="execution">执行 · execution</option>
+          <option value="termination">终止 · termination</option>
+          <option value="others">其他 · others</option>
+        </select>
+        <input type="text" id="newLabel" list="knownExtra" placeholder="New label / 新标签（空格会自动转为下划线）">
+        <button class="tiny" id="addLabel">Add / 加入</button>
+        <input type="text" id="newLabelDescription" class="new-label-description"
+          placeholder="中文解释（必填）：说明这个错误具体指什么、与相近标签有什么区别">
+      </div>
+      <datalist id="knownExtra"></datalist>
+      <div class="hint" id="extraHint"></div>
+      <div class="chips" id="extraChips"></div>
+      <div class="hint">每个已选错误类型都要填写 Action steps 和 Evidence。Evidence 应说明对应画面或动作具体证明了什么。</div>
+
+      <h3>3 · reversibility</h3>
+      <select id="rev">
+        <option value="">— Select —</option>
+        <option value="reversible">reversible (the consequence of the root-cause action can be undone)</option>
+        <option value="irreversible">irreversible (the consequence cannot be undone)</option>
+      </select>
+      <div class="hint">Judge the consequence of the <b>root-cause action</b>, not the whole trajectory.</div>
+
+      <h3>4 · rationale</h3>
+      <textarea id="rationale" placeholder="Root-cause rationale / 根因说明：请说明为什么选择这个 Step 作为 root cause，并写明该 root cause 的核心 error type 及对应 evidence。"></textarea>
+
+      <h3>5 · Clean Prefix Review</h3>
+      <div class="decision-help">
+        In the left sidebar, select the contiguous detour from step x through the step immediately
+        before recovery, then click Delete. The next retained row becomes the recovery step x+n.
+        Original step IDs never change. Do not delete persistent or causally relevant actions.
+      </div>
+      <ul class="clean-list" id="dropList"></ul>
+      <label class="chk"><input type="checkbox" id="cleanReviewed"> <span id="cleanBoundary">Select a root cause to calculate the review boundary.</span></label>
+      </div>
+
+      <ul class="errors" id="errors"></ul>
+      <div class="ok" id="okmsg" hidden></div>
+      <button class="primary" id="submit" style="width:100%;margin-top:8px">Validate and Submit</button>
+      <div class="hint">
+        Shortcuts: <code>J/K</code> or <code>↑/↓</code> change action · <code>R</code> root ·
+        <code>I</code> clear failure · <code>B</code> before/after.
+        Changes auto-save in this browser. <b>Save Now</b> also writes a recoverable JSON draft
+        to the annotation server; <b>Export JSONL</b> downloads all of your submitted results.
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const qs = new URLSearchParams(location.search);
+const ANNOTATOR_KEY = "derail.annot.annotator";
+const VIEW_LOCATION_PREFIX = "derail.annot.location.";
+const SAFE_ANNOTATOR = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+let ANNOTATOR = (qs.get("annotator") || localStorage.getItem(ANNOTATOR_KEY) || "").trim();
+if (qs.get("annotator") && SAFE_ANNOTATOR.test(ANNOTATOR)) {
+  localStorage.setItem(ANNOTATOR_KEY, ANNOTATOR);
+}
+// The token arrives once in the link and is then kept locally, so a reload without it still works
+// and the credential stops travelling through the address bar on every navigation.
+const TOKEN = (qs.get("token") || localStorage.getItem("derail.annot.token") || "").trim();
+if (qs.get("token")) localStorage.setItem("derail.annot.token", TOKEN);
+
+// Screenshots load through <img>, which cannot carry a header, so they authenticate by query.
+const withToken = (url) => (TOKEN ? url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN) : url);
+
+async function api(path, options) {
+  const opts = { ...(options || {}) };
+  if (TOKEN) opts.headers = { ...(opts.headers || {}), Authorization: "Bearer " + TOKEN };
+  const response = await fetch(path, opts);
+  if (response.status === 401) {
+    localStorage.removeItem("derail.annot.token");
+    gate("<div><h2>访问口令缺失或不正确</h2><p>请使用管理员发给你的完整链接打开" +
+         "（形如 <code>…/?token=…</code>）。</p></div>");
+    throw new Error("unauthorized");
+  }
+  return response;
+}
+
+const ERROR_TYPE_ZH = {
+  detail_misperception: "漏看或误读了影响结果的局部信息、数值、文本或具体要求",
+  fabricate_data: "编造了未从界面、文件、工具结果或其他可靠证据中获得的数据",
+  fail_to_terminate: "任务已明确成功或无法继续时仍未结束，并继续执行无效或重复操作",
+  grounding_failure: "知道要操作什么，但未能准确定位目标，导致点击、拖拽或操作落点失败",
+  incorrect_ui_element: "选择了与目标功能不同的按钮、字段、菜单或其他界面元素",
+  ineffective_action: "操作已执行但没有推进任务，也没有产生预期的界面或系统状态变化",
+  lack_of_knowledge: "缺少完成任务所必需的领域知识、规则知识或操作方法",
+  misunderstand_task_objective: "错误理解了任务的最终目标、交付物、对象范围或关键约束",
+  premature_completion: "尚未满足全部任务要求，就报告成功、提交结果或结束任务",
+  progress_misperception: "错误判断已完成的工作、剩余步骤或当前任务进度",
+  state_misinterpretation: "错误判断当前页面、应用、数据、登录/加载状态或工具能力，例如把已生效当作未生效、把可用工具当作不可用，并据此采取错误行动",
+  typing_or_parameter_error: "输入的文本、数值、日期、路径、坐标或工具参数不正确",
+};
+const GROUP_ZH = {
+  planning: "规划",
+  perception: "感知",
+  execution: "执行",
+  termination: "终止",
+  others: "其他",
+  seed_labels: "候选标签",
+};
+const OPEN_LABEL_CATEGORIES = ["planning", "perception", "execution", "termination", "others"];
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, props, kids) => {
+  const n = Object.assign(document.createElement(tag), props || {});
+  for (const k of kids || []) n.append(k);
+  return n;
+};
+
+function setupResizableLayout() {
+  const layout = $("layout");
+  const viewer = $("viewerPane");
+  const leftPane = $("leftPane");
+  const rightPane = $("rightPane");
+  const taskBrief = $("taskBriefPane");
+  const meta = $("meta");
+  const viewerBar = viewer.querySelector(".bar");
+  const defaults = { left: 340, right: 400, brief: 220, meta: 84 };
+  const keys = {
+    left: "derail.layout.leftWidth",
+    right: "derail.layout.rightWidth",
+    brief: "derail.layout.taskBriefHeight",
+    meta: "derail.layout.metaHeight",
+  };
+  const stored = (name) => {
+    const value = Number(localStorage.getItem(keys[name]));
+    return Number.isFinite(value) && value > 0 ? value : defaults[name];
+  };
+  const clamp = (value, [minimum, maximum]) =>
+    Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
+  const sideGap = 332;
+  const leftBounds = () => [220, layout.clientWidth - rightPane.offsetWidth - sideGap];
+  const rightBounds = () => [280, layout.clientWidth - leftPane.offsetWidth - sideGap];
+  const briefBounds = () => [96,
+    viewer.clientHeight - meta.offsetHeight - viewerBar.offsetHeight - 132];
+  const metaBounds = () => [36,
+    viewer.clientHeight - taskBrief.offsetHeight - viewerBar.offsetHeight - 132];
+
+  const applyLeft = (value, persist) => {
+    const next = Math.round(clamp(value, leftBounds()));
+    layout.style.setProperty("--left-pane-width", `${next}px`);
+    $("leftPaneResizer").setAttribute("aria-valuenow", String(next));
+    if (persist) localStorage.setItem(keys.left, String(next));
+  };
+  const applyRight = (value, persist) => {
+    const next = Math.round(clamp(value, rightBounds()));
+    layout.style.setProperty("--right-pane-width", `${next}px`);
+    $("rightPaneResizer").setAttribute("aria-valuenow", String(next));
+    if (persist) localStorage.setItem(keys.right, String(next));
+  };
+  const applyBrief = (value, persist) => {
+    const next = Math.round(clamp(value, briefBounds()));
+    viewer.style.setProperty("--task-brief-height", `${next}px`);
+    $("taskBriefResizer").setAttribute("aria-valuenow", String(next));
+    if (persist) localStorage.setItem(keys.brief, String(next));
+  };
+  const applyMeta = (value, persist) => {
+    const next = Math.round(clamp(value, metaBounds()));
+    viewer.style.setProperty("--meta-height", `${next}px`);
+    $("metaResizer").setAttribute("aria-valuenow", String(next));
+    if (persist) localStorage.setItem(keys.meta, String(next));
+  };
+
+  function bind(handleId, axis, sign, readValue, applyValue, bounds, defaultValue) {
+    const handle = $(handleId);
+    const coordinate = (event) => axis === "x" ? event.clientX : event.clientY;
+    const cursor = axis === "x" ? "col-resize" : "row-resize";
+    const updateAriaBounds = () => {
+      const [minimum, maximum] = bounds();
+      handle.setAttribute("aria-valuemin", String(Math.round(minimum)));
+      handle.setAttribute("aria-valuemax", String(Math.round(Math.max(minimum, maximum))));
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const startCoordinate = coordinate(event);
+      const startValue = readValue();
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add("dragging");
+      document.body.classList.add("resizing");
+      document.body.style.cursor = cursor;
+      const move = (moveEvent) => {
+        applyValue(startValue + sign * (coordinate(moveEvent) - startCoordinate), false);
+        updateAriaBounds();
+      };
+      const finish = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", finish);
+        handle.removeEventListener("pointercancel", finish);
+        handle.classList.remove("dragging");
+        document.body.classList.remove("resizing");
+        document.body.style.cursor = "";
+        applyValue(readValue(), true);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", finish);
+      handle.addEventListener("pointercancel", finish);
+    });
+    handle.addEventListener("dblclick", () => applyValue(defaultValue, true));
+    handle.addEventListener("keydown", (event) => {
+      const decrease = axis === "x" ? event.key === "ArrowLeft" : event.key === "ArrowUp";
+      const increase = axis === "x" ? event.key === "ArrowRight" : event.key === "ArrowDown";
+      if (!decrease && !increase) return;
+      event.preventDefault();
+      const delta = increase ? 20 : -20;
+      applyValue(readValue() + sign * delta, true);
+      updateAriaBounds();
+    });
+    updateAriaBounds();
+  }
+
+  applyLeft(stored("left"), false);
+  applyRight(stored("right"), false);
+  applyLeft(leftPane.offsetWidth, false);
+  applyBrief(stored("brief"), false);
+  applyMeta(stored("meta"), false);
+  applyBrief(taskBrief.offsetHeight, false);
+
+  bind("leftPaneResizer", "x", 1,
+    () => leftPane.offsetWidth, applyLeft, leftBounds, defaults.left);
+  bind("rightPaneResizer", "x", -1,
+    () => rightPane.offsetWidth, applyRight, rightBounds, defaults.right);
+  bind("taskBriefResizer", "y", 1,
+    () => taskBrief.offsetHeight, applyBrief, briefBounds, defaults.brief);
+  bind("metaResizer", "y", -1,
+    () => meta.offsetHeight, applyMeta, metaBounds, defaults.meta);
+
+  window.addEventListener("resize", () => {
+    applyRight(rightPane.offsetWidth, false);
+    applyLeft(leftPane.offsetWidth, false);
+    applyMeta(meta.offsetHeight, false);
+    applyBrief(taskBrief.offsetHeight, false);
+  });
+}
+
+function gate(html) {
+  const g = $("gate");
+  g.innerHTML = html;
+  g.hidden = false;
+}
+
+function showAnnotatorLogin() {
+  gate('<div class="login"><h2>Annotator Login / 标注者登录</h2>' +
+       '<p>请输入你的 ID。此浏览器会记住它，之后打开同一个链接无需再次填写。</p>' +
+       '<form id="annotatorLoginForm"><input id="annotatorLoginInput" type="text" ' +
+       'autocomplete="username" autofocus placeholder="Your annotator ID / 你的 ID">' +
+       '<button class="primary" type="submit">Continue / 进入</button></form>' +
+       '<div class="error" id="annotatorLoginError"></div></div>');
+  const input = $("annotatorLoginInput");
+  input.focus();
+  $("annotatorLoginForm").onsubmit = async (event) => {
+    event.preventDefault();
+    const value = input.value.trim();
+    if (!SAFE_ANNOTATOR.test(value)) {
+      $("annotatorLoginError").textContent =
+        "ID 只能包含英文字母、数字、点、下划线和连字符，且必须以字母或数字开头。";
+      input.focus();
+      return;
+    }
+    ANNOTATOR = value;
+    localStorage.setItem(ANNOTATOR_KEY, ANNOTATOR);
+    $("gate").hidden = true;
+    await initialize();
+  };
+}
+
+function changeAnnotator() {
+  localStorage.removeItem(ANNOTATOR_KEY);
+  const next = new URL(location.href);
+  next.searchParams.delete("annotator");
+  location.replace(next.toString());
+}
+
+let CONFIG = null;   // /api/config
+let TASK = null;     // /api/task/<id>
+let cur = 0;         // selected action index
+let showBefore = false;
+let RUBRIC_SCORES = {};
+let RANGE_SELECTION = new Set();
+let RANGE_ANCHOR = null;
+let SHOW_REMOVED = false;
+let LABEL_REFRESH_TIMER = null;
+const UI_ACTION_INDEX_BASE = 1;
+
+function displayActionNumber(index) {
+  return Number(index) + UI_ACTION_INDEX_BASE;
+}
+
+function displayActionRef(index) {
+  return `#${displayActionNumber(index)}`;
+}
+
+function applyCurrentTaxonomy(config) {
+  const taxonomy = config && config.taxonomy;
+  if (!taxonomy || taxonomy.mode !== "open_coding") return config;
+  const groups = {
+    planning: ["fabricate_data", "misunderstand_task_objective", "lack_of_knowledge"],
+    perception: ["progress_misperception", "detail_misperception", "state_misinterpretation"],
+    execution: ["grounding_failure", "incorrect_ui_element", "ineffective_action",
+      "typing_or_parameter_error"],
+    termination: ["fail_to_terminate", "premature_completion"],
+  };
+  const seedLabels = new Set(Object.values(groups).flat());
+  for (const [label, override] of Object.entries(config.error_type_overrides || {})) {
+    if (!seedLabels.has(label) || !OPEN_LABEL_CATEGORIES.includes(override.category)) continue;
+    for (const labels of Object.values(groups)) {
+      const index = labels.indexOf(label);
+      if (index >= 0) labels.splice(index, 1);
+    }
+    if (!groups[override.category]) groups[override.category] = [];
+    groups[override.category].push(label);
+  }
+  taxonomy.groups = groups;
+  taxonomy.seed_labels = [...seedLabels];
+  const currentSeed = new Set(taxonomy.seed_labels);
+  const incoming = config.open_coded_label_groups || {};
+  const grouped = Object.fromEntries(OPEN_LABEL_CATEGORIES.map((category) => [category, []]));
+  const assigned = new Set();
+  for (const category of OPEN_LABEL_CATEGORIES) {
+    for (const label of incoming[category] || []) {
+      if (label === "wrong_subgoal" || currentSeed.has(label) || assigned.has(label)) continue;
+      grouped[category].push(label);
+      assigned.add(label);
+    }
+  }
+  for (const label of config.known_extra_labels || []) {
+    if (label === "wrong_subgoal" || currentSeed.has(label) || assigned.has(label)) continue;
+    grouped.others.push(label);
+    assigned.add(label);
+  }
+  for (const category of OPEN_LABEL_CATEGORIES) grouped[category].sort();
+  config.open_coded_label_groups = grouped;
+  config.known_extra_labels = [...assigned].sort();
+  return config;
+}
+
+const viewLocationKey = () => VIEW_LOCATION_PREFIX + ANNOTATOR;
+
+function loadViewLocation() {
+  try {
+    const value = JSON.parse(localStorage.getItem(viewLocationKey()) || "null");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveViewLocation() {
+  if (!TASK) return;
+  const action = TASK.actions[cur];
+  try {
+    localStorage.setItem(viewLocationKey(), JSON.stringify({
+      trajectoryId: TASK.trajectory_id,
+      actionIndex: action ? Number(action.action_index_global) : 0,
+      showBefore,
+    }));
+  } catch (_) { /* losing view position must never affect annotation drafts */ }
+}
+
+const S = {          // per-trajectory annotation state
+  root: null, ident: null, noHorizon: false,
+  types: new Set(), extra: new Set(),
+  typeSteps: {}, typeEvidence: {}, rev: "", rationale: "", drops: {}, cleanReviewed: false,
+  wrongRollout: false,
+};
+
+/* ---------------- persistence (draft only; the server owns the real file) ---- */
+
+const draftKey = () => `derail.annot.${TASK.trajectory_id}.${ANNOTATOR}`;
+const rubricDraftKey = () => `derail.rubrics.${TASK.trajectory_id}.${ANNOTATOR}`;
+
+function loadRubricDraft() {
+  RUBRIC_SCORES = {};
+  const raw = localStorage.getItem(rubricDraftKey());
+  if (!raw) return;
+  try {
+    const saved = JSON.parse(raw);
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return;
+    for (const [rubricId, score] of Object.entries(saved)) {
+      if (score === 0 || score === 1) RUBRIC_SCORES[rubricId] = score;
+    }
+  } catch (_) { /* a corrupt rubric draft must not block annotation */ }
+}
+
+function saveRubricDraft() {
+  localStorage.setItem(rubricDraftKey(), JSON.stringify(RUBRIC_SCORES));
+}
+
+function serializedDraft() {
+  return {
+    root: S.root, ident: S.ident, noHorizon: S.noHorizon,
+    types: [...S.types], extra: [...S.extra],
+    typeStepInputBase: UI_ACTION_INDEX_BASE,
+    typeSteps: S.typeSteps,
+    typeEvidence: S.typeEvidence,
+    rev: S.rev, rationale: S.rationale,
+    drops: S.drops, cleanReviewed: S.cleanReviewed, wrongRollout: S.wrongRollout,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function resetDraftState() {
+  Object.assign(S, {
+    root: null, ident: null, noHorizon: false,
+    types: new Set(), extra: new Set(),
+    typeSteps: {}, typeEvidence: {}, rev: "", rationale: "", drops: {}, cleanReviewed: false,
+    wrongRollout: false,
+  });
+}
+
+function applyDraftState(d) {
+  if (!d || typeof d !== "object" || Array.isArray(d)) return false;
+  try {
+    S.root = d.root; S.ident = d.ident; S.noHorizon = !!d.noHorizon;
+    S.types = new Set(d.types || []); S.extra = new Set(d.extra || []);
+    const typeStepInputBase = Number(d.typeStepInputBase) === UI_ACTION_INDEX_BASE
+      ? UI_ACTION_INDEX_BASE
+      : 0;
+    S.typeSteps = d.typeSteps && typeof d.typeSteps === "object" && !Array.isArray(d.typeSteps)
+      ? Object.fromEntries(Object.entries(d.typeSteps).map(([label, value]) => [
+          label,
+          normalizeDraftActionSteps(value, typeStepInputBase),
+        ]))
+      : {};
+    S.typeEvidence = d.typeEvidence && typeof d.typeEvidence === "object" && !Array.isArray(d.typeEvidence)
+      ? Object.fromEntries(Object.entries(d.typeEvidence).map(([label, value]) => [label, String(value || "")]))
+      : {};
+    S.rev = d.rev || ""; S.rationale = d.rationale || "";
+    S.drops = {};
+    if (d.drops && typeof d.drops === "object" && !Array.isArray(d.drops)) {
+      for (const [index, value] of Object.entries(d.drops)) {
+        S.drops[index] = value && typeof value === "object"
+          ? { reason: String(value.reason || ""), recovery: Number(value.recovery) }
+          : { reason: String(value || ""), recovery: Number(index) + 1 };
+      }
+    }
+    S.cleanReviewed = !!d.cleanReviewed;
+    S.wrongRollout = !!d.wrongRollout;
+    return true;
+  } catch (_) {
+    resetDraftState();
+    return false;
+  }
+}
+
+function saveDraft() {
+  if (!TASK) return;
+  try {
+    localStorage.setItem(draftKey(), JSON.stringify(serializedDraft()));
+    $("tagSaved").textContent = "Auto-saved in browser";
+  } catch (_) {
+    $("tagSaved").textContent = "Browser save failed";
+  }
+}
+
+function loadDraft() {
+  resetDraftState();
+  const raw = localStorage.getItem(draftKey());
+  if (!raw) return false;
+  try {
+    return applyDraftState(JSON.parse(raw));
+  } catch (_) {
+    return false;
+  }
+}
+
+function currentTaskIsSubmitted() {
+  const meta = CONFIG && TASK && CONFIG.trajectories.find(
+    (item) => item.trajectory_id === TASK.trajectory_id
+  );
+  return !!(meta && meta.annotated_by.includes(ANNOTATOR));
+}
+
+function currentTaskNeedsRerun() {
+  const meta = CONFIG && TASK && CONFIG.trajectories.find(
+    (item) => item.trajectory_id === TASK.trajectory_id
+  );
+  return !!(meta && (meta.rerun_requested_by || []).includes(ANNOTATOR));
+}
+
+async function recoverServerDraft() {
+  if (!TASK || currentTaskIsSubmitted()) return false;
+  const path = "api/draft/" + encodeURIComponent(TASK.trajectory_id) +
+    "?annotator=" + encodeURIComponent(ANNOTATOR);
+  const response = await api(path);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || ("HTTP " + response.status));
+  const record = body.draft;
+  if (!record || !applyDraftState(record.draft)) return false;
+  RUBRIC_SCORES = {};
+  for (const [rubricId, score] of Object.entries(record.rubric_scores || {})) {
+    if (score === 0 || score === 1) RUBRIC_SCORES[rubricId] = score;
+  }
+  saveDraft();
+  saveRubricDraft();
+  $("tagSaved").textContent = "Recovered server draft";
+  return true;
+}
+
+const EVIDENCE_BLOCK_MARKER = "\n\nError type evidence:\n";
+
+/* Submitting supersedes the draft, so reopening a finished trajectory used to show an empty
+   form even though the files were on disk.  These three helpers read the submission back.
+   The final annotation schema carries no per-label step/evidence fields — submit() folds them
+   into the rationale — so the block has to be split back out to refill those inputs. */
+function splitEvidenceBlock(rationale, labels) {
+  const text = String(rationale || "");
+  const plain = { rationale: text, typeSteps: {}, typeEvidence: {} };
+  const at = text.lastIndexOf(EVIDENCE_BLOCK_MARKER);
+  if (at < 0) return plain;
+  const known = new Set(Array.isArray(labels) ? labels : []);
+  const entries = [];
+  for (const line of text.slice(at + EVIDENCE_BLOCK_MARKER.length).split("\n")) {
+    const head = /^- (\S+) \[([^\]]*)\]: ?([\s\S]*)$/.exec(line);
+    if (head && known.has(head[1])) {
+      entries.push({ label: head[1], refs: head[2], detail: head[3] });
+    } else if (entries.length) {
+      // Evidence is a textarea, so one entry may span several lines.
+      entries[entries.length - 1].detail += "\n" + line;
+    } else {
+      return plain;
+    }
+  }
+  if (!entries.length) return plain;
+  const typeSteps = {};
+  const typeEvidence = {};
+  for (const entry of entries) {
+    typeSteps[entry.label] = formatActionSteps(
+      [...entry.refs.matchAll(/#(\d+)/g)].map((m) => Number(m[1]) - UI_ACTION_INDEX_BASE)
+    );
+    typeEvidence[entry.label] = entry.detail.trim();
+  }
+  return { rationale: text.slice(0, at).trim(), typeSteps, typeEvidence };
+}
+
+function submissionToDraftState(submission) {
+  const annotation = submission.annotation;
+  const cleaning = submission.cleaning_proposal;
+  const state = {
+    root: null, ident: null, noHorizon: false,
+    types: [], extra: [],
+    typeStepInputBase: UI_ACTION_INDEX_BASE,
+    typeSteps: {}, typeEvidence: {},
+    rev: "", rationale: "", drops: {}, cleanReviewed: false,
+    wrongRollout: !!submission.rollout_flag,
+  };
+  if (annotation) {
+    const labels = Array.isArray(annotation.error_types) ? annotation.error_types : [];
+    // Split on the tree the checkboxes are actually built from, so a restored label lands in
+    // the same box the annotator ticked; seed_labels is only the fallback.
+    const taxonomy = (CONFIG && CONFIG.taxonomy) || {};
+    const seed = new Set(taxonomy.groups
+      ? Object.values(taxonomy.groups).flat()
+      : (taxonomy.seed_labels || []));
+    state.types = labels.filter((label) => seed.has(label));
+    state.extra = labels.filter((label) => !seed.has(label));
+    state.root = Number.isInteger(annotation.root_cause_action_index)
+      ? annotation.root_cause_action_index
+      : null;
+    const identifiable = annotation.identifiable_at_action_index;
+    state.ident = Number.isInteger(identifiable) ? identifiable : null;
+    state.noHorizon = state.ident === null;
+    state.rev = String(annotation.reversibility || "");
+    const split = splitEvidenceBlock(annotation.rationale, labels);
+    state.rationale = split.rationale;
+    state.typeSteps = split.typeSteps;
+    state.typeEvidence = split.typeEvidence;
+  }
+  if (cleaning) {
+    state.cleanReviewed = cleaning.review_complete === true;
+    for (const candidate of cleaning.drop_candidates || []) {
+      state.drops[String(candidate.action_index_global)] = {
+        reason: String(candidate.reason || ""),
+        recovery: Number(candidate.recovery_action_index),
+      };
+    }
+  }
+  return state;
+}
+
+async function recoverSubmission() {
+  if (!TASK) return null;
+  const path = "api/submission/" + encodeURIComponent(TASK.trajectory_id) +
+    "?annotator=" + encodeURIComponent(ANNOTATOR);
+  const response = await api(path);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || ("HTTP " + response.status));
+  const submission = body.submission;
+  if (!submission) return null;
+  const rubric = submission.rubric_scores;
+  const flag = submission.rollout_flag;
+  if (!submission.annotation && !rubric && !flag) return null;
+  if (!applyDraftState(submissionToDraftState(submission))) return null;
+  RUBRIC_SCORES = {};
+  for (const [rubricId, score] of Object.entries((rubric && rubric.scores) || {})) {
+    if (score === 0 || score === 1) RUBRIC_SCORES[rubricId] = score;
+  }
+  return {
+    submittedAt: String((rubric && rubric.submitted_at) || (flag && flag.submitted_at) || ""),
+    wrongRollout: !!flag,
+    taskSuccess: !!(rubric && rubric.task_success),
+  };
+}
+
+function submittedNotice(restored) {
+  let when = "";
+  if (restored.submittedAt) {
+    const parsed = new Date(restored.submittedAt);
+    when = `（${Number.isNaN(parsed.getTime()) ? restored.submittedAt : parsed.toLocaleString()}）`;
+  }
+  const what = restored.wrongRollout
+    ? "标记为 wrong rollout"
+    : (restored.taskSuccess
+      ? "判定任务成功，只提交了 rubric 评分"
+      : "rubric 评分 + failure annotation + clean-prefix proposal");
+  return `你已提交过这一条${when}：${what}。下面显示的就是你提交的内容；` +
+    "如需更正，改完再次 Submit 会覆盖为最新一次。";
+}
+
+async function saveNow(options) {
+  const quiet = !!(options && options.quiet);
+  if (!TASK) return false;
+  saveDraft();
+  saveRubricDraft();
+  if (currentTaskIsSubmitted()) {
+    $("tagSaved").textContent = "Submitted";
+    return true;
+  }
+  const button = $("saveNow");
+  button.disabled = true;
+  $("tagSaved").textContent = "Saving to server…";
+  try {
+    const response = await api("api/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        trajectory_id: TASK.trajectory_id,
+        annotator_id: ANNOTATOR,
+        draft: serializedDraft(),
+        rubric_scores: { ...RUBRIC_SCORES },
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || ("HTTP " + response.status));
+    $("tagSaved").textContent = "Saved to server";
+    if (!quiet) {
+      $("okmsg").hidden = false;
+      $("okmsg").textContent = "当前进度已保存；关闭页面后可自动恢复。";
+    }
+    return true;
+  } catch (error) {
+    $("tagSaved").textContent = "Server save failed";
+    if (!quiet) alert("服务器草稿保存失败：" + error.message + "\n浏览器内的自动草稿仍然保留。");
+    return false;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function clearCurrentTask() {
+  if (!TASK) return;
+  const trajectoryId = TASK.trajectory_id;
+  const confirmed = window.confirm(
+    `清除你在当前任务 ${trajectoryId} 上的全部进度吗？\n\n` +
+    "这会清除你的浏览器/服务器草稿、rubric 评分、failure annotation、" +
+    "clean-prefix proposal 和 wrong-rollout 标记。其他标注者和其他任务不会受影响。"
+  );
+  if (!confirmed) return;
+
+  const button = $("clearTask");
+  button.disabled = true;
+  try {
+    const response = await api("api/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        trajectory_id: trajectoryId,
+        annotator_id: ANNOTATOR,
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || ("HTTP " + response.status));
+
+    localStorage.removeItem(draftKey());
+    localStorage.removeItem(rubricDraftKey());
+    resetDraftState();
+    RUBRIC_SCORES = {};
+    RANGE_SELECTION.clear();
+    RANGE_ANCHOR = null;
+    SHOW_REMOVED = false;
+    cur = 0;
+    showBefore = false;
+
+    CONFIG = applyCurrentTaxonomy(await (await api("api/config")).json());
+    renderAnnotatorProgress();
+    renderSelectors(trajectoryId);
+    renderLabelGroups();
+    renderTaskBrief();
+    $("errors").textContent = "";
+    render();
+    $("tagSaved").textContent = "Cleared";
+    $("okmsg").hidden = false;
+    $("okmsg").textContent = body.cleared_count
+      ? "已清除你在当前任务上的全部进度；其他人的进度未改动。"
+      : "当前任务没有已保存的进度；页面状态已重置。";
+  } catch (error) {
+    alert("清除当前任务失败：" + error.message + "\n原进度未从浏览器中清除。");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* ---------------- rendering ------------------------------------------------ */
+
+function taskIsPerfectSuccess() {
+  if (!TASK || S.wrongRollout) return false;
+  const rubrics = Array.isArray(TASK.task_rubrics) ? TASK.task_rubrics : [];
+  return rubrics.length > 0 && rubrics.every(
+    (rubric) => RUBRIC_SCORES[rubric.rubric_id || "—"] === 1
+  );
+}
+
+function setPerfectSuccess(enabled) {
+  const wrongRollout = S.wrongRollout;
+  enabled = enabled && !wrongRollout;
+  $("perfectSuccessTag").hidden = !enabled;
+  $("perfectSuccessPanel").hidden = !enabled;
+  $("wrongRolloutTag").hidden = !wrongRollout;
+  $("wrongRolloutPanel").hidden = !wrongRollout;
+  $("failureFields").hidden = enabled || wrongRollout;
+  $("cleanToolbar").hidden = enabled || wrongRollout;
+  document.querySelectorAll("[data-act]").forEach((button) => {
+    button.hidden = enabled || wrongRollout;
+  });
+  document.querySelectorAll(".rubric-score-input").forEach((input) => {
+    input.disabled = wrongRollout;
+  });
+  const wrongButton = $("wrongRollout");
+  wrongButton.className = "tiny" + (wrongRollout ? " active" : "");
+  wrongButton.setAttribute("aria-pressed", String(wrongRollout));
+  wrongButton.disabled = false;
+  $("submit").textContent = wrongRollout
+    ? "Submit Needs Rerun"
+    : (enabled ? "Submit Perfect Success" : "Validate and Submit");
+  if (enabled || wrongRollout) $("errors").textContent = "";
+}
+
+function renderSteps() {
+  const box = $("steps");
+  box.textContent = "";
+  const skipFailureAnnotation = taskIsPerfectSuccess() || S.wrongRollout;
+  const boundary = cleanBoundary();
+  TASK.actions.forEach((a, i) => {
+    const actionId = a.action_index_global;
+    const dropped = !skipFailureAnnotation && Object.hasOwn(S.drops, String(actionId));
+    if (dropped && !SHOW_REMOVED) return;
+    const marks = [];
+    if (!skipFailureAnnotation && S.root === i) {
+      marks.push(el("span", { className: "m root", textContent: "ROOT CAUSE" }));
+    }
+    if (!skipFailureAnnotation && S.ident === i) {
+      marks.push(el("span", { className: "m ident", textContent: "CLEAR FAILURE" }));
+    }
+    if (dropped) {
+      marks.push(el("span", { className: "m drop", textContent: "REMOVE" }));
+    }
+    const selector = skipFailureAnnotation
+      ? el("span", { className: "range-placeholder" })
+      : dropped
+      ? el("button", {
+          className: "range-restore",
+          textContent: "↶",
+          title: "Restore this removed detour",
+          ariaLabel: `Restore the removed detour containing action ${displayActionRef(actionId)}`,
+          onclick: (ev) => { ev.stopPropagation(); restoreDropRange(actionId); },
+        })
+      : el("input", {
+          className: "range-check",
+          type: "checkbox",
+          checked: RANGE_SELECTION.has(actionId),
+          disabled: boundary === null || actionId > boundary || actionId === S.root,
+          title: boundary === null
+            ? "请先设置 Root Cause"
+            : (actionId === S.root
+              ? "The root-cause step cannot be removed"
+              : (actionId > boundary
+                ? `Only actions through ${displayActionRef(boundary)} are in the clean-prefix review boundary`
+                : "Select for range removal; Shift-click selects a contiguous range")),
+          ariaLabel: `Select action ${displayActionRef(actionId)} for range removal`,
+          onclick: (ev) => {
+            ev.stopPropagation();
+            selectRangeStep(actionId, ev.target.checked, ev.shiftKey);
+          },
+        });
+    const row = el("div", {
+      className: "step" + (i === cur ? " sel" : "") + (dropped ? " removed" : ""),
+    }, [
+      selector,
+      el("div", { className: "idx", textContent: displayActionRef(actionId) }),
+      el("img", {
+        className: "thumb", loading: "lazy", alt: "",
+        src: a.observation_after_url ? withToken(a.observation_after_url) : "",
+      }),
+      el("div", { className: "sum", title: a.action_summary, textContent: a.action_summary }),
+    ]);
+    if (marks.length) row.append(el("div", { className: "marks" }, marks));
+    row.onclick = () => { cur = i; saveViewLocation(); render(); };
+    box.append(row);
+  });
+  renderRangeToolbar();
+  const sel = box.querySelector(".step.sel");
+  if (sel) sel.scrollIntoView({ block: "nearest" });
+}
+
+function renderViewer() {
+  if (!TASK.actions.length) {
+    const shot = $("shot");
+    shot.textContent = "";
+    shot.append(el("div", {
+      className: "none",
+      textContent: "No annotatable desktop actions are available for this trajectory.",
+    }));
+    $("btnBefore").disabled = true;
+    $("btnAfter").disabled = true;
+    document.querySelectorAll("[data-act]").forEach((button) => {
+      button.disabled = true;
+    });
+    $("meta").textContent = "This trajectory did not pass the annotation gate.";
+    return;
+  }
+  $("btnBefore").disabled = false;
+  $("btnAfter").disabled = false;
+  document.querySelectorAll("[data-act]").forEach((button) => {
+    button.disabled = false;
+  });
+  const a = TASK.actions[cur];
+  const url = showBefore ? a.observation_before_url : a.observation_after_url;
+  const shot = $("shot");
+  shot.textContent = "";
+  if (url) {
+    shot.append(el("img", {
+      src: withToken(url),
+      alt: "step " + displayActionNumber(a.action_index_global),
+    }));
+  } else {
+    shot.append(el("div", {
+      className: "none",
+      textContent: showBefore
+        ? "No pre-action observation is available (the runner did not save the initial screenshot)."
+        : "No post-action observation is available.",
+    }));
+  }
+  $("btnBefore").className = "tiny" + (showBefore ? " primary" : "");
+  $("btnAfter").className = "tiny" + (showBefore ? "" : " primary");
+  const formatTrajValue = (value) => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+          (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try { return JSON.stringify(JSON.parse(trimmed), null, 2); } catch (_) {}
+      }
+      return value || "(empty string)";
+    }
+    return JSON.stringify(value, null, 2);
+  };
+  const source = a.source_traj_record;
+  const metadata = [
+    `${displayActionRef(a.action_index_global)}  turn=${a.turn_index}.${a.action_index_within_turn}`,
+    `canonical_tool_result=${a.tool_result}  t=${a.source_action_timestamp}`,
+    `source=${a.source_record_uri || "-"}`,
+    "",
+    "CANONICAL ACTION",
+    formatTrajValue(a.action),
+  ];
+  if (source) {
+    metadata.push(
+      "",
+      "TRAJ ACTION",
+      formatTrajValue(source.action),
+      "",
+      "TRAJ RESPONSE",
+      formatTrajValue(source.response),
+      "",
+      "TRAJ INFO",
+      formatTrajValue(source.info),
+      "",
+      `TRAJ STATUS  reward=${formatTrajValue(source.reward)}  done=${formatTrajValue(source.done)}`,
+      `screenshot_file=${formatTrajValue(source.screenshot_file)}`,
+      `agent_metadata=${formatTrajValue(source.agent_metadata)}`,
+    );
+  } else {
+    metadata.push("", `TRAJ SOURCE ERROR: ${a.source_traj_error || "source row unavailable"}`);
+  }
+  $("meta").textContent = metadata.join("\n");
+}
+
+function renderTaskBrief() {
+  const serverHints = Array.isArray(TASK.derived_error_types) ? TASK.derived_error_types : [];
+  // Automatic lineage analysis to verify (paper App. E); indices are 0-based like the UI's.
+  const auto = TASK.auto_proposal;
+  const autoHint = auto
+    ? ` · auto proposal (${auto.review_route}): root #${auto.root_cause_action_index ?? "?"}` +
+      `, visible #${auto.identifiable_at_action_index ?? "never"}` +
+      `, type ${(auto.error_types || []).join(", ") || "?"}` +
+      (auto.type_confidence == null ? "" : `, confidence ${Number(auto.type_confidence).toFixed(2)}`)
+    : "";
+  $("taskBriefMeta").textContent =
+    `${TASK.task_id || TASK.trajectory_id} · ${TASK.task_category || "uncategorized"}` +
+    (serverHints.length ? ` · server hint: ${serverHints.join(", ")}` : "") +
+    (TASK.double_annotation ? " · double annotation: label independently" : "") +
+    autoHint;
+  $("taskInstruction").textContent = TASK.task_instruction || "No task description available.";
+  const rubrics = Array.isArray(TASK.task_rubrics) ? TASK.task_rubrics : [];
+  $("rubricSummary").textContent = `Rubrics (${rubrics.length})`;
+  const box = $("rubrics");
+  box.textContent = "";
+  if (!rubrics.length) {
+    box.append(el("li", { className: "hint", textContent: "No rubric data is available for this task." }));
+    renderRubricTotals();
+    return;
+  }
+  for (const rubric of rubrics) {
+    const weight = Number(rubric.weight);
+    const rubricId = rubric.rubric_id || "—";
+    const scoreInput = el("input", {
+      className: "rubric-score-input",
+      type: "number",
+      min: "0",
+      max: "1",
+      step: "1",
+      placeholder: "0/1",
+      value: Object.hasOwn(RUBRIC_SCORES, rubricId) ? String(RUBRIC_SCORES[rubricId]) : "",
+      title: "Enter 0 or 1 only",
+      ariaLabel: `${rubricId} score; enter 0 or 1 only`,
+    });
+    scoreInput.oninput = (ev) => {
+      const value = ev.target.value;
+      const valid = value === "" || value === "0" || value === "1";
+      ev.target.setCustomValidity(valid ? "" : "Enter 0 or 1 only");
+      if (value === "0" || value === "1") {
+        RUBRIC_SCORES[rubricId] = Number(value);
+      } else {
+        delete RUBRIC_SCORES[rubricId];
+      }
+      saveRubricDraft();
+      renderRubricTotals();
+    };
+    box.append(el("li", { className: "rubric" }, [
+      el("code", { textContent: rubricId }),
+      el("span", { textContent: rubric.requirement }),
+      el("span", {
+        className: "weight",
+        textContent: Number.isFinite(weight) ? `${Math.round(weight * 100)}%` : "—",
+      }),
+      scoreInput,
+    ]));
+  }
+  renderRubricTotals();
+}
+
+function renderRubricTotals() {
+  const rubrics = Array.isArray(TASK.task_rubrics) ? TASK.task_rubrics : [];
+  const completed = rubrics.filter((rubric) => {
+    const score = RUBRIC_SCORES[rubric.rubric_id || "—"];
+    return score === 0 || score === 1;
+  });
+  const allComplete = rubrics.length > 0 && completed.length === rubrics.length;
+  $("rubricProgress").textContent = allComplete
+    ? `Complete ${completed.length}/${rubrics.length}`
+    : `Incomplete ${completed.length}/${rubrics.length}`;
+
+  const taskScore = $("taskScore");
+  if (S.wrongRollout) {
+    $("rubricProgress").textContent = "Skipped · rollout requires rerun";
+    $("rubricScore").textContent = "—";
+    taskScore.textContent = "Needs Rerun";
+    taskScore.className = "task-score fail";
+    setPerfectSuccess(false);
+    if (TASK) renderSteps();
+    return;
+  }
+  if (!allComplete) {
+    $("rubricScore").textContent = "—";
+    taskScore.textContent = "Task Score: —";
+    taskScore.className = "task-score";
+    setPerfectSuccess(false);
+    if (TASK) renderSteps();
+    return;
+  }
+
+  const weights = rubrics.map((rubric) => {
+    const weight = Number(rubric.weight);
+    return Number.isFinite(weight) && weight > 0 ? weight : 1;
+  });
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+  const passedWeight = rubrics.reduce((sum, rubric, index) => {
+    return sum + weights[index] * RUBRIC_SCORES[rubric.rubric_id || "—"];
+  }, 0);
+  const weightedScore = passedWeight / totalWeight;
+  $("rubricScore").textContent =
+    `${weightedScore.toFixed(2)} (${Math.round(weightedScore * 100)}%)`;
+
+  const strictTaskScore = completed.every((rubric) =>
+    RUBRIC_SCORES[rubric.rubric_id || "—"] === 1
+  ) ? 1 : 0;
+  taskScore.textContent = `Task Score: ${strictTaskScore}`;
+  taskScore.className = "task-score " + (strictTaskScore === 1 ? "pass" : "fail");
+  setPerfectSuccess(strictTaskScore === 1);
+  renderSteps();
+}
+
+function renderForm() {
+  $("valRoot").textContent = S.root === null
+    ? "Not selected"
+    : "Action " + displayActionRef(S.root);
+  $("valRoot").className = "val" + (S.root === null ? " empty" : "");
+  const h = (S.root !== null && S.ident !== null) ? S.ident - S.root : null;
+  $("valIdent").textContent = S.noHorizon
+    ? "Overall failure never becomes clear"
+    : (S.ident === null ? "Not selected" : `Action ${displayActionRef(S.ident)}`);
+  $("valIdent").className = "val" + (!S.noHorizon && S.ident === null ? " empty" : "");
+  $("noHorizon").checked = S.noHorizon;
+  const horizon = $("horizonValue");
+  horizon.className = "";
+  if (S.root === null) {
+    horizon.textContent = "Select the root cause";
+  } else if (S.noHorizon) {
+    horizon.textContent = "null (overall failure never becomes clear)";
+  } else if (S.ident === null) {
+    horizon.textContent = "Select the clear failure";
+  } else if (h < 0) {
+    horizon.textContent = "Invalid: clear failure precedes the root cause";
+    horizon.className = "invalid";
+  } else {
+    horizon.textContent = `${h} executed action${h === 1 ? "" : "s"}`;
+  }
+  const configuredDepths = Array.isArray(TASK.cleaning_depths) ? TASK.cleaning_depths : [];
+  const depthValue = $("depthValue");
+  if (!configuredDepths.length) {
+    depthValue.textContent = "No depth grid configured";
+  } else if (S.root === null) {
+    depthValue.textContent = configuredDepths.map((depth) => `d${depth}`).join(", ") +
+      " (select the root cause to map them)";
+  } else {
+    depthValue.textContent = configuredDepths.map((depth) => {
+      const actionIndex = S.root + Number(depth);
+      return actionIndex < TASK.actions.length
+        ? `d${depth} → Action ${displayActionRef(actionIndex)}`
+        : `d${depth} → unavailable`;
+    }).join(" · ");
+  }
+
+  document.querySelectorAll("#labelGroups input[type=checkbox]").forEach((c) => {
+    const selected = c.dataset.openCoded === "true" ? S.extra : S.types;
+    c.checked = selected.has(c.value);
+    const editor = document.querySelector(
+      `.type-step-editor[data-step-label="${CSS.escape(c.value)}"]`
+    );
+    if (editor) {
+      editor.hidden = !c.checked;
+      const stepInput = editor.querySelector("input");
+      const evidenceInput = editor.querySelector("textarea");
+      if (stepInput && stepInput.value !== String(S.typeSteps[c.value] || "")) {
+        stepInput.value = String(S.typeSteps[c.value] || "");
+      }
+      if (evidenceInput && evidenceInput.value !== String(S.typeEvidence[c.value] || "")) {
+        evidenceInput.value = String(S.typeEvidence[c.value] || "");
+      }
+    }
+  });
+  $("extraChips").textContent = "";
+  const knownExtraLabels = new Set(CONFIG.known_extra_labels || []);
+  for (const t of S.extra) {
+    if (knownExtraLabels.has(t)) continue;
+    const stepInput = makeTypeStepInput(t);
+    $("extraChips").append(el("div", { className: "extra-label-row" }, [
+      el("span", { className: "chip" }, [
+        t,
+        el("button", {
+          textContent: "×",
+          title: "Remove label",
+          onclick: () => {
+            S.extra.delete(t);
+            delete S.typeSteps[t];
+            delete S.typeEvidence[t];
+            commit();
+          },
+        }),
+      ]),
+      stepInput,
+      makeAddCurrentStepButton(t),
+      makeTypeEvidenceInput(t),
+    ]));
+  }
+  $("rev").value = S.rev;
+  if ($("rationale").value !== S.rationale) $("rationale").value = S.rationale;
+  renderCleanPrefix();
+}
+
+function cleanBoundary() {
+  if (S.root === null) return null;
+  const depths = Array.isArray(TASK.cleaning_depths) ? TASK.cleaning_depths : [];
+  const available = depths.filter((depth) => S.root + Number(depth) < TASK.actions.length);
+  return available.length ? S.root + Math.max(...available.map(Number)) : null;
+}
+
+function dropRanges() {
+  const entries = Object.entries(S.drops)
+    .map(([index, value]) => ({ index: Number(index), ...value }))
+    .sort((a, b) => a.index - b.index);
+  const ranges = [];
+  for (const item of entries) {
+    const last = ranges[ranges.length - 1];
+    if (last && item.index === last.end + 1 && item.recovery === last.recovery &&
+        item.reason === last.reason) {
+      last.end = item.index;
+    } else {
+      ranges.push({ start: item.index, end: item.index, recovery: item.recovery, reason: item.reason });
+    }
+  }
+  return ranges;
+}
+
+function renderRangeToolbar() {
+  const selected = [...RANGE_SELECTION].sort((a, b) => a - b);
+  const selectedStart = selected[0];
+  const selectedEnd = selected[selected.length - 1];
+  const removedInside = selected.length
+    ? Object.keys(S.drops).map(Number).filter(
+        (index) => index >= selectedStart && index <= selectedEnd
+      ).length
+    : 0;
+  $("rangeSelectionCount").textContent = S.root === null
+    ? "先设置 Root Cause，才能选择要删除的 detour"
+    : (selected.length
+      ? `${selected.length} selected${removedInside ? ` + ${removedInside} removed` : ""}: ` +
+        `${displayActionRef(selectedStart)}` +
+        `${selectedStart !== selectedEnd ? `–${displayActionRef(selectedEnd)}` : ""}`
+      : `可选择 ${displayActionRef(0)}–${displayActionRef(cleanBoundary())} 内的 recovered detour`);
+  $("removeRange").disabled = !selected.length;
+  const removedCount = Object.keys(S.drops).length;
+  $("toggleRemoved").disabled = removedCount === 0;
+  $("toggleRemoved").textContent = SHOW_REMOVED
+    ? "Hide removed"
+    : `Show removed${removedCount ? ` (${removedCount})` : ""}`;
+}
+
+function restoreDropRange(actionId) {
+  const range = dropRanges().find(
+    (item) => actionId >= item.start && actionId <= item.end
+  );
+  if (!range) return;
+  for (let index = range.start; index <= range.end; index += 1) {
+    delete S.drops[String(index)];
+  }
+  S.cleanReviewed = false;
+  commit();
+}
+
+function renderCleanPrefix() {
+  const list = $("dropList");
+  list.textContent = "";
+  const ranges = dropRanges();
+  if (!ranges.length) {
+    list.append(el("li", {}, [
+      el("code", { textContent: "None" }),
+      el("span", { textContent: "No recovered detours removed." }),
+    ]));
+  }
+  for (const range of ranges) {
+    const label = range.start === range.end
+      ? displayActionRef(range.start)
+      : `${displayActionRef(range.start)}–${displayActionRef(range.end)}`;
+    list.append(el("li", {}, [
+      el("code", { textContent: label }),
+      el("span", {
+        textContent: `reconnects at ${displayActionRef(range.recovery)}: ${range.reason}`,
+        title: range.reason,
+      }),
+      el("button", {
+        className: "tiny",
+        textContent: "Restore",
+        onclick: () => restoreDropRange(range.start),
+      }),
+    ]));
+  }
+  const boundary = cleanBoundary();
+  $("cleanReviewed").checked = S.cleanReviewed;
+  $("cleanReviewed").disabled = boundary === null;
+  $("cleanBoundary").textContent = boundary === null
+    ? "Select a root cause to calculate the review boundary."
+    : `I reviewed every original action from ${displayActionRef(0)} through ${displayActionRef(boundary)}.`;
+}
+
+function render() { renderSteps(); renderViewer(); renderForm(); }
+function commit() { saveDraft(); render(); }
+
+/* ---------------- validation (mirrors src/derail/annotation/records.py) ----- */
+
+function validate() {
+  const e = [];
+  if (S.wrongRollout) return {
+    errors: e, types: [], typeSteps: {}, typeEvidence: {}, taskSuccess: false,
+  };
+  const rubrics = Array.isArray(TASK.task_rubrics) ? TASK.task_rubrics : [];
+  const rubricComplete = rubrics.length > 0 && rubrics.every((rubric) => {
+    const score = RUBRIC_SCORES[rubric.rubric_id || "—"];
+    return score === 0 || score === 1;
+  });
+  if (!rubricComplete) e.push("Score every rubric with 0 or 1 before submitting.");
+  const taskSuccess = rubricComplete && rubrics.every((rubric) =>
+    RUBRIC_SCORES[rubric.rubric_id || "—"] === 1
+  );
+  // A fully successful trajectory has no root cause, error horizon, or clean failure prefix.
+  // Its complete rubric verdicts are still saved so every rollout receives a human decision.
+  if (taskSuccess) return {
+    errors: e, types: [], typeSteps: {}, typeEvidence: {}, taskSuccess,
+  };
+  if (S.root === null) e.push("Select a root cause.");
+  if (S.noHorizon) {
+    if (S.ident !== null) e.push("A clear failure cannot be selected when 'never becomes clear' is checked.");
+  } else if (S.ident === null) {
+    e.push("Select the clear failure or check 'failure never becomes clear'.");
+  } else if (S.root !== null && S.ident < S.root) {
+    e.push("The clear failure cannot precede the root cause.");
+  }
+  const types = [...S.types, ...S.extra];
+  if (!types.length) e.push("Select or enter at least one error type / 至少选择或填写 1 个错误类型。");
+  if (new Set(types).size !== types.length) e.push("Duplicate error types are not allowed / 错误类型不允许重复。");
+  const typeSteps = {};
+  const typeEvidence = {};
+  for (const label of types) {
+    const parsed = parseActionSteps(S.typeSteps[label]);
+    if (parsed.error) {
+      e.push(`${label}: Action steps 格式错误；请填写类似 1、2-5 或 8,10,12。`);
+      continue;
+    }
+    if (!parsed.indices.length) {
+      e.push(`${label}: 请填写这个错误实际发生的 Action step。`);
+      continue;
+    }
+    const outside = parsed.indices.filter((index) => index < 0 || index >= TASK.actions.length);
+    if (outside.length) {
+      e.push(`${label}: Action step 超出轨迹范围：${outside.map(displayActionNumber).join(", ")}。`);
+      continue;
+    }
+    typeSteps[label] = parsed.indices;
+    const evidence = String(S.typeEvidence[label] || "").trim();
+    if (!evidence) {
+      e.push(`${label}: 请填写 Evidence，说明对应 step 中看到了什么。`);
+    } else {
+      typeEvidence[label] = evidence;
+    }
+  }
+  if (!S.rev) e.push("Select reversibility.");
+  if (!S.rationale.trim()) e.push("Rationale is required.");
+  const boundary = cleanBoundary();
+  if (!S.cleanReviewed) e.push("Confirm that the clean prefix was reviewed through the maximum available depth.");
+  for (const [rawIndex, decision] of Object.entries(S.drops)) {
+    const index = Number(rawIndex);
+    if (!Number.isInteger(index) || boundary === null || index < 0 || index > boundary) {
+      e.push(`Removable action ${displayActionRef(index)} is outside the clean-prefix review boundary.`);
+    }
+    if (index === S.root) e.push("The root-cause action cannot be marked removable.");
+    if (!decision || !String(decision.reason || "").trim()) {
+      e.push(`Removable action ${displayActionRef(index)} requires a reason.`);
+    }
+    if (!decision || !Number.isInteger(Number(decision.recovery)) ||
+        Number(decision.recovery) <= index || Number(decision.recovery) > boundary) {
+      e.push(`Removable action ${displayActionRef(index)} has an invalid recovery step.`);
+    }
+  }
+  if (!(TASK.annotation_gate_passed ?? TASK.normalization_gate_passed)) {
+    e.push("This trajectory did not pass the normalization gate and cannot be annotated as a case.");
+  }
+  return { errors: e, types, typeSteps, typeEvidence, taskSuccess };
+}
+
+/* ---------------- actions -------------------------------------------------- */
+
+function actionIsRangeSelectable(actionId) {
+  const boundary = cleanBoundary();
+  return boundary !== null && actionId >= 0 && actionId <= boundary &&
+    actionId !== S.root && !Object.hasOwn(S.drops, String(actionId));
+}
+
+function selectRangeStep(actionId, checked, useRange) {
+  if (!actionIsRangeSelectable(actionId)) return;
+  if (useRange && RANGE_ANCHOR !== null) {
+    const start = Math.min(RANGE_ANCHOR, actionId);
+    const end = Math.max(RANGE_ANCHOR, actionId);
+    for (let index = start; index <= end; index += 1) {
+      if (!actionIsRangeSelectable(index)) continue;
+      checked ? RANGE_SELECTION.add(index) : RANGE_SELECTION.delete(index);
+    }
+  } else {
+    checked ? RANGE_SELECTION.add(actionId) : RANGE_SELECTION.delete(actionId);
+  }
+  RANGE_ANCHOR = actionId;
+  renderSteps();
+}
+
+function removeSelectedRange() {
+  const selected = [...RANGE_SELECTION].sort((a, b) => a - b);
+  if (!selected.length) return;
+  const selectedSet = new Set(selected);
+  let start = selected[0];
+  let end = selected[selected.length - 1];
+  const uncovered = [];
+  for (let index = start; index <= end; index += 1) {
+    if (!selectedSet.has(index) && !Object.hasOwn(S.drops, String(index))) {
+      uncovered.push(index);
+    }
+  }
+  if (uncovered.length) {
+    const preview = uncovered.slice(0, 8).map(displayActionRef).join(", ");
+    alert(
+      `选区中仍有未选步骤：${preview}${uncovered.length > 8 ? "…" : ""}。` +
+      "请使用 Shift 选择完整连续范围；中间已经 removed 的步骤会自动合并。"
+    );
+    return;
+  }
+
+  // Merge any already-removed range that overlaps or directly touches the new range. This
+  // makes it possible to expand a previous clean-up decision without restoring it first.
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const range of dropRanges()) {
+      if (range.end + 1 < start || range.start > end + 1) continue;
+      const nextStart = Math.min(start, range.start);
+      const nextEnd = Math.max(end, range.end);
+      if (nextStart !== start || nextEnd !== end) {
+        start = nextStart;
+        end = nextEnd;
+        expanded = true;
+      }
+    }
+  }
+
+  const boundary = cleanBoundary();
+  const protectedIndices = [];
+  for (let index = start; index <= end; index += 1) {
+    if (index === S.root || boundary === null || index < 0 || index > boundary ||
+        !TASK.actions.some((action) => action.action_index_global === index)) {
+      protectedIndices.push(index);
+    }
+  }
+  if (protectedIndices.length) {
+    alert("The merged range contains the root cause or an unavailable step.");
+    return;
+  }
+
+  const recovery = end + 1;
+  if (boundary === null || recovery > boundary ||
+      !TASK.actions.some((action) => action.action_index_global === recovery)) {
+    alert("The range must have a retained recovery step inside the clean-prefix boundary.");
+    return;
+  }
+  if (Object.hasOwn(S.drops, String(recovery))) {
+    alert("The recovery step must be retained.");
+    return;
+  }
+  const reason = prompt(
+    `Why can steps ${displayActionRef(start)}–${displayActionRef(end)} be removed, ` +
+    `and how did the agent recover at ${displayActionRef(recovery)}?`
+  );
+  if (reason === null) return;
+  if (!reason.trim()) {
+    alert("A removal reason is required.");
+    return;
+  }
+  for (let index = start; index <= end; index += 1) {
+    S.drops[String(index)] = { reason: reason.trim(), recovery };
+  }
+  RANGE_SELECTION.clear();
+  RANGE_ANCHOR = null;
+  SHOW_REMOVED = false;
+  const recoveryPosition = TASK.actions.findIndex(
+    (action) => action.action_index_global === recovery
+  );
+  if (recoveryPosition >= 0) cur = recoveryPosition;
+  S.cleanReviewed = false;
+  commit();
+}
+
+function mark(kind) {
+  if (!TASK.actions.length) return;
+  if (kind === "root") {
+    const actionId = TASK.actions[cur].action_index_global;
+    if (Object.hasOwn(S.drops, String(actionId))) {
+      alert("Restore this step before marking it as the root cause.");
+      return;
+    }
+    S.root = (S.root === cur) ? null : cur;
+    RANGE_SELECTION.delete(actionId);
+    S.cleanReviewed = false;
+  } else if (kind === "ident") {
+    if (S.ident === cur) { S.ident = null; } else { S.ident = cur; S.noHorizon = false; }
+  }
+  commit();
+}
+
+async function loadTask(trajectoryId) {
+  const r = await api("api/task/" + encodeURIComponent(trajectoryId));
+  if (!r.ok) { gate("<div>Failed to load trajectory: " + (await r.text()) + "</div>"); return; }
+  TASK = await r.json();
+  try {
+    await refreshOpenCodedLabels(false);
+  } catch (_) {
+    // A temporary label-registry read failure must not block annotation work.
+  }
+  $("errors").textContent = "";
+  const remembered = loadViewLocation();
+  const rememberedPosition = remembered && remembered.trajectoryId === TASK.trajectory_id
+    ? TASK.actions.findIndex(
+        (action) => Number(action.action_index_global) === Number(remembered.actionIndex)
+      )
+    : -1;
+  cur = rememberedPosition >= 0 ? rememberedPosition : 0;
+  showBefore = !!(
+    remembered && remembered.trajectoryId === TASK.trajectory_id && remembered.showBefore
+  );
+  RANGE_SELECTION = new Set(); RANGE_ANCHOR = null; SHOW_REMOVED = false;
+  const hasLocalDraft = loadDraft();
+  loadRubricDraft();
+  // An unsubmitted local draft is the annotator's newest edit and still wins.  Otherwise a
+  // trajectory they already submitted reopens showing that submission rather than a blank form.
+  let restoredSubmission = null;
+  if (!hasLocalDraft) {
+    try {
+      if (currentTaskIsSubmitted()) restoredSubmission = await recoverSubmission();
+      if (!restoredSubmission) await recoverServerDraft();
+    } catch (error) {
+      $("tagSaved").textContent = "Recovery check failed";
+      $("errors").append(el("li", {
+        textContent: "已提交内容/服务器草稿读取失败；仍可使用浏览器自动草稿：" + error.message,
+      }));
+    }
+  }
+  S.types.delete("wrong_subgoal");
+  S.extra.delete("wrong_subgoal");
+  delete S.typeSteps.wrong_subgoal;
+  delete S.typeEvidence.wrong_subgoal;
+  // Server-derived terminal signals remain visible in the task brief as hints.
+  // Only labels explicitly selected by the human annotator enter the submission.
+  if (currentTaskNeedsRerun()) S.wrongRollout = true;
+  // Draft loading replaces S.types/S.extra, so build the checkbox tree only after recovery.
+  renderLabelGroups();
+  renderTaskBrief();
+  $("tagCount").textContent = TASK.actions.length + " actions";
+  if (currentTaskIsSubmitted()) {
+    $("tagSaved").textContent = restoredSubmission
+      ? "Submitted — 已载入你提交的内容"
+      : (hasLocalDraft ? "Submitted — 本地另有未提交的修改" : "Submitted");
+  } else if (hasLocalDraft && $("tagSaved").textContent !== "Recovered server draft") {
+    $("tagSaved").textContent = "Recovered browser draft";
+  } else if (!localStorage.getItem(draftKey()) && $("tagSaved").textContent !== "Recovery check failed") {
+    $("tagSaved").textContent = "Unsaved";
+  }
+  $("okmsg").hidden = true;
+  if (restoredSubmission) {
+    $("okmsg").hidden = false;
+    $("okmsg").textContent = submittedNotice(restoredSubmission);
+  }
+  if (!(TASK.annotation_gate_passed ?? TASK.normalization_gate_passed)) {
+    $("errors").append(el("li", {
+      textContent: "This trajectory did not pass the normalization gate (usually due to a TOOL_CALL row) and cannot be used as a case.",
+    }));
+  }
+  saveViewLocation();
+  render();
+}
+
+async function nextTask() {
+  const button = $("nextTask");
+  button.disabled = true;
+  try {
+    if (!(await saveNow({ quiet: true }))) {
+      alert("当前草稿没有保存到服务器，因此没有切换任务。请重试 Save Now。");
+      return;
+    }
+    const response = await api("api/config");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    CONFIG = applyCurrentTaxonomy(await response.json());
+    renderAnnotatorProgress();
+    const items = CONFIG.trajectories;
+    const currentIndex = items.findIndex((item) => item.trajectory_id === TASK.trajectory_id);
+    const ordered = currentIndex < 0
+      ? items
+      : [...items.slice(currentIndex + 1), ...items.slice(0, currentIndex)];
+    const next = ordered.find((item) => !item.annotated_by.includes(ANNOTATOR));
+    if (!next || next.trajectory_id === TASK.trajectory_id) {
+      alert("没有其他未提交的任务了。可以点击 Export JSONL 导出结果。");
+      return;
+    }
+    renderSelectors(next.trajectory_id);
+    await loadTask(next.trajectory_id);
+  } catch (error) {
+    alert("切换下一条失败：" + error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function previousTask() {
+  const button = $("previousTask");
+  button.disabled = true;
+  try {
+    if (!(await saveNow({ quiet: true }))) {
+      alert("当前草稿没有保存到服务器，因此没有切换任务。请重试 Save Now。");
+      return;
+    }
+    const response = await api("api/config");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    CONFIG = applyCurrentTaxonomy(await response.json());
+    renderAnnotatorProgress();
+    const current = CONFIG.trajectories.find(
+      (item) => item.trajectory_id === TASK.trajectory_id
+    );
+    if (!current) throw new Error("Current task is no longer available");
+    const items = CONFIG.trajectories.filter(
+      (item) => item.agent_id === current.agent_id &&
+        item.task_category === current.task_category
+    );
+    if (items.length < 2) {
+      alert("当前 Agent 和 Category 下没有其他任务。");
+      return;
+    }
+    const currentIndex = items.findIndex(
+      (item) => item.trajectory_id === current.trajectory_id
+    );
+    const previous = items[(currentIndex - 1 + items.length) % items.length];
+    renderSelectors(previous.trajectory_id);
+    await loadTask(previous.trajectory_id);
+  } catch (error) {
+    alert("切换上一条失败：" + error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function exportResults() {
+  const button = $("exportResults");
+  button.disabled = true;
+  try {
+    const response = await api("api/export-local", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ annotator_id: ANNOTATOR }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || ("HTTP " + response.status));
+    }
+    const body = await response.json();
+    alert(`已导出 ${body.record_count} 条结果到本地：\n${body.path}`);
+  } catch (error) {
+    alert("导出失败：" + error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function submit() {
+  const { errors, types, typeSteps, typeEvidence, taskSuccess } = validate();
+  const box = $("errors");
+  box.textContent = "";
+  $("okmsg").hidden = true;
+  if (errors.length) {
+    for (const m of errors) box.append(el("li", { textContent: m }));
+    return;
+  }
+  const payload = S.wrongRollout ? {
+    trajectory_id: TASK.trajectory_id,
+    annotator_id: ANNOTATOR,
+    wrong_rollout: true,
+  } : {
+    trajectory_id: TASK.trajectory_id,
+    annotator_id: ANNOTATOR,
+    root_cause_action_index: S.root,
+    identifiable_at_action_index: S.noHorizon ? null : S.ident,
+    error_types: types,
+    error_type_action_indices: typeSteps,
+    error_type_evidence: typeEvidence,
+    reversibility: S.rev,
+    // Keep per-label action evidence even when talking to an older annotation server that
+    // ignores the structured field above.  This preserves backward compatibility with the
+    // currently running collection while making every label independently auditable.
+    rationale: rationaleWithTypeEvidence(S.rationale, types, typeSteps, typeEvidence),
+    cleaning_review_complete: S.cleanReviewed,
+    cleaning_drop_candidates: Object.entries(S.drops).map(([index, decision]) => ({
+      action_index_global: Number(index),
+      recovery_action_index: Number(decision.recovery),
+      reason: String(decision.reason).trim(),
+    })),
+    rubric_scores: { ...RUBRIC_SCORES },
+    task_success: taskSuccess,
+  };
+  $("submit").disabled = true;
+  try {
+    const r = await api("api/annotation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await r.json().catch(() => ({ error: "The server returned a non-JSON response." }));
+    if (!r.ok) {
+      box.append(el("li", { textContent: body.error || ("HTTP " + r.status) }));
+      return;
+    }
+    localStorage.removeItem(draftKey());
+    localStorage.removeItem(rubricDraftKey());
+    $("okmsg").hidden = false;
+    $("okmsg").textContent = body.rollout_flag_path
+      ? "Marked as wrong rollout; this trajectory now requires rerun."
+      : (body.path
+        ? "Saved rubric scores, failure annotation, and clean-prefix proposal."
+        : "Saved rubric scores: this trajectory was judged fully successful.");
+    $("tagSaved").textContent = "Submitted";
+    CONFIG = applyCurrentTaxonomy(await (await api("api/config")).json());
+    renderAnnotatorProgress();
+    renderSelectors(TASK.trajectory_id);
+    renderLabelGroups();
+    renderRubricTotals();
+  } finally {
+    $("submit").disabled = false;
+  }
+}
+
+/* ---------------- static UI wiring ----------------------------------------- */
+
+function setSelectOptions(id, values, selected, label) {
+  const sel = $(id);
+  sel.textContent = "";
+  for (const value of values) {
+    const suffix = values.length === 1 ? " (only item in this build)" : "";
+    sel.append(el("option", { value, textContent: label(value) + suffix }));
+  }
+  sel.value = values.includes(selected) ? selected : (values[0] || "");
+  sel.disabled = values.length === 0;
+  sel.title = values.length === 1
+    ? "This is the only annotatable item in the current build."
+    : `${values.length} items available`;
+  return sel.value;
+}
+
+function renderAgentOptions(selected) {
+  const values = [...new Set(CONFIG.trajectories.map((t) => t.agent_id))].sort();
+  return setSelectOptions("agentSel", values, selected, (value) => value);
+}
+
+function renderCategoryOptions(selected) {
+  const agent = $("agentSel").value;
+  const values = [...new Set(CONFIG.trajectories
+    .filter((t) => t.agent_id === agent)
+    .map((t) => t.task_category))].sort();
+  return setSelectOptions("categorySel", values, selected, (value) => value);
+}
+
+function renderTaskOptions(selected) {
+  const agent = $("agentSel").value;
+  const category = $("categorySel").value;
+  const tasks = CONFIG.trajectories.filter(
+    (t) => t.agent_id === agent && t.task_category === category
+  );
+  const byId = Object.fromEntries(tasks.map((t) => [t.trajectory_id, t]));
+  const value = setSelectOptions("taskSel", tasks.map((t) => t.trajectory_id), selected, (id) => {
+    const t = byId[id];
+    const mine = t.annotated_by.includes(ANNOTATOR);
+    return `${t.task_id} · ${t.trajectory_id}  (${t.action_count} actions` +
+      `${t.annotation_gate_passed ? "" : ", annotation gate failed"}` +
+      `${(t.rerun_requested_by || []).length ? ", needs rerun" : ""}` +
+      `${mine ? ", submitted by you" : ""}${t.annotated_by.length ? `, ${t.annotated_by.length}/2` : ""})`;
+  });
+  const chosen = byId[value];
+  const taskHint = chosen && chosen.task_instruction
+    ? chosen.task_instruction
+    : "No instruction metadata is available for this task.";
+  $("taskSel").title = tasks.length === 1
+    ? `This is the only annotatable item in the current build.\n${taskHint}`
+    : taskHint;
+  return value;
+}
+
+function renderSelectors(selectedTrajectory) {
+  const selected = CONFIG.trajectories.find((t) => t.trajectory_id === selectedTrajectory)
+    || CONFIG.trajectories[0];
+  renderAgentOptions(selected ? selected.agent_id : "");
+  renderCategoryOptions(selected ? selected.task_category : "");
+  return renderTaskOptions(selected ? selected.trajectory_id : "");
+}
+
+function renderAnnotatorProgress() {
+  const select = $("annotatorProgress");
+  const totals = {};
+  const counts = {};
+  const annotators = new Set([ANNOTATOR]);
+  for (const trajectory of CONFIG.trajectories) {
+    const agent = trajectory.agent_id;
+    totals[agent] = (totals[agent] || 0) + 1;
+    for (const annotator of trajectory.annotated_by || []) {
+      annotators.add(annotator);
+      counts[annotator] ||= {};
+      counts[annotator][agent] = (counts[annotator][agent] || 0) + 1;
+    }
+  }
+  select.textContent = "";
+  select.append(el("option", {
+    value: "",
+    textContent: `${ANNOTATOR} (current) · progress / 标注进度`,
+  }));
+  const agents = Object.keys(totals).sort();
+  for (const annotator of [...annotators].sort()) {
+    for (const agent of agents) {
+      select.append(el("option", {
+        disabled: true,
+        textContent: `${annotator} · ${agent} · ${counts[annotator]?.[agent] || 0}/${totals[agent]}`,
+      }));
+    }
+  }
+  select.value = "";
+}
+
+function normalizeOpenLabel(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+}
+
+function parseActionStepsAtBase(value, inputBase) {
+  const raw = String(value || "").trim();
+  if (!raw) return { indices: [], error: false };
+  const tokens = raw.replace(/#/g, "").split(/[\s,，;；]+/).filter(Boolean);
+  if (!tokens.length) return { indices: [], error: true };
+  const indices = [];
+  for (const token of tokens) {
+    const match = token.match(/^(\d+)(?:[-–—](\d+))?$/);
+    if (!match) return { indices: [], error: true };
+    const start = Number(match[1]);
+    const end = match[2] === undefined ? start : Number(match[2]);
+    if (start < inputBase || end < start) return { indices: [], error: true };
+    for (let index = start; index <= end; index += 1) indices.push(index - inputBase);
+  }
+  return {
+    indices: [...new Set(indices)].sort((a, b) => a - b),
+    error: false,
+  };
+}
+
+function parseActionSteps(value) {
+  return parseActionStepsAtBase(value, UI_ACTION_INDEX_BASE);
+}
+
+function formatActionSteps(indices) {
+  return [...new Set(indices.map(Number).filter(Number.isInteger))]
+    .sort((a, b) => a - b)
+    .map(displayActionNumber)
+    .join(",");
+}
+
+function normalizeDraftActionSteps(value, inputBase) {
+  const raw = String(value || "");
+  if (inputBase === UI_ACTION_INDEX_BASE || !raw.trim()) return raw;
+  const parsed = parseActionStepsAtBase(raw, inputBase);
+  return parsed.error ? raw : formatActionSteps(parsed.indices);
+}
+
+function makeTypeStepInput(label) {
+  const input = el("input", {
+    type: "text",
+    value: String(S.typeSteps[label] || ""),
+    placeholder: "Action steps，如 1、2-5 或 8,10",
+    ariaLabel: `${label} action steps`,
+  });
+  input.oninput = (ev) => {
+    S.typeSteps[label] = ev.target.value;
+    saveDraft();
+  };
+  return input;
+}
+
+function makeTypeEvidenceInput(label) {
+  const input = el("textarea", {
+    className: "type-evidence-input",
+    value: String(S.typeEvidence[label] || ""),
+    placeholder: "Evidence / 证据：这个 step 中具体看到了什么，为什么支持该错误类型？",
+    ariaLabel: `${label} evidence`,
+  });
+  input.oninput = (ev) => {
+    S.typeEvidence[label] = ev.target.value;
+    saveDraft();
+  };
+  return input;
+}
+
+function makeAddCurrentStepButton(label) {
+  return el("button", {
+    className: "tiny",
+    textContent: "+ 当前",
+    title: "Add the currently selected action",
+    onclick: () => {
+      if (!TASK || !TASK.actions.length) return;
+      const current = Number(TASK.actions[cur].action_index_global);
+      const parsed = parseActionSteps(S.typeSteps[label]);
+      const indices = parsed.error ? [] : parsed.indices;
+      S.typeSteps[label] = formatActionSteps([...indices, current]);
+      commit();
+    },
+  });
+}
+
+function rationaleWithTypeEvidence(rationale, types, typeSteps, typeEvidence) {
+  const labels = Array.isArray(types) ? types : [];
+  const mapping = typeSteps && typeof typeSteps === "object" ? typeSteps : {};
+  const evidenceByLabel = typeEvidence && typeof typeEvidence === "object"
+    ? typeEvidence
+    : {};
+  // A reopened submission may already carry a block from its previous submit; drop it so a
+  // correction replaces the evidence instead of stacking a second copy onto the rationale.
+  const base = String(rationale || "");
+  const previous = base.lastIndexOf(EVIDENCE_BLOCK_MARKER);
+  rationale = previous < 0 ? base : base.slice(0, previous);
+  if (!labels.length) return String(rationale || "").trim();
+  const evidence = labels.map((label) => {
+    const indices = Array.isArray(mapping[label]) ? mapping[label] : [];
+    const detail = String(evidenceByLabel[label] || "").trim();
+    return `- ${label} [${indices.map((index) => `Action ${displayActionRef(index)}`).join(", ")}]: ${detail}`;
+  });
+  return `${String(rationale || "").trim()}\n\nError type evidence:\n${evidence.join("\n")}`.trim();
+}
+
+function errorTypeSet(openCoded) {
+  return openCoded ? S.extra : S.types;
+}
+
+function errorTypeDescription(label, openCoded) {
+  const override = CONFIG.error_type_overrides?.[label]?.description_zh;
+  if (override) return override;
+  return openCoded
+    ? (CONFIG.open_coded_label_descriptions?.[label] || "新增标签（暂无中文解释）")
+    : (ERROR_TYPE_ZH[label] || "Custom label / 自定义标签");
+}
+
+function errorTypeCategory(label, openCoded) {
+  const groups = openCoded ? CONFIG.open_coded_label_groups : CONFIG.taxonomy.groups;
+  return OPEN_LABEL_CATEGORIES.find(
+    (category) => (groups?.[category] || []).includes(label)
+  ) || "others";
+}
+
+function makeErrorTypeRow(label, openCoded) {
+  const cb = el("input", {
+    type: "checkbox",
+    value: label,
+    checked: errorTypeSet(openCoded).has(label),
+  });
+  if (openCoded) cb.dataset.openCoded = "true";
+  cb.onchange = () => {
+    // S.types/S.extra are replaced when another task draft is loaded. Resolve the current Set
+    // at click time so a checkbox can never mutate a stale task's state.
+    const selectedSet = errorTypeSet(openCoded);
+    if (cb.checked) {
+      selectedSet.add(label);
+    } else {
+      selectedSet.delete(label);
+      delete S.typeSteps[label];
+      delete S.typeEvidence[label];
+    }
+    commit();
+  };
+  const editor = el("div", {
+    className: "type-step-editor",
+    hidden: !cb.checked,
+  }, [
+    makeTypeStepInput(label),
+    makeAddCurrentStepButton(label),
+    makeTypeEvidenceInput(label),
+  ]);
+  editor.dataset.stepLabel = label;
+  const labelContents = [cb];
+  if (openCoded) {
+    labelContents.push(el("span", { className: "new-label-marker", textContent: "(new)" }));
+  }
+  labelContents.push(
+    el("code", { textContent: label }),
+    el("span", {
+      className: "label-zh",
+      textContent: errorTypeDescription(label, openCoded),
+    })
+  );
+  const header = el("div", { className: "label-row-head" }, [
+    el("label", { className: "chk" }, labelContents),
+  ]);
+  const categorySelect = el("select", {
+    title: "更换共享标签分类",
+    ariaLabel: `${label} category`,
+  }, OPEN_LABEL_CATEGORIES.map((category) => el("option", {
+    value: category,
+    textContent: `${GROUP_ZH[category]} · ${category}`,
+  })));
+  categorySelect.value = errorTypeCategory(label, openCoded);
+  categorySelect.onchange = () => updateErrorTypeCategory(label, openCoded, categorySelect);
+  const editButton = el("button", {
+    type: "button",
+    textContent: "解释",
+    title: "修改共享中文解释",
+    ariaLabel: `Edit Chinese description for ${label}`,
+    onclick: () => editErrorTypeDescription(label, openCoded),
+  });
+  const controls = [categorySelect, editButton];
+  if (openCoded) {
+    const deleteButton = el("button", {
+      type: "button",
+      className: "open-label-delete",
+      textContent: "×",
+      title: "删除共享新增标签",
+      ariaLabel: `Delete ${label}`,
+      onclick: () => deleteOpenCodedLabel(label),
+    });
+    controls.push(deleteButton);
+  }
+  header.append(el("div", { className: "open-label-controls" }, controls));
+  return el("div", { className: "label-row" }, [
+    header,
+    editor,
+  ]);
+}
+
+function renderLabelGroups() {
+  const box = $("labelGroups");
+  box.textContent = "";
+  const customGroups = CONFIG.open_coded_label_groups || {};
+  const displayedGroups = [...Object.keys(CONFIG.taxonomy.groups)];
+  if ((customGroups.others || []).length && !displayedGroups.includes("others")) {
+    displayedGroups.push("others");
+  }
+  for (const group of displayedGroups) {
+    const labels = CONFIG.taxonomy.groups[group] || [];
+    const customLabels = customGroups[group] || [];
+    const g = el("div", { className: "grp" }, [
+      el("div", {
+        className: "gname",
+        textContent: `${GROUP_ZH[group] || "标签组"} · ${group}`,
+      }),
+    ]);
+    for (const lab of labels) {
+      g.append(makeErrorTypeRow(lab, false));
+    }
+    for (const label of customLabels) g.append(makeErrorTypeRow(label, true));
+    box.append(g);
+  }
+  const knownExtraLabels = CONFIG.known_extra_labels || [];
+  const dl = $("knownExtra");
+  dl.textContent = "";
+  for (const t of knownExtraLabels) dl.append(el("option", { value: t }));
+  $("extraHint").textContent = knownExtraLabels.length
+    ? "Shared labels are grouped above and visible to every annotator and task / 共享标签已按分类显示，所有人和所有任务均可复用。"
+    : "No shared labels outside the seed set yet / 目前还没有 seed 之外的共享标签。";
+}
+
+function applySharedLabelGroups(groups, descriptions = {}, overrides = {}) {
+  const next = {
+    ...CONFIG,
+    open_coded_label_groups: groups,
+    error_type_overrides: overrides,
+    known_extra_labels: [],
+  };
+  for (const labels of Object.values(groups || {})) {
+    if (Array.isArray(labels)) next.known_extra_labels.push(...labels);
+  }
+  applyCurrentTaxonomy(next);
+  CONFIG.open_coded_label_groups = next.open_coded_label_groups;
+  CONFIG.known_extra_labels = next.known_extra_labels;
+  CONFIG.open_coded_label_descriptions = { ...(descriptions || {}) };
+  CONFIG.error_type_overrides = { ...(overrides || {}) };
+}
+
+async function mutateOpenCodedLabel(payload) {
+  const response = await api("api/labels", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, annotator_id: ANNOTATOR }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "Failed to update label");
+  applySharedLabelGroups(
+    result.groups || {}, result.descriptions || {}, result.overrides || {}
+  );
+  return result;
+}
+
+async function updateErrorTypeCategory(label, openCoded, select) {
+  const oldCategory = errorTypeCategory(label, openCoded);
+  select.disabled = true;
+  try {
+    await mutateOpenCodedLabel({
+      action: "update",
+      label,
+      category: select.value,
+      description_zh: errorTypeDescription(label, openCoded),
+    });
+    renderLabelGroups();
+    renderForm();
+  } catch (error) {
+    select.value = oldCategory;
+    alert("更换分类失败：" + error.message);
+  } finally {
+    select.disabled = false;
+  }
+}
+
+async function editErrorTypeDescription(label, openCoded) {
+  const current = errorTypeDescription(label, openCoded);
+  const descriptionZh = prompt(`修改 ${label} 的共享中文解释：`, current);
+  if (descriptionZh === null || descriptionZh.trim() === current) return;
+  if (!/[\u3400-\u9fff]/.test(descriptionZh)) {
+    alert("中文解释必须包含中文。");
+    return;
+  }
+  try {
+    await mutateOpenCodedLabel({
+      action: "update",
+      label,
+      category: errorTypeCategory(label, openCoded),
+      description_zh: descriptionZh.trim(),
+    });
+    renderLabelGroups();
+    renderForm();
+  } catch (error) {
+    alert("修改解释失败：" + error.message);
+  }
+}
+
+async function deleteOpenCodedLabel(label) {
+  if (!confirm(`确定删除共享标签 ${label}？历史标注不会被修改。`)) return;
+  try {
+    await mutateOpenCodedLabel({ action: "delete", label });
+  } catch (error) {
+    alert("删除标签失败：" + error.message);
+    return;
+  }
+  S.extra.delete(label);
+  delete S.typeSteps[label];
+  delete S.typeEvidence[label];
+  renderLabelGroups();
+  commit();
+}
+
+async function refreshOpenCodedLabels(renderChanges = true) {
+  if (!CONFIG || CONFIG.taxonomy.mode !== "open_coding") return;
+  const response = await api("api/labels");
+  if (!response.ok) throw new Error(await response.text());
+  const payload = await response.json();
+  const before = JSON.stringify([
+    CONFIG.open_coded_label_groups || {},
+    CONFIG.open_coded_label_descriptions || {},
+    CONFIG.error_type_overrides || {},
+  ]);
+  applySharedLabelGroups(
+    payload.groups || {}, payload.descriptions || {}, payload.overrides || {}
+  );
+  const after = JSON.stringify([
+    CONFIG.open_coded_label_groups || {},
+    CONFIG.open_coded_label_descriptions || {},
+    CONFIG.error_type_overrides || {},
+  ]);
+  if (renderChanges && TASK && before !== after) {
+    renderLabelGroups();
+    renderForm();
+  }
+}
+
+async function addExtraLabel() {
+  const raw = $("newLabel").value.trim();
+  if (!raw) return;
+  const v = normalizeOpenLabel(raw);
+  if (!v) {
+    alert("新标签至少需要包含一个英文字母或数字。");
+    return;
+  }
+  if (CONFIG.taxonomy.seed_labels.includes(v)) {
+    S.types.add(v);
+    $("newLabel").value = "";
+    $("newLabelDescription").value = "";
+    commit();
+    return;
+  }
+  const existingCategory = OPEN_LABEL_CATEGORIES.find(
+    (category) => (CONFIG.open_coded_label_groups?.[category] || []).includes(v)
+  );
+  if (existingCategory) {
+    S.extra.add(v);
+    $("newLabel").value = "";
+    $("newLabelDescription").value = "";
+    $("newLabelCategory").value = existingCategory;
+    commit();
+    return;
+  }
+  const category = $("newLabelCategory").value;
+  if (!OPEN_LABEL_CATEGORIES.includes(category)) {
+    alert("请选择新标签的分类：planning、perception、execution、termination 或 others。");
+    $("newLabelCategory").focus();
+    return;
+  }
+  const descriptionZh = $("newLabelDescription").value.trim();
+  if (!descriptionZh) {
+    alert("请填写新标签的中文解释，说明这个错误具体指什么。 ");
+    $("newLabelDescription").focus();
+    return;
+  }
+  if (!/[\u3400-\u9fff]/.test(descriptionZh)) {
+    alert("新标签的解释必须包含中文。 ");
+    $("newLabelDescription").focus();
+    return;
+  }
+  const button = $("addLabel");
+  button.disabled = true;
+  try {
+    const response = await api("api/labels", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        annotator_id: ANNOTATOR,
+        label: v,
+        category,
+        description_zh: descriptionZh,
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Failed to register label");
+    applySharedLabelGroups(
+      payload.groups || {}, payload.descriptions || {}, payload.overrides || {}
+    );
+    S.extra.add(payload.label || v);
+  } catch (error) {
+    alert("新增标签失败：" + error.message);
+    return;
+  } finally {
+    button.disabled = false;
+  }
+  $("newLabel").value = "";
+  $("newLabelDescription").value = "";
+  renderLabelGroups();
+  commit();
+}
+
+function moveCurrent(direction) {
+  let next = cur;
+  while (true) {
+    next += direction;
+    if (next < 0 || next >= TASK.actions.length) return;
+    const actionId = TASK.actions[next].action_index_global;
+    if (SHOW_REMOVED || !Object.hasOwn(S.drops, String(actionId))) {
+      cur = next;
+      saveViewLocation();
+      render();
+      return;
+    }
+  }
+}
+
+async function initialize() {
+  CONFIG = applyCurrentTaxonomy(await (await api("api/config")).json());
+  renderAnnotatorProgress();
+  $("tagTaxonomy").textContent =
+    `taxonomy ${CONFIG.taxonomy.version} / ${CONFIG.taxonomy.mode}`;
+  if (!CONFIG.trajectories.length) {
+    gate("<div><h2>No annotation_task.json files in this build</h2>" +
+         "<p>Run <code>scripts/03_prepare_annotations.py</code> first.</p></div>");
+    return;
+  }
+  const remembered = loadViewLocation();
+  const rememberedTrajectory = remembered && CONFIG.trajectories.some(
+    (item) => item.trajectory_id === remembered.trajectoryId
+  ) ? remembered.trajectoryId : "";
+  const first = renderSelectors(rememberedTrajectory);
+
+  $("agentSel").onchange = () => {
+    renderCategoryOptions("");
+    const firstTask = renderTaskOptions("");
+    if (firstTask) loadTask(firstTask);
+  };
+  $("categorySel").onchange = () => {
+    const firstTask = renderTaskOptions("");
+    if (firstTask) loadTask(firstTask);
+  };
+  $("taskSel").onchange = (ev) => loadTask(ev.target.value);
+  $("btnBefore").onclick = () => { showBefore = true; saveViewLocation(); renderViewer(); };
+  $("btnAfter").onclick = () => { showBefore = false; saveViewLocation(); renderViewer(); };
+  $("wrongRollout").onclick = () => {
+    S.wrongRollout = !S.wrongRollout;
+    saveDraft();
+    renderRubricTotals();
+    render();
+  };
+  document.querySelectorAll("[data-act]").forEach((b) => {
+    b.onclick = () => mark(b.dataset.act);
+  });
+  $("clrRoot").onclick = () => {
+    S.root = null;
+    RANGE_SELECTION.clear();
+    RANGE_ANCHOR = null;
+    S.cleanReviewed = false;
+    commit();
+  };
+  $("clrIdent").onclick = () => { S.ident = null; commit(); };
+  $("noHorizon").onchange = (ev) => {
+    S.noHorizon = ev.target.checked;
+    if (S.noHorizon) S.ident = null;
+    commit();
+  };
+  $("rev").onchange = (ev) => { S.rev = ev.target.value; saveDraft(); };
+  $("rationale").oninput = (ev) => { S.rationale = ev.target.value; saveDraft(); };
+  $("removeRange").onclick = removeSelectedRange;
+  $("toggleRemoved").onclick = () => { SHOW_REMOVED = !SHOW_REMOVED; render(); };
+  $("cleanReviewed").onchange = (ev) => {
+    S.cleanReviewed = ev.target.checked;
+    saveDraft();
+  };
+  $("addLabel").onclick = addExtraLabel;
+  $("newLabel").onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); addExtraLabel(); } };
+  $("newLabelDescription").onkeydown = (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); addExtraLabel(); }
+  };
+  $("newLabel").oninput = () => {
+    const value = normalizeOpenLabel($("newLabel").value);
+    const category = OPEN_LABEL_CATEGORIES.find(
+      (name) => (CONFIG.open_coded_label_groups?.[name] || []).includes(value)
+    );
+    if (category) $("newLabelCategory").value = category;
+  };
+  $("saveNow").onclick = () => saveNow();
+  $("clearTask").onclick = clearCurrentTask;
+  $("previousTask").onclick = previousTask;
+  $("nextTask").onclick = nextTask;
+  $("exportResults").onclick = exportResults;
+  $("changeAnnotator").onclick = changeAnnotator;
+  $("submit").onclick = submit;
+
+  document.addEventListener("keydown", (ev) => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) return;
+    const k = ev.key.toLowerCase();
+    if (k === "j" || ev.key === "ArrowDown") moveCurrent(1);
+    else if (k === "k" || ev.key === "ArrowUp") moveCurrent(-1);
+    else if (k === "r") mark("root");
+    else if (k === "i") mark("ident");
+    else if (k === "b") { showBefore = !showBefore; saveViewLocation(); renderViewer(); }
+    else return;
+    ev.preventDefault();
+  });
+
+  await loadTask(first);
+  if (!LABEL_REFRESH_TIMER) {
+    LABEL_REFRESH_TIMER = window.setInterval(
+      () => refreshOpenCodedLabels().catch(() => {}),
+      30000,
+    );
+  }
+}
+
+async function main() {
+  if (!ANNOTATOR || !SAFE_ANNOTATOR.test(ANNOTATOR)) {
+    localStorage.removeItem(ANNOTATOR_KEY);
+    ANNOTATOR = "";
+    showAnnotatorLogin();
+    return;
+  }
+  await initialize();
+}
+
+setupResizableLayout();
+main();
+</script>
+</body>
+</html>

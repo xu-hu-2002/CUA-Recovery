@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/depth_instance.schema.json",
+  "title": "DERAIL Depth Instance v0.2",
+  "$comment": "Python enforces replay_end = root + depth in immutable source IDs. Cleaned executed/history IDs may be sparse, remain strictly increasing, and are never renumbered.",
+  "type": "object",
+  "properties": {
+    "instance_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "minLength": 1},
+    "depth": {"enum": [0, 5, 10, 15, 20, 25]},
+    "root_cause_action_index": {"type": "integer", "minimum": 0},
+    "replay_end_action_index": {"type": "integer", "minimum": 0},
+    "executed_action_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 1, "uniqueItems": true},
+    "history_action_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 1, "uniqueItems": true},
+    "canonical_actions_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "takeover_semantics": {"const": "source_action_index_offset_from_root"},
+    "replay_verification_status": {"enum": ["pending", "accepted", "rejected"]}
+  },
+  "required": [
+    "instance_id", "case_id", "depth", "root_cause_action_index", "replay_end_action_index",
+    "executed_action_indices", "history_action_indices", "canonical_actions_sha256",
+    "takeover_semantics", "replay_verification_status"
+  ],
+  "additionalProperties": false
+}

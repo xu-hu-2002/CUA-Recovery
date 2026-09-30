@@ -1,0 +1,28 @@
+diff --git a/agent-harness/judge_results.py b/agent-harness/judge_results.py
+--- a/agent-harness/judge_results.py
++++ b/agent-harness/judge_results.py
+@@ -110,6 +110,11 @@
+                     help="Override the judge command (default: resolve from env)")
+     ap.add_argument("--timeout", type=int, default=300,
+                     help="Per-task judge subprocess timeout (s)")
++    ap.add_argument(
++        "--fail-on-errors",
++        action="store_true",
++        help="Exit 3 when any bundle is missing or any Judge call failed",
++    )
+     args = ap.parse_args()
+ 
+     root = Path(args.result_dir)
+@@ -209,8 +214,10 @@
+           f"→ {root / 'scores.json'} ===")
+     if summary["no_bundle"] or summary["judge_errors"]:
+         print(f"    note: {summary['no_bundle']} crashed (no bundle), "
+-              f"{summary['judge_errors']} judge-errored — counted as 0.0. "
+-              f"Report avg_score (all {n}) as the benchmark number.")
++              f"{summary['judge_errors']} judge-errored — excluded from the "
++              "effective Judge denominator; never report these as model zeros.")
++        if args.fail_on_errors:
++            return 3
+     # Exit 0 even with per-task errors (recorded, not fatal); only a
+     # structural problem (no task dirs / bad path) is a non-zero exit.
+     return 0

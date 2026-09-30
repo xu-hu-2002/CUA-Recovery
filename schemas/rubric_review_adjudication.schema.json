@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/rubric_review_adjudication.schema.json",
+  "title": "DERAIL Rubric Review Adjudication v0.1",
+  "$comment": "第三方对两份独立 rubric review 的裁决。judge_verdicts 记录当时 LLM 判官的逐条结论，用于事后计算 judge-human agreement。",
+  "type": "object",
+  "properties": {
+    "adjudication_id": {"type": "string", "minLength": 1},
+    "trajectory_id": {"type": "string", "minLength": 1},
+    "source_trajectory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rubric_bundle_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "input_review_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "adjudicator_id": {"type": "string", "minLength": 1},
+    "judgments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "https://derail-benchmark.org/schemas/rubric_review.schema.json#/$defs/judgment"}
+    },
+    "disagreement_rubric_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "resolution_rationale": {"type": "string", "minLength": 1},
+    "judge_model": {"type": ["string", "null"]},
+    "judge_verdicts": {
+      "type": ["object", "null"],
+      "additionalProperties": {"enum": ["success", "failure"]}
+    },
+    "judge_disagreement_rubric_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "schema_version": {"const": "0.1.0"}
+  },
+  "required": [
+    "adjudication_id", "trajectory_id", "source_trajectory_sha256", "rubric_bundle_sha256",
+    "input_review_ids", "adjudicator_id", "judgments", "disagreement_rubric_ids",
+    "resolution_rationale", "schema_version"
+  ],
+  "additionalProperties": false
+}

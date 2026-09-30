@@ -1,0 +1,56 @@
+# 走 OpenCUA 官方实现（third_party/OpenCUA-OSWorld/mm_agents/opencua/opencua_agent.py），
+# 由 factory._create_opencua() 构造，不经过 SafePyAutoGUICompiler。
+#
+# GUI-only（论文 05:12）：上游 OpenCUA 只有 pyautogui 动作空间，没有命令行工具面。
+#
+# 标 `# live` 的字段由 agent_config.load_agent_config() 读取并逐项传给上游 agent；
+# 拼错、缺字段、取值越界一律 hard fail。coordinate_protocol 用的是上游词汇表，
+# 上游真正读的是 coordinate_type。
+agent_id: opencua_72b
+family: opencua
+scaffold: upstream_official
+agent_type: derail_opencua
+checkpoint: xlangai/OpenCUA-72B
+revision: 3cc4af5337a1d0010f934284df3c482797266547
+live_adapter: derail.mypcbench.factory.create_mypcbench_agent
+upstream_agent_commit: 091f5ef1d5544bc74953c77875d5feb5bed30108
+coordinate_protocol: smart_resize_absolute_pixels
+# 每个 endpoint 占几张卡。VM 并发度 = 可用 GPU 数 / 这个值 —— 这个数以前被抄成
+# num_vms: 1 写死在配置里，而采集 config 的 num_vms: 4 会静默盖掉它，一个 TP8
+# 模型因此曾以 4 个 VM 起跑。现在由 GPU 数除出来。
+#
+# 2026-08-13：从 8 降到 4。官方对 72B 给的稳妥值是 TP8（docs/A6000_SERVER_HANDOFF.md
+# 第 10.5 节），但本机八张 A6000 里 4-7 长期被别的用户占着，TP8 在 agent_vm_count
+# 里直接 die（4 < 8），一张卡都排不上。
+#
+# 显存是够的：137 GiB 权重进 4×48 GiB，窗口由模型的 max_position_embeddings=32768
+# 定死（不是 config.json 里那个 131072，详见 00_tmux_serve_open_source.sh 的注释），
+# KV 只要 10 GiB。所以 TP4 的上下文窗口与 TP8 逐字相同，不需要压。
+#
+# 残留的唯一差异是 TP 尺寸改变浮点归约顺序，贪心解码结果不再与 TP8 逐字一致 ——
+# 用 TP4 跑出来的批次请在 COLLECTION_ID 里标出来。八张卡都空出来时改回 8。
+tensor_parallel_size: 4
+# live —— 以下三项没有做枚举校验：OpenCUA 不 vendored 在仓库里（采集脚本按需
+# clone），拿不到合法值表。写错会等到上游构造时才报错，改动前先看 opencua_agent.py。
+# 实际取值由 tests/test_agent_config.py 的金标快照钉住。
+history_type: action_history
+coordinate_type: qwen25
+cot_level: l2
+# live —— 对齐全局 image_max=20。OpenCUA 的文本历史本来就不截断
+# （opencua_agent.py:340 把每步的 observation/thought/action 拼进一条 assistant
+# 消息），只有图片受这个数限制，所以这一个旋钮等价于上游的 history_n=∞ / image_max=20。
+max_image_history_length: 20
+use_old_sys_prompt: false
+# live —— 采样参数。曾经是三个未写进 env.example.yaml 的环境变量；现在只认这里。
+max_tokens: 1500
+top_p: 0.9
+temperature: 0.0
+# live —— runner 的 DERAIL_AGENT_MAX_STEPS 始终是权威上限，上游 guard 取它 +1。
+# OpenCUA 会把第 N 个有效动作替换成 FAIL，guard 与 runner 同值就会污染最后一步。
+step_budget_policy: runner_authoritative_upstream_guard_plus_one
+# live —— 仅当 runner 没有导出 DERAIL_AGENT_MAX_STEPS 时才会用到。
+upstream_max_steps_fallback: 100
+# 01_collect_all.sh 预估时长用；不影响采集行为。
+eta_step_seconds: 18.8
+eta_step_seconds_source: smoke20 实测单步中位
+status: smoke20_task_completed_step12_visual_download_evidence

@@ -1,0 +1,21 @@
+# 由 scripts/dump_upstream_prompts.py 自动生成，请勿手工编辑。
+# prompt_id: mypcbench_full_traj_gemini_user
+# 来源: osworld_full_traj_judge.py:_user_text_for_rubric() —— 仅 Gemini 路径（判官第 816 行）。整条 user 消息一次拼好，rubric 在图片之前。**本仓库当前不走这条路径**
+# 这是只读快照：runtime 仍从 third_party/ 的上游代码读取，改本文件不影响判分。
+# 生效的判官超参数见 configs/judges/mypcbench_rubric.yaml。
+# 分隔线以下是逐字节的 prompt 正文。
+------------------------------------------------------------------------------
+User Task (context only): <TASK_INSTRUCTION>
+
+Evaluate ONLY this rubric item:
+Rubric ID: <RUBRIC_ID>
+Requirement: <REQUIREMENT>
+Verification: <VERIFICATION>
+Weight: <WEIGHT>
+
+Primary Message/Action Trajectory:
+<ACTION_HISTORY>
+
+Screenshots attached below: <N_SCREENSHOTS> (trajectory had <N_STEPS> total step(s)).
+
+Decide whether the rubric (<RUBRIC_ID>) is satisfied. Use the required 'Thoughts:' / 'Status:' format.

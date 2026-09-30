@@ -1,0 +1,19 @@
+# 开放编码阶段的候选提示，不限制人工提出新 error type，也不代表最终类别数。
+version: draft
+categories:
+  planning:
+    - fabricate_data
+    - misunderstand_task_objective
+    - lack_of_knowledge
+  perception:
+    - progress_misperception
+    - detail_misperception
+    - state_misinterpretation
+    - ineffective_action
+  execution:
+    - grounding_failure
+    - incorrect_ui_element
+    - typing_or_parameter_error
+  termination:
+    - fail_to_terminate
+    - premature_completion

@@ -1,0 +1,66 @@
+diff --git a/agent-harness/utils/osworld_full_traj_judge.py b/agent-harness/utils/osworld_full_traj_judge.py
+index 77189d4..f3e375e 100644
+--- a/agent-harness/utils/osworld_full_traj_judge.py
++++ b/agent-harness/utils/osworld_full_traj_judge.py
+@@ -70,6 +70,7 @@ DEFAULT_CONCURRENCY = 4
+ FINAL_JUDGMENT_MAX_COMPLETION_TOKENS = 8192
+ DEFAULT_REASONING_EFFORT = "low"
+ VALID_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high"}
++DEFAULT_REQUEST_TIMEOUT_SECONDS = 300.0
+
+
+ FULL_TRAJ_JUDGMENT_SYSTEM = """You are an expert evaluator of desktop-agent trajectories.
+@@ -277,6 +278,14 @@ def _make_gemini_client():
+     return genai, genai.Client(api_key=api_key)
+
+
++def _request_timeout_seconds() -> float:
++    raw = os.environ.get("MYPCBENCH_OSWORLD_JUDGE_REQUEST_TIMEOUT", "").strip()
++    timeout = float(raw) if raw else DEFAULT_REQUEST_TIMEOUT_SECONDS
++    if timeout <= 0:
++        raise ValueError("judge request timeout must be positive")
++    return timeout
++
++
+ def _make_openai_client():
+     api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+     if not api_key:
+@@ -289,7 +298,11 @@ def _make_openai_client():
+     # The explicit retry loop below owns retry classification and timing.
+     # Disable the SDK's hidden retries so concurrency and retry budgets remain
+     # observable and do not multiply unexpectedly.
+-    kwargs: dict[str, Any] = {"api_key": api_key, "max_retries": 0}
++    kwargs: dict[str, Any] = {
++        "api_key": api_key,
++        "max_retries": 0,
++        "timeout": _request_timeout_seconds(),
++    }
+     base_url = (os.environ.get("OPENAI_BASE_URL") or "").strip()
+     if base_url:
+         kwargs["base_url"] = base_url
+@@ -381,14 +394,17 @@ async def _judge_one_rubric_openai(
+         reasoning_kwargs = {"extra_body": {"output_config": {"effort": effort}}}
+     else:
+         reasoning_kwargs = {"reasoning_effort": effort}
+-    response = await client.chat.completions.create(
+-        model=model,
+-        messages=[
+-            {"role": "system", "content": FULL_TRAJ_JUDGMENT_SYSTEM},
+-            {"role": "user", "content": user_content},
+-        ],
+-        max_completion_tokens=FINAL_JUDGMENT_MAX_COMPLETION_TOKENS,
+-        **reasoning_kwargs,
++    response = await asyncio.wait_for(
++        client.chat.completions.create(
++            model=model,
++            messages=[
++                {"role": "system", "content": FULL_TRAJ_JUDGMENT_SYSTEM},
++                {"role": "user", "content": user_content},
++            ],
++            max_completion_tokens=FINAL_JUDGMENT_MAX_COMPLETION_TOKENS,
++            **reasoning_kwargs,
++        ),
++        timeout=_request_timeout_seconds(),
+     )
+     text = ""
+     try:

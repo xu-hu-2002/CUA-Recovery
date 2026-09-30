@@ -1,0 +1,10 @@
+{{original_prompt}}
+
+# Your previous answer was rejected. Fix it and return the complete corrected JSON.
+Problems found by the programme checks (each must disappear in the corrected answer):
+{{problems}}
+
+Previous answer (for reference; return a full replacement, not a diff):
+```json
+{{previous_json}}
+```

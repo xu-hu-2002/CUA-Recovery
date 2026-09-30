@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/gold_lineage.schema.json",
+  "title": "DERAIL gold lineage (gold-lineage/1.0)",
+  "$comment": "Execution doc v1.2 section 5.2 / 13: gold value sequence, state timeline hashes (volatile columns excluded, D-012), Writes_gold read back from the database, per-node verifier results. resolved_reads records which rows each declared read actually covered (entity_set) or that it stayed coarse (D-005); reads_undeclared lists (table, column) pairs the SQL touched without a declaration (D-003).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "world_id",
+    "initial_state_sha256",
+    "node_order",
+    "values",
+    "state_timeline",
+    "writes_gold",
+    "verifier_results",
+    "interpreter_version",
+    "provenance",
+    "resolved_reads",
+    "reads_undeclared"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "gold-lineage/1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "world_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "initial_state_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "node_order": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "values": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "name",
+          "type",
+          "value"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    "state_timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "state_sha256",
+          "changed"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "writes_gold": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "table",
+          "column",
+          "entity_ref",
+          "entity",
+          "value",
+          "effect_type",
+          "reversibility_class"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entity_ref": {
+            "type": "string",
+            "pattern": "^(file:[^\\s][^\\n]*|[A-Za-z0-9_]+:([A-Za-z0-9_.@+/-]+|\\*)|derived:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+|literal)$"
+          },
+          "entity": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {},
+          "old_value": {},
+          "effect_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reversibility_class": {
+            "enum": [
+              "R0",
+              "R1",
+              "R2",
+              "R3"
+            ]
+          },
+          "volatile": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "verifier_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "verifier_id",
+          "passed"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "verifier_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "detail": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    "final_verifier_passed": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "interpreter_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "resolved_reads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "table",
+          "column",
+          "entity_ref",
+          "entity_set",
+          "filter_columns",
+          "coarse"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entity_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entity_set": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          "filter_columns": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "coarse": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "reads_undeclared": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "table",
+          "column"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,121 @@
+diff --git a/agent-harness/agents/openai_cuabash.py b/agent-harness/agents/openai_cuabash.py
+index f7b8144..e92c151 100644
+--- a/agent-harness/agents/openai_cuabash.py
++++ b/agent-harness/agents/openai_cuabash.py
+@@ -17,6 +17,7 @@ against the `shell` type; `function`-typed bash is OOD. Shell emits
+ 
+ from __future__ import annotations
+ 
++import hashlib
+ import json
+ import logging
+ import os
+@@ -143,6 +144,7 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         # Full replayed conversation: user/tool input items + raw response
+         # output items (dicts), in API order.
+         self._history: List[Dict[str, Any]] = []
++        self._response_audit: List[Dict[str, Any]] = []
+         # Keep only the most recent N real screenshots in the replayed
+         # history; older ones are swapped for a tiny placeholder so the
+         # payload doesn't grow ~250KB per step over a 100-step budget.
+@@ -207,6 +209,25 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         super().reset(logger)
+         # DERAIL ZDR: each task starts with a fresh replayed history.
+         self._history.clear()
++        self._response_audit.clear()
++
++    @staticmethod
++    def _payload_sha256(value: Any) -> str:
++        payload = json.dumps(
++            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
++        ).encode("utf-8")
++        return hashlib.sha256(payload).hexdigest()
++
++    @property
++    def native_responses_state(self) -> Dict[str, Any]:
++        """Return the lossless client-side Responses continuation state."""
++
++        return {
++            "schema_version": "1.0",
++            "zdr_stateless": self._zdr_stateless,
++            "history": self._history,
++            "turns": self._response_audit,
++        }
+ 
+     @staticmethod
+     def _dump_item(item: Any) -> Dict[str, Any]:
+@@ -376,10 +397,18 @@ class _OpenAICUABase(OpenAIBaseAgent):
+             try:
+                 response = self.client.responses.create(**request)
+                 if self._zdr_stateless:
++                    output_items = [self._dump_item(i) for i in response.output]
+                     # DERAIL ZDR: fold this turn into the replayed history.
+                     self._history.extend(input_items)
+-                    self._history.extend(
+-                        self._dump_item(i) for i in response.output
++                    self._history.extend(output_items)
++                    self._response_audit.append(
++                        {
++                            "turn_index": len(self._response_audit),
++                            "response_id": str(getattr(response, "id", "") or ""),
++                            "request_sha256": self._payload_sha256(request),
++                            "response_output_sha256": self._payload_sha256(output_items),
++                            "response_output": output_items,
++                        }
+                     )
+                 else:
+                     self.previous_response_id = response.id
+diff --git a/agent-harness/run_mypcbench.py b/agent-harness/run_mypcbench.py
+index e83713d..e339b36 100644
+--- a/agent-harness/run_mypcbench.py
++++ b/agent-harness/run_mypcbench.py
+@@ -319,6 +319,19 @@ def _fsync_write(path: str, data, mode: str = "w") -> None:
+             pass
+ 
+ 
++def _persist_native_responses_state(agent, result_dir: str) -> None:
++    """Checkpoint lossless ZDR Responses state after a completed API turn."""
++
++    native_state = getattr(agent, "native_responses_state", None)
++    if not native_state or not native_state.get("zdr_stateless"):
++        return
++    _fsync_write(
++        os.path.join(result_dir, "native_responses_state.json"),
++        json.dumps(native_state, ensure_ascii=False, indent=2),
++        mode="w",
++    )
++
++
+ # DERAIL (2026-08-11): perceptual screen digest for the loop-stall detector.
+ # Byte-identical md5 is too strict — the desktop clock/cursor changes every
+ # second, so a genuinely frozen screen never hashes equal across steps.
+@@ -445,6 +458,7 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+             break
+ 
+         resp_str = response if isinstance(response, str) else str(response)
++        _persist_native_responses_state(agent, result_dir)
+         agent_metadata = _trajectory_agent_metadata(agent)
+         tool_messages = (
+             agent_metadata.get("tool_messages")
+@@ -715,6 +729,21 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+     except Exception as _e:
+         logger.warning("Failed to write messages.json: %s", _e)
+ 
++    # GPT Responses takeover requires provider-native client-side continuation
++    # state. Persist it separately and losslessly; do not strip encrypted
++    # reasoning items, call IDs, shell outputs, or screenshot payloads.
++    try:
++        native_state = getattr(agent, "native_responses_state", None)
++        if native_state and native_state.get("zdr_stateless"):
++            _persist_native_responses_state(agent, result_dir)
++            logger.info(
++                "Wrote native_responses_state.json (%d history items, %d turns)",
++                len(native_state.get("history", [])),
++                len(native_state.get("turns", [])),
++            )
++    except Exception as _e:
++        logger.warning("Failed to write native Responses state: %s", _e)
++
+     # Write the agent's final response to a file in the VM so fuzzy_match
+     # and response_contains checks can read it during grading. We source
+     # the response from (in priority order):

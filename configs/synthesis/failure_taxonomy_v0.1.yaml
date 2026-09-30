@@ -1,0 +1,79 @@
+# failure-taxonomy/0.1 -- paper taxonomy (15 types, 4 categories) and the manual's coarse
+# grouping on top of it (manual v0.2 section 9.2).  ``group`` is derived deterministically from
+# ``paper_type``; it is never annotated separately.
+#
+# STATUS: proposed mapping, pending researcher confirmation before failure-informed sampling.
+schema_version: failure-taxonomy/0.1
+taxonomy_version: frozen-2026-08-31
+paper_categories:
+  planning:
+    - fabricate_data
+    - misunderstand_task_objective
+    - lack_of_knowledge
+    - scope_error
+  perception:
+    - progress_misperception
+    - detail_misperception
+    - state_misinterpretation
+    # An action that changes nothing is evidence the agent never read the state
+    # back, so it is scored as a perception failure rather than a motor one.
+    - ineffective_action
+  execution:
+    - grounding_failure
+    - incorrect_ui_element
+    - typing_or_parameter_error
+    - wrong_target
+  termination:
+    - fail_to_terminate
+    - premature_completion
+    - hit_budget_limit
+
+# Coarse group per paper category (section 9.2 table).  Termination stays its own group.
+category_to_group:
+  planning: long_horizon
+  perception: long_horizon
+  execution: local
+  termination: termination
+
+# Fine-grained subcategory suggested for each paper type inside its group.  Informational only;
+# it is not a second label set and is not used for counting.
+paper_type_to_subgroup:
+  fabricate_data: lost_or_corrupted_constraint
+  misunderstand_task_objective: wrong_distant_conditional_branch
+  lack_of_knowledge: dependency_propagation
+  scope_error: lost_or_corrupted_constraint
+  progress_misperception: progress_or_state_tracking
+  detail_misperception: multi_source_aggregation
+  state_misinterpretation: progress_or_state_tracking
+  grounding_failure: grounding
+  incorrect_ui_element: local_navigation
+  ineffective_action: progress_or_state_tracking
+  typing_or_parameter_error: input_or_format
+  wrong_target: input_or_format
+  fail_to_terminate: termination
+  premature_completion: termination
+  hit_budget_limit: termination
+
+# Labels that may appear on a raw annotation but are not members of the frozen taxonomy.
+retired_labels:
+  - gui_workflow_bypass
+  - exceed_bash_budget
+  - insufficient_evidence_granularity
+renamed_labels:
+  wrong_subgoal: misunderstand_task_objective
+  hallucinated_data: fabricate_data
+  constraint_loss: scope_error
+  section_content_misplacement: wrong_target
+
+# Rule that picks one ``paper_type`` for a multi-label annotation when a single primary type is
+# required (case records, funnel tables).  Categories are tried in this order; inside the
+# winning category the annotator's listing order is kept.  The order is a research decision
+# (set 2026-09-02, revised 2026-09-17 with the authors: perception before execution before
+# termination); every output records the order it used.
+primary_selection:
+  category_priority: [planning, perception, execution, termination]
+
+# Cross-category labels from section 9.2 that never act as a primary cause.
+cross_category_labels:
+  - premature_irreversible_action
+  - long_horizon_recovery

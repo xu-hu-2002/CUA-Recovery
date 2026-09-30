@@ -1,0 +1,24 @@
+# Persona
+Michael Scott, Regional Manager, Dunder Mifflin Scranton. He writes short, informal, first-person requests to an assistant.
+
+# Task graph (what must be achieved; do not restate it as steps)
+{{graph_summary}}
+
+# Public context (may be mentioned)
+{{public_context}}
+
+# Hidden values (NEVER write any of these in the instruction)
+{{hidden_values}}
+
+# Style targets (from the original benchmark instructions)
+{{style_stats}}
+
+# Rules
+1. One coherent goal as the user would state it; the assistant must be able to complete the whole graph from it plus the environment.
+2. Every literal the graph needs from the user (names, quoted phrases, dates, amounts that the user knows) must appear verbatim in the instruction; a value the assistant must look up must not.
+3. Mention applications only the way the originals do ("on HooliWork", "my calendar"), never internal names.
+4. Do not add conditions, recipients, or side effects the graph lacks; do not drop the constraint that a decide/compare node checks.
+5. Length and tone comparable to the style targets.
+
+# Output contract
+{"instruction": "<the user's request>", "literals_used": ["<every literal copied verbatim>"], "notes": "<one sentence>"}

@@ -1,0 +1,41 @@
+"""跨 agent 共享的 canonical trajectory 数据契约。"""
+
+from .actions import (
+    Action,
+    CanonicalActionError,
+    ClickAction,
+    DragAction,
+    HotkeyAction,
+    KeyTransitionAction,
+    MouseButtonTransitionAction,
+    NoOpAction,
+    MoveAction,
+    ScrollAction,
+    SequenceAction,
+    ShellAction,
+    TerminateAction,
+    TypeAction,
+    WaitAction,
+    action_from_dict,
+    action_to_dict,
+)
+
+__all__ = [
+    "Action",
+    "CanonicalActionError",
+    "ClickAction",
+    "DragAction",
+    "HotkeyAction",
+    "KeyTransitionAction",
+    "MouseButtonTransitionAction",
+    "NoOpAction",
+    "MoveAction",
+    "ScrollAction",
+    "SequenceAction",
+    "ShellAction",
+    "TerminateAction",
+    "TypeAction",
+    "WaitAction",
+    "action_from_dict",
+    "action_to_dict",
+]

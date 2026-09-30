@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/changelog_row.schema.json",
+  "title": "DERAIL changelog row (changelog-row/1.0)",
+  "$comment": "Execution doc v1.2 section 4.1: one row of a database _changelog table written by the installed triggers. ``db`` is added by the harness when rows from the 17 per-application logs are merged (DECISIONS.md D-004).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "db",
+    "seq",
+    "ts",
+    "tbl",
+    "rowid",
+    "op",
+    "old_json",
+    "new_json",
+    "action_index"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "changelog-row/1.0"
+    },
+    "db": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ts": {
+      "type": [
+        "number",
+        "string"
+      ]
+    },
+    "tbl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rowid": {
+      "type": "integer"
+    },
+    "op": {
+      "enum": [
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ]
+    },
+    "old_json": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "new_json": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "action_index": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": -1
+    }
+  },
+  "additionalProperties": false
+}

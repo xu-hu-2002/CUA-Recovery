@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/world_graph.schema.json",
+  "title": "DERAIL world graph (world-graph/0.1)",
+  "$comment": "Entities, relations, observation surfaces and mutability of one environment snapshot. Stable ids are derived from seed data; id_confidence says whether the in-VM store is known to expose the same key.",
+  "type": "object",
+  "required": ["schema_version", "environment_id", "snapshot_id", "world_schema_version", "source", "app_ids", "entities", "relations"],
+  "properties": {
+    "schema_version": {"const": "world-graph/0.1"},
+    "environment_id": {"type": "string", "minLength": 1},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "world_schema_version": {"type": "string", "minLength": 1},
+    "source": {
+      "type": "object",
+      "required": ["persona_uri", "persona_sha256", "variables_uri", "variables_sha256", "sources_config_sha256"],
+      "additionalProperties": true
+    },
+    "app_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["entity_id", "entity_type", "attributes", "observation_surfaces", "mutable", "source_path", "id_confidence"],
+        "properties": {
+          "entity_id": {"type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_-]+$"},
+          "entity_type": {"type": "string", "minLength": 1},
+          "attributes": {"type": "object"},
+          "observation_surfaces": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+          "mutable": {"type": "boolean"},
+          "source_path": {"type": "string", "minLength": 1},
+          "id_confidence": {"enum": ["seed_derived", "in_vm_verified"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["relation_id", "type", "from", "to", "source_path"],
+        "properties": {
+          "relation_id": {"type": "string", "minLength": 1},
+          "type": {"type": "string", "minLength": 1},
+          "from": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "minLength": 1},
+          "source_path": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,17 @@
+DUNDER MIFFLIN INC — W-2 SUMMARY (Tax Year 2025)
+=================================================
+
+Employer: Dunder Mifflin Paper Company, Inc.
+EIN: 12-3456789
+Address: 1725 Slough Ave, Scranton PA 18505
+
+Box 1 - Wages, tips, other compensation: $142,000.00
+Box 2 - Federal income tax withheld:     $28,400.00
+Box 3 - Social Security wages:           $142,000.00
+Box 4 - Social Security tax withheld:    $8,804.00
+Box 5 - Medicare wages and tips:         $142,000.00
+Box 6 - Medicare tax withheld:           $2,059.00
+Box 16 - State wages:                    $142,000.00
+Box 17 - State income tax:               $4,359.00
+
+Notes: Single W-2 for 2025. No additional employers.

@@ -1,0 +1,65 @@
+# Task
+task_id: {{task_id}}
+category: {{category}}
+applications: {{apps}}
+reference_time (the world's "now", ISO 8601): {{reference_time}}
+persona: Michael Scott, michael.scott@dundermifflin.com
+instruction:
+{{instruction}}
+
+# Grading rubrics (evidence of the semantic goals)
+{{rubrics}}
+
+# Database schemas of the involved applications (app = database name; sample rows are real)
+{{schemas}}
+
+# Files in the user's home (world entities; read them with derivation kind "file")
+{{files}}
+
+# Vocabulary
+operations: {{operations}}
+port types: {{value_types}}
+reversibility classes: {{reversibility_classes}}
+effect types: {{effect_types}}
+commit scopes: {{commit_scopes}}
+
+# Rules
+1. Nodes are semantic steps (retrieve, resolve, filter, compare, aggregate, verify, decide, create, modify, delete, communicate, confirm), never screenshots or clicks. Give each node "app" = one database name from the schemas above (a file/office/browser step uses the app name given in "applications").
+2. Every value flows through ports and edges. A node's "inputs" are ports with "source": "upstream" (bound by exactly one edge from an upstream output whose port_id equals a produce name) or "literal" (give "literal": <value>). A literal is allowed ONLY for a constant that appears verbatim in the instruction (a name, a quoted phrase, a number, a date or time written there) or the signed-in persona's own name / e-mail. Every world fact (a date on the calendar, a price, a recipient's address, an id) must be obtained by a sql derivation or arrive through an upstream port; a world fact typed in as a literal is rejected. Every output port_id must equal one of the node's produce names and its grounding is "derived:<node_id>:<name>".
+3. "produces" are executable and READ-ONLY: {"name", "type", "derivation": {"kind": "sql", "query": "SELECT ...", "returns": scalar|row|rows|column} | {"kind": "expr", "expr": "..."} | {"kind": "literal", "value": ...} | {"kind": "create", "table": "<app>.<table>"} | {"kind": "file", "path": "Documents/x.txt" or ":port_id", "op": text|lines|regex|regex_all|json|csv_rows|exists, "pattern": "<regex with one group, for regex ops>"}}. A file node has "app": "files", reads {"table": "files.documents", "column": "content", "entity_ref": "file:<path>"}, and a file write is a write on files.documents column "content" (effect_type write_file / overwrite_file). To CREATE a file: a produce {"kind": "create", "table": "files.documents", "path": "Documents/<name>.<ext>"} plus one write {"table": "files.documents", "column": "content", "entity_ref": "derived:<node_id>:<produce name>", "effect_type": "write_file", "value_ref": "<text produce>"}; the produce value is the new file entity. SQL binds named parameters :<input port_id>, :<earlier produce name of the same node> and :reference_time; it runs only on the node's own database (no cross-database joins; carry values through ports instead); INSERT/UPDATE/DELETE inside a derivation is rejected. A "create" produce inserts one row whose cells are the node's "writes" with entity_ref "derived:<node_id>:<name>" and yields the new row id. Expressions use the functions len, max, min, sum, sorted, str, int, float, round, abs, any, all, lower, upper, strip, date_add(value, days, hours, minutes), date_of, time_of, weekday_of, at_time(date, "HH:MM"), fmt(template, *args), pick(row, key), pluck(rows, key), count_by(rows, key), argmax(mapping), argmin(mapping), first(list), unique(list), contains(haystack, needle), and V["<node_id>"]["<name>"] for any earlier value.
+4. "reads": every world fact a correct execution of the node must obtain: {"table": "<app>.<table>", "column", "entity_ref": "<table>:<rowid>" | "<table>:*" (a lookup over many rows) | "derived:<node_id>:<name>" (the row a resolve step finds)}. Add "equivalent_sources" when the same fact is also stored elsewhere (a trip date in the flight row and in the confirmation e-mail).
+5. "writes" are executed by the interpreter, one per cell: {"table": "<app>.<table>", "column", "entity_ref", "effect_type", "value_ref": "<input port_id | produce name | derived:<node>:<name> | reference_time>"} or with a literal "value". For modify: entity_ref names the existing row ("<table>:<rowid>" or "derived:<node>:<name>") and the cells are UPDATEd. For delete: one write with "column": "*" and a delete_* effect_type. For create / communicate: entity_ref "derived:<node_id>:<name>" of the node's "create" produce; list every NOT NULL column. Timestamps the task writes use value_ref "reference_time", never datetime('now').
+6. Read-only ops (retrieve, resolve, filter, compare, aggregate, verify, decide, confirm) have "reversibility_class": "R0", "writes": [] and "side_effects": []. create / modify / delete / communicate carry side effects {"effect_id", "effect_type", "target_ref", "reversibility_class": R1|R2|R3, "commit_scope", "compensation_available", "compensating_effect_type", "checkpoint_required"}; the node's reversibility_class equals its most consequential effect (sending, submitting, paying = R3).
+7. Every node has "verifier": {"verifier_id", "kind": "sql" | "derived", "predicate", "observability"} returning true at the gold state (sql: a SELECT whose first cell is 1/0 and may bind the same named parameters; derived: an expression), or null when nothing is checkable. Mark "critical": true on nodes whose failure fails the task.
+8. Edges: {"edge_id", "from": {"node_id", "port_id"}, "to": {"node_id", "port_id"}, "kind": "data_dependency" | "state_dependency" | "control_dependency"}. A state edge orders a confirm after a write (give the confirm node an input port for it). A control edge carries "predicate" (an expression over V) and targets a dedicated gate input port.
+9. "final_verifier": the state predicate of task completion, with "equivalent_final_states": alternative predicates for other correct outcomes (a message sent by e-mail instead of chat when the instruction does not fix the channel). If the task only asks for an answer with no state change, the final verifier is a "derived" predicate over V and the answer node has op "decide".
+10. If a fact the task needs is neither in a table nor in a listed file (a page in the browser, an e-mail attachment not on disk), do not invent it and do not type it as a literal: name it in "unbound_entities" [{"name", "app", "kind": "file | message_body | web_page | other", "needed_by": "<node_id>", "why"}] and give the node an input port with "source": "world", "grounding": "unbound:<name>" and no literal.
+
+# Structural rules (violations are rejected mechanically)
+- The graph is a DAG: no edge may point to the same node or to an earlier node. A confirm step comes after the write it checks and receives a state edge from it.
+- An edge leaves an OUTPUT port (a produce of the source node) and enters an INPUT port; never draw an edge from an input port. To pass a literal downstream, give the downstream node its own literal input.
+- A node never reads its own produces through V["<self>"]; inside a node, refer to earlier produces and input ports by bare name, and to other nodes' values through V["<node_id>"]["<name>"].
+- Expressions are Python syntax: None / True / False, never null / true / false. Guard optional values: (x or 0), (x if x is not None else ...).
+- SQL parameters are scalars: bind :port_id only for strings, numbers or ids; pass a row through a port as a value and read its fields with pick(row, "col") in expressions, never bind a row or a list.
+- Every produce that a downstream edge uses must exist with that exact name in the node's "produces" and "outputs".
+
+# Self-check before answering (fix, do not report)
+1. Every edge: from-port is a produce name of the from-node; to-port is an input of the to-node; from-node != to-node; no cycle.
+2. Every SQL derivation is a SELECT on the node's own database; every :param is an input port, an earlier produce, or reference_time.
+3. Every literal input is a constant from the instruction or the persona identity.
+4. Every create/communicate node has a "create" produce and one write per NOT NULL column.
+
+# Output contract (exactly this shape; no prose outside the JSON)
+{
+  "task_ir": {
+    "nodes": [
+      {"node_id": "n1", "op": "resolve", "app": "<database>", "semantic_goal": "...", "route_hint": ["/<page pattern>"],
+       "reads": [...], "produces": [...], "writes": [], "reversibility_class": "R0", "side_effects": [],
+       "inputs": [...], "outputs": [...], "verifier": {...} | null, "critical": false}
+    ],
+    "edges": [...],
+    "final_verifier": {...}
+  },
+  "unbound_entities": [],
+  "notes": "<one paragraph: what was ambiguous and how you resolved it>"
+}

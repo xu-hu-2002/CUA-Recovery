@@ -1,0 +1,20 @@
+# Mutation library (execution doc v1.2 section 6.1): which type-preserving mutations apply to
+# which produce types.  Families are matched on the port-type name (value_types_v0 names and
+# the free-form names extraction produces); mutation identifiers are the schema enum.
+schema_version: mutations-config/1.0
+default_family: text
+family_patterns:
+  - {pattern: "ref$|id$|^(person|contact|user|member|order|event|message|file|channel|dm|booking|flight|account|transaction|listing)", family: entity}
+  - {pattern: "date|time|stamp|deadline|when|day$", family: date}
+  - {pattern: "amount|price|total|balance|cost|fee|money|currency|usd|sum$|count$|number|quantity|percent|^(integer|int|float|decimal)$", family: amount}
+  - {pattern: "list|rows|set$|items|candidates|\\[\\]|^many|^(report|record|summary|ranking)$", family: list}
+  - {pattern: "bool|flag|^is_|allowed|decision|branch", family: boolean}
+  - {pattern: "text|title|body|name|subject|content|note|message|string|answer|summary", family: text}
+by_family:
+  entity: [entity_other, entity_same_name]
+  date: [date_plus_minus_day, date_plus_minus_week, time_zone_shift_hour, date_other_field]
+  amount: [amount_pct, amount_unit, amount_neighbor_transaction, amount_omit_fee]
+  list: [list_omit_element, list_extra_element, list_reorder]
+  boolean: [boolean_flip]
+  text: [text_stale_version, text_similar_entity]
+write_mutations: [write_other_entity, write_mutated_value, write_omit, write_duplicate]

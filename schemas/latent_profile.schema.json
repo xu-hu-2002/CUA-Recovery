@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/latent_profile.schema.json",
+  "title": "DERAIL task latent-horizon profile (latent-profile/1.0)",
+  "$comment": "Execution doc v1.2 section 6.6 / 13: task-level profile and bucket membership. bucket labels are the sampling-config keys (for example \"1\", \"2-3\", \">=4\", \"verifier_only\"); they are data, not an enum, so the sampling grid can change without a schema bump.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "mode",
+    "node_count",
+    "class_counts",
+    "semantic_horizon_max",
+    "semantic_horizon_median",
+    "cross_app_or_verifier_only_ratio",
+    "verifier_only_before_first_r3",
+    "bucket",
+    "nodes_in_target_bucket",
+    "structural",
+    "profile_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "latent-profile/1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "enum": [
+        "static",
+        "dynamic"
+      ]
+    },
+    "node_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "class_counts": {
+      "type": "object",
+      "required": [],
+      "properties": {
+        "required_next": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_later": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incidental_only": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verifier_only": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "silent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cross_app": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "semantic_horizon_max": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "semantic_horizon_median": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "cross_app_or_verifier_only_ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "verifier_only_before_first_r3": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "bucket": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_buckets": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "nodes_in_target_bucket": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "structural": {
+      "type": "object",
+      "required": [
+        "dependency_depth",
+        "independent_component_ratio",
+        "decorative_carry_violations"
+      ],
+      "properties": {
+        "dependency_depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cross_app_dependency_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "independent_component_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "decorative_carry_violations": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "profile_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provenance": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

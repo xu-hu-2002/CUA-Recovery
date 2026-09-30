@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/osm.schema.json",
+  "title": "DERAIL observation surface map (osm/1.0)",
+  "$comment": "Execution doc v1.2 sections 2.1 / 4.5 / 13: per application, route pattern to rendered (table, column) fields; the inverse map is derived. hidden marks fields read by the server but not rendered. Spot-check status records the human audit of five routes per application.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "app",
+    "routes",
+    "spot_check",
+    "built_from"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "osm/1.0"
+    },
+    "app": {
+      "type": "string",
+      "minLength": 1
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "route_pattern",
+          "fields"
+        ],
+        "properties": {
+          "route_pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sample_urls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "table",
+                "column",
+                "hidden"
+              ],
+              "properties": {
+                "table": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "column": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "hidden": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "spot_check": {
+      "type": "object",
+      "required": [
+        "status",
+        "checked_routes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "passed",
+            "failed"
+          ]
+        },
+        "checked_routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "route_pattern",
+              "consistent"
+            ],
+            "properties": {
+              "route_pattern": {
+                "type": "string",
+                "minLength": 1
+              },
+              "consistent": {
+                "type": "boolean"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "built_from": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

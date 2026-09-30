@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/file_inventory.schema.json",
+  "title": "DERAIL file inventory (file-inventory/1.0)",
+  "$comment": "Files under the persona's home directory as world entities (doc 2.1). Exposed to the IR as the virtual table files.documents with columns path, name, mime, size, sha256, content, lines; entity ids are file:<relative path> (D-028).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "home_prefix",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "file-inventory/1.0"
+    },
+    "home_prefix": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "size",
+          "sha256",
+          "mime"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lines": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

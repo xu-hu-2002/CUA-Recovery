@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "models": {
+    "gpt-5.6-terra": {
+      "protocol": "openai_chat_compatible",
+      "max_images": 50,
+      "admission": "admitted",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 50
+    },
+    "claude-opus-4-8": {
+      "protocol": "openai_chat_compatible",
+      "max_images": 200,
+      "admission": "admitted",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 66
+    },
+    "anthropic.claude-sonnet-4-6": {
+      "protocol": "openai_chat_compatible",
+      "max_images": 200,
+      "admission": "admitted",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 66,
+      "admission_note": "single schema-valid real-traj probe evocua32b-r1-vm2-long_horizon-f051 at 51-66 images"
+    },
+    "anthropic.claude-sonnet-5": {
+      "protocol": "anthropic_messages",
+      "max_images": 200,
+      "admission": "candidate",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 66
+    },
+    "claude-opus-4-7": {
+      "protocol": "anthropic_messages",
+      "max_images": 200,
+      "admission": "candidate",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 66
+    },
+    "openai.gpt-5.6-luna": {
+      "protocol": "openai_chat_compatible",
+      "max_images": 50,
+      "admission": "admitted",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 50
+    },
+    "openai.gpt-5.5": {
+      "protocol": "openai_chat_compatible",
+      "max_images": 50,
+      "admission": "admitted",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 50
+    },
+    "gpt-5.6-sol": {
+      "protocol": "openai_chat_compatible",
+      "max_images": 50,
+      "admission": "admitted",
+      "concurrency": 4,
+      "timeout_seconds": 2400,
+      "proven_max_images": 50,
+      "admission_note": "9/10 real full-trajectory canary valid; isolated upstream 404 is handled by bounded same-model missing-only retry"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+# Gold interpreter configuration (execution doc v1.2 section 5.2).
+#
+# Everything an operator might legitimately change between worlds lives here; the operation
+# semantics themselves are code (src/derail/ir/gold_interpreter.py).
+schema_version: gold-interpreter-config/1.0
+
+state_digest:
+  # Bookkeeping tables that must not influence the state timeline: SQLite internals, seeder
+  # metadata, and the changelog / cursor tables the harness installs (section 4.1).
+  exclude_tables: [sqlite_sequence, sqlite_stat1, _seed_meta, _meta, _seed_marker, _changelog, _cursor]
+  # Tables maintained by the applications' own triggers (FTS5 shadow tables, per-viewer state);
+  # they change whenever a row of the real table changes and carry no task semantics.
+  exclude_table_patterns: ["_search(_|$)", "_fts(_|$)", "_local_state$", "_idempotency_cache$"]
+
+# Volatile columns are excluded from state digests and flagged in Writes_gold (D-012).
+volatile_columns_config: configs/synthesis/volatile_columns_v1.yaml
+
+execution:
+  # Every write a node performs must be declared in node.writes; an undeclared changed row
+  # aborts the run (the IR is wrong, not the world).
+  require_declared_writes: true
+  # Upper bound on rows a single produced value may carry (keeps gold-lineage records small).
+  max_rows_per_value: 5000
+  # SQL derivations run under an authorizer that denies writes and records the (table, column)
+  # pairs actually read; pairs missing from node.reads are reported as reads_undeclared (D-003).
+  audit_reads: true
+  # Verifier kinds the interpreter evaluates; ``rubric`` verifiers are kept for the judge.
+  evaluated_verifier_kinds: [sql, derived]

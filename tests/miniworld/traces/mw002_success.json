@@ -1,0 +1,499 @@
+{
+ "schema_version": "rollout-trace/1.0",
+ "rollout_id": "mw002-success-0",
+ "task_id": "mw-002",
+ "world_id": "miniworld",
+ "agent": "fixture-agent",
+ "seed": 0,
+ "sampling_round": 1,
+ "step_budget": 100,
+ "image_digest": null,
+ "steps": [
+  {
+   "action_index": 0,
+   "action": {
+    "type": "open_url",
+    "raw": "http://hoolicalendar.local/calendar"
+   },
+   "params": [
+    {
+     "name": "url",
+     "value": "http://hoolicalendar.local/calendar"
+    }
+   ],
+   "modality": "gui",
+   "thought": "Open the calendar to find the Dundies.",
+   "screenshot_sha256": "80269fb7e3ecd4dfc9c708674e873c7105453e037a7826463e29ffe23146e015",
+   "a11y_sha256": "db0417962d3ce1f3910340b33dcd87957660bbaab6e74c2fd4c53726806882f9",
+   "delta": [],
+   "observations": [
+    {
+     "schema_version": "observation-event/1.0",
+     "rollout_id": "mw002-success-0",
+     "action_index": 0,
+     "source": "gui",
+     "app": "hoolicalendar",
+     "route": "/calendar/month/2026-04",
+     "facts": [
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:529",
+       "value": "Team Standup"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:529",
+       "value": "2026-04-07T09:30:00"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:530",
+       "value": "1:1 with Jim Halpert"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:530",
+       "value": "2026-04-07T11:00:00"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:531",
+       "value": "1:1 with Dwight Schrute"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:531",
+       "value": "2026-04-07T14:00:00"
+      }
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "app": "hoolicalendar",
+     "route": "/calendar/month/2026-04",
+     "rendered_fields": [
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:529",
+       "value": "Team Standup"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:529",
+       "value": "2026-04-07T09:30:00"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:530",
+       "value": "1:1 with Jim Halpert"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:530",
+       "value": "2026-04-07T11:00:00"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:531",
+       "value": "1:1 with Dwight Schrute"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:531",
+       "value": "2026-04-07T14:00:00"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "action_index": 1,
+   "action": {
+    "type": "type",
+    "raw": "search"
+   },
+   "params": [
+    {
+     "name": "text",
+     "value": "dundies",
+     "target_a11y_label": "Search events"
+    }
+   ],
+   "modality": "gui",
+   "thought": null,
+   "screenshot_sha256": "6003a31f3d31c8f86ddcb2fd81eac09c9beec0aee68f1844e19425df920da1f9",
+   "a11y_sha256": "e055a6746456a0ca0aef05ce5465a739b9dd7d68a6e6b40df57fbcc0d4930aa7",
+   "delta": [],
+   "observations": [
+    {
+     "schema_version": "observation-event/1.0",
+     "rollout_id": "mw002-success-0",
+     "action_index": 1,
+     "source": "gui",
+     "app": "hoolicalendar",
+     "route": "/calendar/search?q=dundies",
+     "facts": [
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:545",
+       "value": "THE DUNDIES"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:545",
+       "value": "2026-07-02T18:00:00"
+      }
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "app": "hoolicalendar",
+     "route": "/calendar/search?q=dundies",
+     "rendered_fields": [
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:545",
+       "value": "THE DUNDIES"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:545",
+       "value": "2026-07-02T18:00:00"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "action_index": 2,
+   "action": {
+    "type": "click",
+    "raw": "open result"
+   },
+   "params": [
+    {
+     "name": "target",
+     "value": "THE DUNDIES",
+     "target_a11y_label": "THE DUNDIES"
+    }
+   ],
+   "modality": "gui",
+   "thought": "The Dundies is on July 2, 2026 at 6pm.",
+   "screenshot_sha256": "2b5ff92cfe7f2be8e45729cd99a7b36f0de467509a6b1e906d3c68164c34b931",
+   "a11y_sha256": "d47d131d306b03c46be2971db47bd2f0bb92e61eb4ed0f58f7bbf16509280427",
+   "delta": [],
+   "observations": [
+    {
+     "schema_version": "observation-event/1.0",
+     "rollout_id": "mw002-success-0",
+     "action_index": 2,
+     "source": "gui",
+     "app": "hoolicalendar",
+     "route": "/event/545",
+     "facts": [
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:545",
+       "value": "THE DUNDIES"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:545",
+       "value": "2026-07-02T18:00:00"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "location",
+       "entity": "events:545",
+       "value": "Chili's Grill & Bar, Scranton"
+      }
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "app": "hoolicalendar",
+     "route": "/event/545",
+     "rendered_fields": [
+      {
+       "table": "hoolicalendar.events",
+       "column": "title",
+       "entity": "events:545",
+       "value": "THE DUNDIES"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "start_at",
+       "entity": "events:545",
+       "value": "2026-07-02T18:00:00"
+      },
+      {
+       "table": "hoolicalendar.events",
+       "column": "location",
+       "entity": "events:545",
+       "value": "Chili's Grill & Bar, Scranton"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "action_index": 3,
+   "action": {
+    "type": "open_url",
+    "raw": "http://workbuzz.local/"
+   },
+   "params": [
+    {
+     "name": "url",
+     "value": "http://workbuzz.local/"
+    }
+   ],
+   "modality": "gui",
+   "thought": null,
+   "screenshot_sha256": "9271c1ed0f687410328e41a3828ffd30d3ab5d59460213660e93790c391480cd",
+   "a11y_sha256": "6b4bde22a27a4a459648bbc6f32731c63815cc736ba08edef426068619eb961b",
+   "delta": [],
+   "observations": [
+    {
+     "schema_version": "observation-event/1.0",
+     "rollout_id": "mw002-success-0",
+     "action_index": 3,
+     "source": "gui",
+     "app": "workbuzz",
+     "route": "/",
+     "facts": [
+      {
+       "table": "workbuzz.dms",
+       "column": "participant_names",
+       "entity": "dms:1",
+       "value": "Michael Scott,Jim Halpert"
+      }
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "app": "workbuzz",
+     "route": "/",
+     "rendered_fields": [
+      {
+       "table": "workbuzz.dms",
+       "column": "participant_names",
+       "entity": "dms:1",
+       "value": "Michael Scott,Jim Halpert"
+      },
+      {
+       "table": "workbuzz.dms",
+       "column": "participant_names",
+       "entity": "dms:2",
+       "value": "Michael Scott,Dwight Schrute"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "action_index": 4,
+   "action": {
+    "type": "click",
+    "raw": "open dm"
+   },
+   "params": [
+    {
+     "name": "target",
+     "value": "Jim Halpert",
+     "target_a11y_label": "Jim Halpert"
+    }
+   ],
+   "modality": "gui",
+   "thought": null,
+   "screenshot_sha256": "cf9327af6434464a8384bcbb9622af3ac08ea97b8d166d43e28f3907afc3946b",
+   "a11y_sha256": "20ef06eb6efbc56b20263f81bd722f517bad3955e69476a26a6a8ca387859915",
+   "delta": [],
+   "observations": [
+    {
+     "schema_version": "observation-event/1.0",
+     "rollout_id": "mw002-success-0",
+     "action_index": 4,
+     "source": "gui",
+     "app": "workbuzz",
+     "route": "/dm/1",
+     "facts": [
+      {
+       "table": "workbuzz.dms",
+       "column": "participant_emails",
+       "entity": "dms:1",
+       "value": "michael.scott@dundermifflin.com,jim.halpert@dundermifflin.com"
+      }
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "app": "workbuzz",
+     "route": "/dm/1",
+     "rendered_fields": [
+      {
+       "table": "workbuzz.dms",
+       "column": "participant_emails",
+       "entity": "dms:1",
+       "value": "michael.scott@dundermifflin.com,jim.halpert@dundermifflin.com"
+      },
+      {
+       "table": "workbuzz.dm_messages",
+       "column": "content",
+       "entity": "dm_messages:44",
+       "value": "he hasn't noticed yet. week 3."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "action_index": 5,
+   "action": {
+    "type": "type",
+    "raw": "compose"
+   },
+   "params": [
+    {
+     "name": "text",
+     "value": "Dundies is on 2026-07-02, save the date.",
+     "target_a11y_label": "Message Jim Halpert"
+    }
+   ],
+   "modality": "gui",
+   "thought": "Type the message with the date I saw.",
+   "screenshot_sha256": "083e82d1d125766f877776a2c68de08b250f12172ca4dc55a435dde0471b9cef",
+   "a11y_sha256": "d0c47b7e205c9d459727b2a99cc9bdba9894e409adc5dcebca67e2361af059e0",
+   "delta": [],
+   "observations": [],
+   "pages": [
+    {
+     "app": "workbuzz",
+     "route": "/dm/1",
+     "rendered_fields": []
+    }
+   ]
+  },
+  {
+   "action_index": 6,
+   "action": {
+    "type": "key",
+    "raw": "Enter"
+   },
+   "params": [
+    {
+     "name": "key",
+     "value": "Enter"
+    }
+   ],
+   "modality": "gui",
+   "thought": null,
+   "screenshot_sha256": "732b1b54c8f8b972f2fb333220155e1f6952214d7d9fa4d02e00350b65b69465",
+   "a11y_sha256": "4610aab7cecb930e0c4ee73bb5caafd5aa93ce1ea68d7fbcfa0424298513a1c1",
+   "delta": [
+    {
+     "schema_version": "changelog-row/1.0",
+     "db": "workbuzz",
+     "seq": 1,
+     "ts": 1776.0,
+     "tbl": "dm_messages",
+     "rowid": 45,
+     "op": "INSERT",
+     "old_json": null,
+     "new_json": "{\"id\": 45, \"dm_id\": 1, \"sender_email\": \"michael.scott@dundermifflin.com\", \"content\": \"Dundies is on 2026-07-02, save the date.\"}",
+     "action_index": 6
+    }
+   ],
+   "observations": [
+    {
+     "schema_version": "observation-event/1.0",
+     "rollout_id": "mw002-success-0",
+     "action_index": 6,
+     "source": "gui",
+     "app": "workbuzz",
+     "route": "/dm/1",
+     "facts": [
+      {
+       "table": "workbuzz.dm_messages",
+       "column": "content",
+       "entity": "dm_messages:45",
+       "value": "Dundies is on 2026-07-02, save the date."
+      }
+     ]
+    }
+   ],
+   "pages": [
+    {
+     "app": "workbuzz",
+     "route": "/dm/1",
+     "rendered_fields": [
+      {
+       "table": "workbuzz.dm_messages",
+       "column": "content",
+       "entity": "dm_messages:45",
+       "value": "Dundies is on 2026-07-02, save the date."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "action_index": 7,
+   "action": {
+    "type": "done",
+    "raw": "DONE"
+   },
+   "params": [],
+   "modality": "gui",
+   "thought": "Message sent with the correct date.",
+   "screenshot_sha256": "9b542312f1119bb640c10d0e92a5d5fa8b71a97f4bd5eb9dc75f1a03e77764a5",
+   "a11y_sha256": null,
+   "delta": [],
+   "observations": [],
+   "pages": []
+  }
+ ],
+ "outcome": {
+  "final_verifier": true,
+  "verifier_kind": "state",
+  "declared_complete": true,
+  "declared_infeasible": false,
+  "budget_exhausted": false,
+  "extra_side_effects": false,
+  "steps_taken": 8
+ },
+ "modality": {
+  "primary": "gui",
+  "counts": {
+   "gui": 8,
+   "cli": 0,
+   "editor": 0
+  }
+ },
+ "provenance": {
+  "author": "hand-written miniworld fixture"
+ }
+}

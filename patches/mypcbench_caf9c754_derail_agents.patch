@@ -1,0 +1,1445 @@
+diff --git a/agent-harness/agents/base.py b/agent-harness/agents/base.py
+index 92308f9..0e6fa64 100644
+--- a/agent-harness/agents/base.py
++++ b/agent-harness/agents/base.py
+@@ -1,7 +1,108 @@
+ """Base agent class for MyPCBench (OSWorld-compatible interface)."""
+ 
+ import base64
+-from typing import Dict, List, Tuple
++import logging
++import os
++import random
++import re
++import time
++from typing import Dict, List, Optional, Tuple
++
++_rate_logger = logging.getLogger("mypcbench.agent.ratelimit")
++
++# DERAIL: gateway rate-limit handling.
++#
++# The routify gateway caps requests per API KEY (60 RPM measured 2026-08-06),
++# shared across every model behind that key. A single agent loop only averages
++# ~5 RPM, but consecutive fast steps burst far above that, and running several
++# collection shards concurrently multiplies the burst. The upstream retry
++# budget (5 attempts, <=5s apart) is far too small for that: it burns through
++# in ~20s and the step is recorded as a model failure, silently polluting the
++# collection with fake "no action returned" steps.
++#
++# Rate limits are an infrastructure condition, not model behaviour, so they get
++# their own budget with exponential backoff. Jitter is mandatory: without it,
++# shards that hit the limit together stay in lockstep and keep colliding.
++_RATE_LIMIT_MARKERS = (
++    "rate limit",
++    "rate_limit",
++    "ratelimit",
++    "too many requests",
++    "429",
++    "RPM",
++)
++
++
++def is_rate_limit_error(exc: BaseException) -> bool:
++    """True when an exception looks like a gateway/provider rate limit."""
++    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
++    if status == 429:
++        return True
++    resp = getattr(exc, "response", None)
++    if resp is not None and getattr(resp, "status_code", None) == 429:
++        return True
++    if type(exc).__name__ in ("RateLimitError", "APIRateLimitError"):
++        return True
++    text = str(exc)
++    return any(m.lower() in text.lower() for m in _RATE_LIMIT_MARKERS)
++
++
++def retry_after_seconds(exc: BaseException) -> Optional[float]:
++    """Extract a server-advertised Retry-After (seconds) if present."""
++    resp = getattr(exc, "response", None)
++    headers = getattr(resp, "headers", None)
++    if headers:
++        for key in ("retry-after", "Retry-After", "x-ratelimit-reset-requests"):
++            raw = None
++            try:
++                raw = headers.get(key)
++            except Exception:
++                pass
++            if raw:
++                try:
++                    return max(0.0, float(str(raw).rstrip("s")))
++                except (TypeError, ValueError):
++                    continue
++    match = re.search(r"retry[- ]after[^0-9]{0,10}(\d+(?:\.\d+)?)", str(exc), re.I)
++    if match:
++        return float(match.group(1))
++    return None
++
++
++def rate_limit_sleep(
++    exc: BaseException,
++    attempt: int,
++    *,
++    base: float = 5.0,
++    cap: float = 120.0,
++    label: str = "api",
++) -> float:
++    """Sleep for a rate-limited retry; returns the seconds actually waited.
++
++    `attempt` is 1-based. Honours Retry-After when the server sends it,
++    otherwise exponential backoff with +-40% jitter, capped at `cap`.
++    """
++    advertised = retry_after_seconds(exc)
++    if advertised is not None:
++        delay = min(cap, advertised + random.uniform(0.0, 2.0))
++    else:
++        delay = min(cap, base * (2 ** max(0, attempt - 1)))
++        delay *= random.uniform(0.6, 1.4)
++    _rate_logger.warning(
++        "%s rate limited (attempt %d); backing off %.1fs%s",
++        label, attempt, delay,
++        " (server Retry-After)" if advertised is not None else "",
++    )
++    time.sleep(delay)
++    return delay
++
++
++def rate_limit_retry_budget(env_name: str, default: int = 8) -> int:
++    """Read a rate-limit retry budget from the environment (>=1)."""
++    try:
++        return max(1, int(os.environ.get(env_name, default)))
++    except (TypeError, ValueError):
++        return default
+ 
+ 
+ def encode_image(image_bytes: bytes) -> str:
+diff --git a/agent-harness/agents/claude_cuabash.py b/agent-harness/agents/claude_cuabash.py
+index f311e70..fcacb51 100644
+--- a/agent-harness/agents/claude_cuabash.py
++++ b/agent-harness/agents/claude_cuabash.py
+@@ -209,6 +209,9 @@ class ClaudeCUAAgent(BaseAgent):
+         # warning rather than breaking the run.
+         self.effort = effort
+         self._output_config_supported = True
++        # DERAIL: 运行时粘滞位。服务端报 "use thinking.adaptive" 后置 1，
++        # 后续每次请求都走 adaptive 路径，不再靠模型名单猜。
++        self._force_adaptive_thinking = False
+ 
+         # Sampling params — the canonical OSWorld agent passes these via
+         # `_get_sampling_params()`. Default None means "use server default"
+@@ -226,13 +229,34 @@ class ClaudeCUAAgent(BaseAgent):
+         # retry budget (on top of our own retry loop below). We also attach
+         # the prompt-caching beta flag as a default header so it applies to
+         # every call, not just ones we remember to pass `betas=[...]` for.
++        #
++        # DERAIL: prompt caching is opt-out via CLAUDE_PROMPT_CACHING_BETA=0.
++        # Gateways that front Bedrock (routify's /protocol/anthropic) reject the
++        # COMBINATION of `computer-use-*` and the prompt-caching beta values with
++        # `ValidationException: invalid beta flag` — each is accepted alone.
++        # Since the computer tool is the whole point of a CUA baseline, caching
++        # is what gives way. Base URL comes from ANTHROPIC_BASE_URL (SDK env).
+         resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
++        self._prompt_caching = os.environ.get(
++            "CLAUDE_PROMPT_CACHING_BETA", "1"
++        ).strip().lower() not in ("0", "false", "no")
+         self.client = anthropic.Anthropic(
+             api_key=resolved_key,
+             max_retries=4,
+-        ).with_options(
+-            default_headers={"anthropic-beta": PROMPT_CACHING_BETA_FLAG},
++            # DERAIL: 显式超时。SDK 默认 600s × max_retries=4 意味着单次挂死
++            # 最多吃掉 50 分钟，而一个分片有 46 个任务、每任务数十步，
++            # 卡一次就把整片拖崩（CLAUDE_HTTP_TIMEOUT 可调）。
++            timeout=float(os.environ.get("CLAUDE_HTTP_TIMEOUT", "180")),
+         )
++        if self._prompt_caching:
++            self.client = self.client.with_options(
++                default_headers={"anthropic-beta": PROMPT_CACHING_BETA_FLAG},
++            )
++        else:
++            logger.info(
++                "prompt-caching beta disabled (CLAUDE_PROMPT_CACHING_BETA=0); "
++                "required when the endpoint rejects combined beta flags"
++            )
+         self.messages: list = []
+         # Running text log of prior actions (similar to the OSWorld Qwen agent
+         # `previous_actions_str`). Appended to each call's user message so
+@@ -354,7 +378,38 @@ class ClaudeCUAAgent(BaseAgent):
+             for t in self.tools
+         )
+         self.betas = [beta_flag] if has_beta_tools else []
+-        self.betas.append(PROMPT_CACHING_BETA_FLAG)
++        # DERAIL: see the client construction above — appending the caching flag
++        # alongside a computer-use flag is exactly the combination Bedrock-backed
++        # gateways reject, so it is skipped when caching is disabled.
++        if self._prompt_caching:
++            self.betas.append(PROMPT_CACHING_BETA_FLAG)
++
++    def _create_message_with_backoff(self, api_kwargs: Dict[str, Any]):
++        """DERAIL: call the Messages API, absorbing gateway rate limits.
++
++        A 429 is an infrastructure condition, not model behaviour, so it must not
++        consume `api_retry_times` — that budget exists for real API errors, and
++        at 5 attempts x 5s it burns out in ~20s, well inside a single throttle
++        window. Retries here are transparent to the caller's retry loop; any
++        non-rate-limit exception propagates unchanged.
++        """
++        from agents.base import (
++            is_rate_limit_error,
++            rate_limit_retry_budget,
++            rate_limit_sleep,
++        )
++
++        budget = rate_limit_retry_budget("ANTHROPIC_RATE_LIMIT_RETRIES", 8)
++        hits = 0
++        while True:
++            try:
++                return self.client.beta.messages.create(**api_kwargs)
++            except Exception as exc:
++                if is_rate_limit_error(exc) and hits < budget:
++                    hits += 1
++                    rate_limit_sleep(exc, hits, label="claude")
++                    continue
++                raise
+ 
+     def reset(self, logger=None):
+         super().reset(logger)
+@@ -566,18 +621,23 @@ class ClaudeCUAAgent(BaseAgent):
+         #   * last 2 user messages get breakpoints via _inject_prompt_caching
+         # The cache budget is 4 breakpoints/request; we use 1 for system
+         # (and the first tool_use context) and 2 for recent user turns.
+-        _inject_prompt_caching(self.messages)
++        # DERAIL: cache_control breakpoints are meaningless (and can be rejected)
++        # without the prompt-caching beta, so both the message breakpoints and
++        # the system-block marker are skipped when caching is disabled.
++        if self._prompt_caching:
++            _inject_prompt_caching(self.messages)
+         system_blocks = [
+             {
+                 "type": "text",
+                 "text": self.system_prompt,
+-                # System prompt is stable for the entire run — pin a 1-hour
+-                # TTL so it survives slow tool rounds (bash commands that
+-                # take minutes can otherwise blow past the default 5-min
+-                # ephemeral TTL).
+-                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+             }
+         ]
++        if self._prompt_caching:
++            # System prompt is stable for the entire run — pin a 1-hour
++            # TTL so it survives slow tool rounds (bash commands that
++            # take minutes can otherwise blow past the default 5-min
++            # ephemeral TTL).
++            system_blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+ 
+         # Call Claude (always use beta API when beta tools are present).
+         # Retry on transient errors with backoff; on repeated image-size
+@@ -600,11 +660,17 @@ class ClaudeCUAAgent(BaseAgent):
+         # through extra_body for the new path since the SDK kwarg isn't
+         # recognized for this model family.
+         ml = self.model.lower()
+-        is_opus_4x = (
+-            ml.startswith("claude-opus-4-7")
+-            or ml.startswith("claude-opus-4-8")
+-            or ml.startswith("claude-opus-4-9")
++        # DERAIL: 上游只列了 opus-4-7/4-8/4-9，但 claude-sonnet-5 同样拒绝
++        # thinking.enabled（2026-08-06 实测 400：'"thinking.enabled" is not
++        # supported for this model. Use "thinking.adaptive" and
++        # "output_config.effort"'）。硬编码名单会随新模型不断失效，所以
++        # 另加一个运行时自愈分支（见重试循环的 adaptive 降级）；
++        # 这里只把已实测确认的型号列入，避免第一次调用就吃 400。
++        _adaptive_prefixes = (
++            "claude-opus-4-7", "claude-opus-4-8", "claude-opus-4-9",
++            "claude-sonnet-5",
+         )
++        is_opus_4x = ml.startswith(_adaptive_prefixes) or self._force_adaptive_thinking
+         extra_body: Dict[str, Any] = {}
+         if self.enable_thinking:
+             if is_opus_4x:
+@@ -642,7 +708,7 @@ class ClaudeCUAAgent(BaseAgent):
+         last_error: Optional[BaseException] = None
+         for attempt in range(self.api_retry_times):
+             try:
+-                response = self.client.beta.messages.create(**api_kwargs)
++                response = self._create_message_with_backoff(api_kwargs)
+                 last_error = None
+                 break
+             except TypeError as e:
+@@ -667,6 +733,28 @@ class ClaudeCUAAgent(BaseAgent):
+             except _CLAUDE_RETRYABLE as e:
+                 last_error = e
+                 err_msg = str(e)
++                # DERAIL: 服务端明确要求用 thinking.adaptive（新模型家族拒绝
++                # enabled+budget_tokens）。错误文案已经告诉了正确形式，直接置
++                # 粘滞位重试，不要把它当一般错误磨完重试预算——后者会让整个
++                # 任务卡十几分钟后以“模型无输出”告终（2026-08-06 sonnet-5 实证）。
++                if (
++                    not self._force_adaptive_thinking
++                    and "adaptive" in err_msg
++                    and ("thinking" in err_msg or "effort" in err_msg)
++                ):
++                    logger.warning(
++                        "server requires thinking.adaptive for %s; switching "
++                        "permanently for this run: %s", self.model, err_msg[:200],
++                    )
++                    self._force_adaptive_thinking = True
++                    _eb = api_kwargs.get("extra_body") or {}
++                    if self.enable_thinking:
++                        _eb["thinking"] = {"type": "adaptive"}
++                    if self._output_config_supported:
++                        _eb["output_config"] = {"effort": self.effort}
++                        api_kwargs.pop("output_config", None)
++                    api_kwargs["extra_body"] = _eb
++                    continue
+                 # Server-side rejection of `output_config={"effort": ...}` —
+                 # e.g. "This model does not support the effort parameter."
+                 # returned as a 400 (APIError subclass, NOT a TypeError). The
+@@ -1082,6 +1170,17 @@ class ClaudeCUAAgent(BaseAgent):
+         (1280×720). We scale them back to the real VM resolution using
+         `self._resize_factor` (set during screenshot resize in predict).
+         """
++
++        def _coord_num(value):
++            # Claude occasionally emits coordinate components as JSON
++            # strings ("637" instead of 637). str * float raises
++            # "can't multiply sequence by non-int of type 'float'",
++            # crashing predict() and truncating the whole trajectory as
++            # PREDICT_CRASH (F2 opus collection hit this on 11/184 tasks).
++            if isinstance(value, bool) or not isinstance(value, (int, float, str)):
++                raise ValueError(f"非法坐标分量：{value!r}")
++            return float(value)
++
+         action = input_dict.get("action", "")
+         coord = input_dict.get("coordinate")
+         text = input_dict.get("text", "")
+@@ -1090,7 +1189,7 @@ class ClaudeCUAAgent(BaseAgent):
+         # If no resize happened (VM == 1280×720), factor is (1.0, 1.0).
+         if coord:
+             fx, fy = getattr(self, "_resize_factor", (1.0, 1.0))
+-            coord = [int(coord[0] * fx), int(coord[1] * fy)]
++            coord = [int(_coord_num(coord[0]) * fx), int(_coord_num(coord[1]) * fy)]
+ 
+         # Helper: wrap a click/scroll statement with keyDown/keyUp for each
+         # modifier token in `text` (e.g. "shift" for shift-click,
+@@ -1217,7 +1316,7 @@ class ClaudeCUAAgent(BaseAgent):
+             # Scale start_coordinate too (it's also in model space).
+             if start:
+                 fx, fy = getattr(self, "_resize_factor", (1.0, 1.0))
+-                start = [int(start[0] * fx), int(start[1] * fy)]
++                start = [int(_coord_num(start[0]) * fx), int(_coord_num(start[1]) * fy)]
+             end = coord  # already scaled above
+             duration = input_dict.get("duration", 0.5)
+             if end is None:
+diff --git a/agent-harness/agents/openai_base.py b/agent-harness/agents/openai_base.py
+index 3100163..9598481 100644
+--- a/agent-harness/agents/openai_base.py
++++ b/agent-harness/agents/openai_base.py
+@@ -110,15 +110,29 @@ def _build_multiline_ascii_type_command(text: str) -> str:
+ 
+ 
+ def _build_clipboard_paste_command(text: str) -> str:
+-    """Build pyautogui code that pastes `text` via clipboard (handles non-ASCII)."""
++    """DERAIL: 直接逐字符输入，不走剪贴板。
++
++    与 agents/vendored_paper_results/qwen35vl_agent.py 的同名函数同批改动，
++    原因见那里的详细说明：MyPCBench 的 Ubuntu 24.04 镜像里 pyperclip.copy()
++    会阻塞而不是抛异常，命令一直挂到 env.py 的 120s 读超时，Ctrl+V 从不执行，
++    文字一个都进不去。这里比 qwen35vl 那处更糟 —— 它连 except 后备都没有。
++
++    本 agent（openai_cuabash）当前不在 DERAIL 的五模型队列里，改动是为了
++    保持两处行为一致，避免以后启用 gpt_5_5 baseline 时再踩一遍。
++    """
+     encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+     return (
+-        "import base64, time, pyautogui, pyperclip\n"
++        "import base64, time, pyautogui\n"
+         f"_text = base64.b64decode('{encoded}').decode('utf-8')\n"
+-        "pyperclip.copy(_text)\n"
+-        "time.sleep(0.1)\n"
+-        "pyautogui.hotkey('ctrl', 'v')\n"
+-        "time.sleep(0.1)"
++        "_text = _text.replace('\\r\\n', '\\n').replace('\\r', '\\n')\n"
++        "for _line_index, _line in enumerate(_text.split('\\n')):\n"
++        "    for _part_index, _part in enumerate(_line.split('\\t')):\n"
++        "        if _part:\n"
++        "            pyautogui.typewrite(_part, interval=0.01)\n"
++        "        if _part_index < len(_line.split('\\t')) - 1:\n"
++        "            pyautogui.press('tab')\n"
++        "    if _line_index < len(_text.split('\\n')) - 1:\n"
++        "        pyautogui.press('enter')"
+     )
+ 
+ logger = logging.getLogger("mypcbench.agent.openai_base")
+diff --git a/agent-harness/agents/openai_cuabash.py b/agent-harness/agents/openai_cuabash.py
+index b4831ba..0687d5f 100644
+--- a/agent-harness/agents/openai_cuabash.py
++++ b/agent-harness/agents/openai_cuabash.py
+@@ -35,6 +35,31 @@ logger = logging.getLogger("mypcbench.agent.openai_cuabash")
+ SHELL_TOOL = {"type": "shell", "environment": {"type": "local"}}
+ COMPUTER_TOOL = {"type": "computer"}
+ 
++# DERAIL: placeholder image for pruned-out history screenshots in ZDR
++# stateless mode (see _OpenAICUABase docstring additions). A minimal valid
++# 8x8 grey PNG, built deterministically at import so no asset file is needed.
++def _build_placeholder_png() -> str:
++    import base64 as _b64
++    import struct as _struct
++    import zlib as _zlib
++
++    def _chunk(tag: bytes, data: bytes) -> bytes:
++        c = _struct.pack(">I", len(data)) + tag + data
++        return c + _struct.pack(">I", _zlib.crc32(tag + data) & 0xFFFFFFFF)
++
++    ihdr = _struct.pack(">IIBBBBB", 8, 8, 8, 0, 0, 0, 0)  # 8x8 grayscale
++    raw = b"".join(b"\x00" + b"\x80" * 8 for _ in range(8))
++    png = (
++        b"\x89PNG\r\n\x1a\n"
++        + _chunk(b"IHDR", ihdr)
++        + _chunk(b"IDAT", _zlib.compress(raw))
++        + _chunk(b"IEND", b"")
++    )
++    return _b64.b64encode(png).decode()
++
++
++_PLACEHOLDER_IMAGE_URL = f"data:image/png;base64,{_build_placeholder_png()}"
++
+ 
+ def _build_primer(mode: str) -> str:
+     """Swap the parent OPERATOR_PROMPT's tools line for the documented tool list,
+@@ -107,6 +132,28 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         # the documented built-in computer + shell tools.
+         self.tools = [COMPUTER_TOOL, SHELL_TOOL]
+ 
++        # DERAIL: ZDR-stateless mode. Zero-Data-Retention orgs (e.g. the
++        # routify gateway) reject `previous_response_id` outright, which
++        # kills every turn after the first. The documented OpenAI ZDR
++        # pattern is: send `store: false`, ask for
++        # `include: ["reasoning.encrypted_content"]`, and replay the FULL
++        # item history client-side each turn. Behaviour is opt-in via env
++        # so the upstream stateful path stays byte-identical by default.
++        self._zdr_stateless = os.environ.get("OPENAI_ZDR_STATELESS", "0") == "1"
++        # Full replayed conversation: user/tool input items + raw response
++        # output items (dicts), in API order.
++        self._history: List[Dict[str, Any]] = []
++        # Keep only the most recent N real screenshots in the replayed
++        # history; older ones are swapped for a tiny placeholder so the
++        # payload doesn't grow ~250KB per step over a 100-step budget.
++        # The OSWorld-style agents keep a similar sliding image window.
++        self._zdr_keep_images = int(os.environ.get("OPENAI_ZDR_KEEP_IMAGES", "4"))
++        if self._zdr_stateless:
++            logger.info(
++                "ZDR stateless mode ON (store=false, encrypted reasoning, "
++                "client-side history, keep_images=%d)", self._zdr_keep_images,
++            )
++
+         # Override the primer so the model sees the documented tool names. The
+         # parent OPERATOR_PROMPT text still describes the persona / 17-app
+         # catalog / sudo password — only the "Your tools are …" line changes.
+@@ -156,6 +203,48 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         except Exception as e:
+             return "", f"Error: {e}", {"type": "exit", "exit_code": -1}
+ 
++    def reset(self, logger=None):
++        super().reset(logger)
++        # DERAIL ZDR: each task starts with a fresh replayed history.
++        self._history.clear()
++
++    @staticmethod
++    def _dump_item(item: Any) -> Dict[str, Any]:
++        """DERAIL ZDR: serialize a response output item for history replay.
++
++        Response items are pydantic models; `input` items we built ourselves
++        are already dicts. exclude_none matters: the API rejects explicit
++        nulls for absent fields (e.g. computer_call.actions).
++        """
++        if isinstance(item, dict):
++            return item
++        if hasattr(item, "model_dump"):
++            return item.model_dump(mode="json", exclude_none=True)
++        return json.loads(json.dumps(item, default=str))
++
++    def _prune_history_images(self) -> None:
++        """DERAIL ZDR: swap all but the newest N history screenshots for a
++        tiny placeholder, keeping call/output pairing structurally valid."""
++        slots: List[Tuple[Dict[str, Any], str]] = []  # (holder-dict, key)
++        for item in self._history:
++            if not isinstance(item, dict):
++                continue
++            if item.get("type") == "computer_call_output":
++                out = item.get("output")
++                if isinstance(out, dict) and out.get("image_url", "").startswith("data:"):
++                    slots.append((out, "image_url"))
++            elif item.get("role") == "user":
++                for part in item.get("content") or []:
++                    if (
++                        isinstance(part, dict)
++                        and part.get("type") == "input_image"
++                        and str(part.get("image_url", "")).startswith("data:")
++                    ):
++                        slots.append((part, "image_url"))
++        for holder, key in slots[: max(0, len(slots) - self._zdr_keep_images)]:
++            if holder[key] != _PLACEHOLDER_IMAGE_URL:
++                holder[key] = _PLACEHOLDER_IMAGE_URL
++
+     def _dispatch_function_call(self, name: str, args: Dict[str, Any]) -> str:
+         """Subclass hook: handle a `function_call` item and return the output string.
+ 
+@@ -172,7 +261,13 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         from agents.base import encode_image
+ 
+         screenshot = obs.get("screenshot")
+-        is_first_call = not self.previous_response_id and not self.pending_items
++        # DERAIL ZDR: in stateless mode the conversation handle is the
++        # replayed history, not previous_response_id.
++        is_first_call = (
++            not self.previous_response_id
++            and not self.pending_items
++            and not self._history
++        )
+ 
+         if is_first_call:
+             primer = self._operator_prompt.format(
+@@ -237,6 +332,13 @@ class _OpenAICUABase(OpenAIBaseAgent):
+             "truncation": "auto",
+             "max_output_tokens": self.max_output_tokens,
+         }
++        if self._zdr_stateless:
++            # DERAIL ZDR: full client-side replay. Prune old screenshots
++            # BEFORE building the payload, then prepend history.
++            self._prune_history_images()
++            request["input"] = self._history + input_items
++            request["store"] = False
++            request["include"] = ["reasoning.encrypted_content"]
+         is_reasoning_model = (
+             self.model.startswith("gpt-5")
+             or self.model.startswith("o1")
+@@ -253,25 +355,49 @@ class _OpenAICUABase(OpenAIBaseAgent):
+                 request["temperature"] = self.temperature
+             if self.top_p is not None:
+                 request["top_p"] = self.top_p
+-        if self.previous_response_id:
++        if self.previous_response_id and not self._zdr_stateless:
+             request["previous_response_id"] = self.previous_response_id
+ 
+         response = None
+         last_error: Optional[BaseException] = None
+-        for attempt in range(self.api_retry_times):
++        # DERAIL: 429 has its own budget (see agents/base.py). Gateway limits are
++        # infrastructure, not model behaviour — spending the 5-attempt error
++        # budget on them turns a transient throttle into a fake failed step.
++        from agents.base import (
++            is_rate_limit_error,
++            rate_limit_retry_budget,
++            rate_limit_sleep,
++        )
++
++        rate_limit_budget = rate_limit_retry_budget("OPENAI_RATE_LIMIT_RETRIES", 8)
++        rate_limit_hits = 0
++        attempt = 0
++        while attempt < self.api_retry_times:
+             try:
+                 response = self.client.responses.create(**request)
+-                self.previous_response_id = response.id
++                if self._zdr_stateless:
++                    # DERAIL ZDR: fold this turn into the replayed history.
++                    self._history.extend(input_items)
++                    self._history.extend(
++                        self._dump_item(i) for i in response.output
++                    )
++                else:
++                    self.previous_response_id = response.id
+                 last_error = None
+                 break
+             except Exception as e:
+                 last_error = e
++                if is_rate_limit_error(e) and rate_limit_hits < rate_limit_budget:
++                    rate_limit_hits += 1
++                    rate_limit_sleep(e, rate_limit_hits, label="openai")
++                    continue  # does not consume an api_retry_times attempt
++                attempt += 1
+                 logger.warning(
+                     "OpenAI API error (attempt %d/%d): %s",
+-                    attempt + 1, self.api_retry_times, str(e)[:300],
++                    attempt, self.api_retry_times, str(e)[:300],
+                 )
+-                if attempt < self.api_retry_times - 1:
+-                    _time.sleep(min(5.0, (attempt + 1) * 2.0))
++                if attempt < self.api_retry_times:
++                    _time.sleep(min(5.0, attempt * 2.0))
+         if response is None:
+             self.actions_log.append(f"(api error: {str(last_error)[:80]})")
+             return f"(openai api error: {last_error})", []
+@@ -281,6 +407,8 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         step_summary_parts: List[str] = []
+         message_text_parts: List[str] = []
+         reasoning_text_parts: List[str] = []
++        # DERAIL: 本轮执行过的 shell 命令 + 输出，供纯工具轮回填 response_text。
++        _tool_transcript: List[str] = []
+ 
+         for item in response.output:
+             item_type = getattr(item, "type", None)
+@@ -332,6 +460,25 @@ class _OpenAICUABase(OpenAIBaseAgent):
+                     )
+                     logger.info("  shell: %s -> %s", cmd[:120], outcome_repr)
+                     step_summary_parts.append(f"shell: {cmd[:60]}")
++                    # DERAIL: 把命令和它的真实输出留一份给轨迹。
++                    #
++                    # 在此之前，命令与 stdout 只去了两个地方：pending_items（发回给
++                    # 模型自己）和上面那行 logger（且只记 exit code）。predict() 返回的
++                    # response_text 在纯工具轮里是空串，于是 run_mypcbench.py 写下的
++                    # TOOL_CALL 轨迹行 response="" ，rubric_bundle 的 raw_response_text
++                    # 也为空 —— 判官最终只看到一行 "Action: TOOL_CALL"。上游在
++                    # run_mypcbench.py:400 处的注释写明这行轨迹的目的正是「让判官看到
++                    # 中间的工具工作」，意图被空载荷架空。gpt-5.5 有 50.5% 的步数是
++                    # 这种纯工具轮，33.9% 的失败 rubric 判词是「截图里看不到」。
++                    #
++                    # 判官侧 _build_history_and_images() 会把每步 raw_response_text
++                    # 截到 600 字符，所以这里就按能装下的预算裁剪，别指望下游放宽。
++                    _out = (stdout or "").strip() or (stderr or "").strip()
++                    _tool_transcript.append(
++                        f"$ {cmd[:200]}\n{_out[:300]}"
++                        + ("…" if len(_out) > 300 else "")
++                        + f" [{outcome_repr}]"
++                    )
+ 
+                 self.pending_items.append({
+                     "type": "shell_call_output",
+@@ -404,6 +551,15 @@ class _OpenAICUABase(OpenAIBaseAgent):
+         else:
+             response_text = message_text
+ 
++        # DERAIL: 纯工具轮（模型只发了工具调用、没发消息文本）时，用本轮的命令+输出
++        # 充当 response_text，让这一步在轨迹里留下实际内容而不是空串。
++        #
++        # 只在 response_text 为空时回填，不覆盖模型真正说过的话；也不参与下面的
++        # DONE/FAIL 哨兵扫描（scan_terminal 仍只看 message_text），所以不会因为某条
++        # 命令的输出里恰好有 "DONE" 就误判结束。
++        if not response_text.strip() and _tool_transcript:
++            response_text = "[tool] " + "\n[tool] ".join(_tool_transcript)
++
+         scan_terminal = message_text and not self.pending_items
+         if scan_terminal:
+             if "DONE" not in actions and (
+diff --git a/agent-harness/agents/qwen_cua.py b/agent-harness/agents/qwen_cua.py
+index 54e934e..06d7116 100644
+--- a/agent-harness/agents/qwen_cua.py
++++ b/agent-harness/agents/qwen_cua.py
+@@ -29,12 +29,20 @@ Deviations (forced by MyPCBench runtime):
+ 
+ from __future__ import annotations
+ 
++import base64
++import copy
++import hashlib
++import json
+ import logging
+ import os
+ import re
+ import sys
++import urllib.request
++from io import BytesIO
+ from typing import Any, Dict, List, Optional, Tuple
+ 
++from PIL import Image
++
+ 
+ def _extract_bash_command(response: str) -> Optional[str]:
+     """Find a `<function=bash><parameter=command>...</parameter></function>`
+@@ -111,6 +119,256 @@ class _Qwen35VLPatched(Qwen35VLAgent):
+ 
+     _mypcbench_context: str = ""
+     _bash_tool_description: str = ""
++    _CONTEXT_POLICY = "tokenize_oldest_first_v1"
++
++    @staticmethod
++    def _messages_sha256(messages: List[Dict]) -> str:
++        encoded = json.dumps(
++            messages, ensure_ascii=False, sort_keys=True, separators=(",", ":")
++        ).encode("utf-8")
++        return hashlib.sha256(encoded).hexdigest()
++
++    @staticmethod
++    def _tokenizer_surrogate_messages(messages: List[Dict]) -> List[Dict]:
++        """Replace images only for /tokenize with unique same-size PNGs.
++
++        vLLM 0.19's frontend multimodal cache otherwise treats the following
++        completion as a cache hit while the engine has never received that
++        image, producing ``Expected a cached item``. Qwen vision token counts
++        depend on processed dimensions, so same-size surrogates preserve the
++        count without consuming the real screenshot hash. Completion messages
++        are never modified by this helper.
++        """
++
++        surrogate = copy.deepcopy(messages)
++        image_index = 0
++        for message in surrogate:
++            content = message.get("content")
++            if not isinstance(content, list):
++                continue
++            for part in content:
++                if not isinstance(part, dict) or part.get("type") != "image_url":
++                    continue
++                image_url = (part.get("image_url") or {}).get("url", "")
++                if not image_url.startswith("data:image/") or "," not in image_url:
++                    raise RuntimeError("Qwen3.5 context policy requires data:image screenshots")
++                header, encoded = image_url.split(",", 1)
++                with Image.open(BytesIO(base64.b64decode(encoded))) as source:
++                    width, height = source.size
++                # Different deterministic colors avoid duplicate surrogate
++                # hashes when several same-size screenshots share one request.
++                color = (
++                    (37 * image_index + 17) % 256,
++                    (67 * image_index + 29) % 256,
++                    (97 * image_index + 43) % 256,
++                )
++                blank = Image.new("RGB", (width, height), color)
++                buffer = BytesIO()
++                blank.save(buffer, format="PNG")
++                part["image_url"]["url"] = (
++                    header + "," + base64.b64encode(buffer.getvalue()).decode("ascii")
++                )
++                image_index += 1
++        return surrogate
++
++    def _tokenize_messages(self, messages: List[Dict], model: str) -> Tuple[int, int]:
++        """Ask the serving tokenizer for an exact multimodal prompt count."""
++
++        base_url = os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
++        root_url = base_url.rstrip("/")
++        if root_url.endswith("/v1"):
++            root_url = root_url[:-3]
++        tokenizer_messages = self._tokenizer_surrogate_messages(messages)
++        request_body = json.dumps(
++            {
++                "model": model,
++                "messages": tokenizer_messages,
++                "add_generation_prompt": True,
++                "chat_template_kwargs": {
++                    "enable_thinking": bool(self.enable_thinking)
++                },
++            }
++        ).encode("utf-8")
++        headers = {"Content-Type": "application/json", "Accept": "application/json"}
++        api_key = os.environ.get("OPENAI_API_KEY")
++        if api_key:
++            headers["Authorization"] = f"Bearer {api_key}"
++        request = urllib.request.Request(
++            root_url + "/tokenize", data=request_body, headers=headers, method="POST"
++        )
++        timeout_s = float(os.environ.get("MYPCBENCH_QWEN_TOKENIZE_TIMEOUT", "30"))
++        with urllib.request.urlopen(request, timeout=timeout_s) as response:
++            result = json.load(response)
++        count = result.get("count") if isinstance(result, dict) else None
++        max_model_len = result.get("max_model_len") if isinstance(result, dict) else None
++        if (
++            isinstance(count, bool)
++            or not isinstance(count, int)
++            or count <= 0
++            or isinstance(max_model_len, bool)
++            or not isinstance(max_model_len, int)
++            or max_model_len <= 0
++        ):
++            raise RuntimeError("Qwen3.5 /tokenize returned invalid count/max_model_len")
++        return count, max_model_len
++
++    @staticmethod
++    def _image_parts(message: Dict) -> List[Dict]:
++        content = message.get("content")
++        if not isinstance(content, list):
++            return []
++        return [
++            part
++            for part in content
++            if isinstance(part, dict) and part.get("type") == "image_url"
++        ]
++
++    @staticmethod
++    def _instruction_text(message: Dict) -> str:
++        content = message.get("content")
++        if not isinstance(content, list):
++            return ""
++        for part in content:
++            if (
++                isinstance(part, dict)
++                and part.get("type") == "text"
++                and "\nPlease generate the next move" in str(part.get("text", ""))
++            ):
++                return str(part.get("text", ""))
++        return ""
++
++    def _instruction_for_start_step(self, instruction_text: str, start_step: int) -> str:
++        marker = "\n\nPrevious actions:\n"
++        if marker not in instruction_text:
++            raise RuntimeError("Qwen3.5 instruction block is missing Previous actions")
++        prefix = instruction_text.split(marker, 1)[0]
++        prior = [
++            f"Step {index + 1}: {self.actions[index]}"
++            for index in range(0, min(start_step - 1, len(self.actions)))
++        ]
++        return prefix + marker + ("\n".join(prior) if prior else "None")
++
++    def _fit_messages_to_context(
++        self, messages: List[Dict], model: str, requested_max_tokens: int
++    ) -> Tuple[List[Dict], Dict[str, Any]]:
++        """Fit a request exactly, preserving the current screenshot and prompt."""
++
++        working = copy.deepcopy(messages)
++        original_hash = self._messages_sha256(working)
++        original_count, max_model_len = self._tokenize_messages(working, model)
++        target = max_model_len - requested_max_tokens
++        metadata: Dict[str, Any] = {
++            "policy": self._CONTEXT_POLICY,
++            "status": "not_needed",
++            "original_prompt_tokens": original_count,
++            "final_prompt_tokens": original_count,
++            "max_model_len": max_model_len,
++            "requested_max_tokens": requested_max_tokens,
++            "prompt_token_target": target,
++            "original_messages_sha256": original_hash,
++            "final_messages_sha256": original_hash,
++            "collapsed_step_ids": [],
++            "dropped_turn_ids": [],
++            "retained_start_step": None,
++            "tokenizer_endpoint_path": "/tokenize",
++            "tokenizer_image_policy": "same_dimensions_distinct_hash_v1",
++            "error": None,
++        }
++        if target <= 0:
++            metadata["status"] = "error"
++            metadata["error"] = "completion budget leaves no prompt capacity"
++            self.last_step_metadata = metadata
++            raise RuntimeError(metadata["error"])
++        user_indices = [
++            index for index, message in enumerate(working) if message.get("role") == "user"
++        ]
++        total_step = len(self.screenshots)
++        start_step = total_step - len(user_indices) + 1
++        user_steps = list(range(start_step, total_step + 1))
++        metadata["retained_start_step"] = start_step
++        if original_count <= target:
++            self.last_step_metadata = metadata
++            return working, metadata
++
++        current_count = original_count
++
++        # Collapse only historical screenshots, oldest first. The current
++        # screenshot is never changed. For the first user, vendored history
++        # semantics remove the old image and retain the instruction block.
++        for position, message_index in enumerate(user_indices[:-1]):
++            message = working[message_index]
++            content = message.get("content")
++            if not isinstance(content, list):
++                continue
++            changed = False
++            new_content: List[Dict] = []
++            for part in content:
++                if isinstance(part, dict) and part.get("type") == "image_url":
++                    changed = True
++                    if position != 0:
++                        new_content.append({"type": "text", "text": self.collapse_text})
++                else:
++                    new_content.append(part)
++            if not changed:
++                continue
++            message["content"] = new_content
++            metadata["collapsed_step_ids"].append(user_steps[position])
++            current_count, observed_max = self._tokenize_messages(working, model)
++            if observed_max != max_model_len:
++                raise RuntimeError("Qwen3.5 /tokenize max_model_len changed during one request")
++            if current_count <= target:
++                break
++
++        # If image folding is insufficient, drop complete oldest
++        # user/assistant pairs. Promote the unchanged instruction block to the
++        # next first user and rebuild the vendored Previous actions summary.
++        instruction_text = self._instruction_text(working[user_indices[0]])
++        while current_count > target:
++            user_indices = [
++                index
++                for index, message in enumerate(working)
++                if message.get("role") == "user"
++            ]
++            if len(user_indices) <= 1:
++                metadata["status"] = "error"
++                metadata["error"] = (
++                    "system prompt, instruction, and current screenshot exceed context budget"
++                )
++                self.last_step_metadata = metadata
++                raise RuntimeError(metadata["error"])
++            first_user_index = user_indices[0]
++            if (
++                first_user_index + 1 >= len(working)
++                or working[first_user_index + 1].get("role") != "assistant"
++            ):
++                raise RuntimeError("Qwen3.5 history is not user/assistant paired")
++            dropped_step = user_steps.pop(0)
++            del working[first_user_index : first_user_index + 2]
++            metadata["dropped_turn_ids"].append(dropped_step)
++            new_first_index = next(
++                index for index, message in enumerate(working) if message.get("role") == "user"
++            )
++            new_first = working[new_first_index]
++            next_start_step = user_steps[0]
++            promoted_instruction = self._instruction_for_start_step(
++                instruction_text, next_start_step
++            )
++            images = self._image_parts(new_first)
++            new_first["content"] = [
++                *images,
++                {"type": "text", "text": promoted_instruction},
++            ]
++            current_count, observed_max = self._tokenize_messages(working, model)
++            if observed_max != max_model_len:
++                raise RuntimeError("Qwen3.5 /tokenize max_model_len changed during one request")
++
++        metadata["final_prompt_tokens"] = current_count
++        metadata["retained_start_step"] = user_steps[0]
++        metadata["final_messages_sha256"] = self._messages_sha256(working)
++        if metadata["collapsed_step_ids"] or metadata["dropped_turn_ids"]:
++            metadata["status"] = "applied"
++        self.last_step_metadata = metadata
++        return working, metadata
+ 
+     def call_llm(self, payload: Dict, model: str) -> str:  # type: ignore[override]
+         msgs = payload.get("messages") or []
+@@ -130,6 +388,22 @@ class _Qwen35VLPatched(Qwen35VLAgent):
+                 ]
+             elif isinstance(content, str):
+                 msgs[0]["content"] = content + addendum
++        self.last_step_metadata = {}
++        if os.environ.get("MYPCBENCH_QWEN_CONTEXT_POLICY") == self._CONTEXT_POLICY:
++            try:
++                fitted, _metadata = self._fit_messages_to_context(
++                    msgs, model, int(payload.get("max_tokens", self.max_tokens))
++                )
++            except Exception as exc:
++                if not self.last_step_metadata:
++                    self.last_step_metadata = {
++                        "policy": self._CONTEXT_POLICY,
++                        "status": "error",
++                        "tokenizer_endpoint_path": "/tokenize",
++                        "error": str(exc),
++                    }
++                raise
++            payload["messages"] = fitted
+         return super().call_llm(payload, model)
+ 
+ 
+@@ -302,6 +576,7 @@ class QwenOSWorldAgent:
+         self._inner = _Qwen35VLPatched(**agent_kwargs)
+         self._inner._mypcbench_context = mypcbench_context
+         self._inner._bash_tool_description = bash_tool_desc
++        self._inner.last_step_metadata = {}
+ 
+         # Pending bash result — populated when the model emits a bash
+         # tool call; injected as a <tool_response> at the head of the
+@@ -327,6 +602,7 @@ class QwenOSWorldAgent:
+         # full conversation. The OSWorld agent doesn't expose one, so we
+         # build a minimal placeholder from its accumulated responses.
+         self.messages: List[Dict] = []
++        self.agent_metadata: Dict[str, Any] = {}
+ 
+     def reset(self, logger: Any = None) -> None:
+         """Clear per-trajectory state. Forwarded to the wrapped agent.
+@@ -337,6 +613,7 @@ class QwenOSWorldAgent:
+         self._inner.reset(logger)
+         self.messages = []
+         self._pending_bash_result = ""
++        self.agent_metadata = {}
+ 
+     def predict(self, instruction: str, obs: Dict) -> Tuple[str, List[str]]:
+         """Forward to the vendored agent's predict.
+@@ -361,7 +638,12 @@ class QwenOSWorldAgent:
+                 f"<tool_response>\n{staged}\n</tool_response>\n\n{instruction}"
+             )
+ 
+-        response, actions = self._inner.predict(instruction, obs)
++        try:
++            response, actions = self._inner.predict(instruction, obs)
++        finally:
++            self.agent_metadata = copy.deepcopy(
++                getattr(self._inner, "last_step_metadata", {})
++            )
+ 
+         # Bash post-process: scan for `<function=bash><parameter=command>...`
+         # in the model's response, execute via env, stage for next turn.
+diff --git a/agent-harness/agents/vendored_paper_results/qwen35vl_agent.py b/agent-harness/agents/vendored_paper_results/qwen35vl_agent.py
+index 9816b45..5c2f1f2 100644
+--- a/agent-harness/agents/vendored_paper_results/qwen35vl_agent.py
++++ b/agent-harness/agents/vendored_paper_results/qwen35vl_agent.py
+@@ -167,26 +167,42 @@ class Qwen35VLAgent:
+ 
+     @staticmethod
+     def _build_clipboard_paste_command(text: str) -> str:
++        """DERAIL: 直接逐字符输入，不走剪贴板。
++
++        原实现先 pyperclip.copy(_text) 再 Ctrl+V，把逐字符输入放在
++        `except Exception` 的后备分支里。但在 MyPCBench 的 Ubuntu 24.04 镜像里
++        pyperclip 会**阻塞**而不是抛异常（Linux 下它要 fork xclip/xsel 去持有 X
++        selection，没有剪贴板管理器接管时就一直挂着），于是：
++
++          * 后备分支永远不触发 —— 挂起不是异常；
++          * 命令一直挂到 env.py 的 120s 读超时被放弃，Ctrl+V 从没执行；
++          * 一个字都没输进去，模型看截图发现没变化，再打一遍，无限循环。
++
++        2026-08-04 实测（Qwen3.5，1990 步）：click/press/hotkey/scroll 四类动作
++        0 次超时，而这条打字路径 342 次里有 338 次（99%）卡满 120 秒，中位间隔
++        129.1s，吃掉 65% 的墙钟时间。任务因此反复重试同一段文字（有个任务把
++        `ls -la ~/Documents/Tax_2025/` 打了 23 遍）直到撞上 100 步上限。
++        凡是需要输入文字的任务都无法完成，且失败原因是 harness 不是模型能力。
++
++        键盘事件本身是好的（press 中位 1.3s、hotkey 11.0s，零超时），所以直接
++        把原来的后备路径提为唯一路径。interval=0.01 与 DERAIL 自己的
++        src/derail/mypcbench/tool_agent.py 保持一致；实测 864 字符约 8.6 秒。
++        代价：无法输入键盘布局打不出的字符（如 emoji、中文），这类内容原本也
++        只有剪贴板路径能处理。
++        """
+         encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+         return (
+             "import base64, time, pyautogui\n"
+             f"_text = base64.b64decode('{encoded}').decode('utf-8')\n"
+-            "try:\n"
+-            "    import pyperclip\n"
+-            "    pyperclip.copy(_text)\n"
+-            "    time.sleep(0.1)\n"
+-            "    pyautogui.hotkey('ctrl', 'v')\n"
+-            "    time.sleep(0.1)\n"
+-            "except Exception:\n"
+-            "    _text = _text.replace('\\r\\n', '\\n').replace('\\r', '\\n')\n"
+-            "    for _line_index, _line in enumerate(_text.split('\\n')):\n"
+-            "        for _part_index, _part in enumerate(_line.split('\\t')):\n"
+-            "            if _part:\n"
+-            "                pyautogui.typewrite(_part)\n"
+-            "            if _part_index < len(_line.split('\\t')) - 1:\n"
+-            "                pyautogui.press('tab')\n"
+-            "        if _line_index < len(_text.split('\\n')) - 1:\n"
+-            "            pyautogui.press('enter')"
++            "_text = _text.replace('\\r\\n', '\\n').replace('\\r', '\\n')\n"
++            "for _line_index, _line in enumerate(_text.split('\\n')):\n"
++            "    for _part_index, _part in enumerate(_line.split('\\t')):\n"
++            "        if _part:\n"
++            "            pyautogui.typewrite(_part, interval=0.01)\n"
++            "        if _part_index < len(_line.split('\\t')) - 1:\n"
++            "            pyautogui.press('tab')\n"
++            "    if _line_index < len(_text.split('\\n')) - 1:\n"
++            "        pyautogui.press('enter')"
+         )
+ 
+     def _update_folding_state(self, total_screenshots: int) -> None:
+diff --git a/agent-harness/env.py b/agent-harness/env.py
+index abac91a..aa937fa 100644
+--- a/agent-harness/env.py
++++ b/agent-harness/env.py
+@@ -19,6 +19,7 @@ Usage:
+ import json
+ import logging
+ import os
++import shutil
+ import signal
+ import subprocess
+ import time
+@@ -36,6 +37,57 @@ VNC_PORT = 5901
+ DEFAULT_SCREEN_SIZE = (1280, 800)
+ 
+ 
++def _discover_qemu_binary() -> str:
++    """Resolve the host QEMU executable across Debian and Fedora layouts."""
++
++    explicit = os.environ.get("MYPCBENCH_QEMU_BINARY")
++    if explicit:
++        resolved = shutil.which(explicit)
++        if not resolved:
++            raise RuntimeError(
++                f"MYPCBENCH_QEMU_BINARY={explicit!r} is not an executable file or command"
++            )
++        return resolved
++    for candidate in ("qemu-system-x86_64", "qemu-kvm", "/usr/libexec/qemu-kvm"):
++        resolved = shutil.which(candidate)
++        if resolved:
++            return resolved
++    raise RuntimeError(
++        "QEMU executable not found. Install qemu-system-x86_64/qemu-kvm or set "
++        "MYPCBENCH_QEMU_BINARY explicitly."
++    )
++
++
++def _matching_ovmf_vars(code_path: str) -> Optional[str]:
++    """Match CODE to VARS, including Fedora's CODE.cc + plain VARS layout."""
++
++    import glob as _glob
++
++    direct = code_path.replace("CODE", "VARS")
++    if os.path.exists(direct):
++        return direct
++    directory = os.path.dirname(code_path)
++    candidates = [
++        path
++        for path in _glob.glob(os.path.join(directory, "OVMF_VARS*.fd"))
++        if not any(
++            tag in os.path.basename(path).lower()
++            for tag in ("secboot", ".ms.", "snakeoil")
++        )
++    ]
++    if not candidates:
++        return None
++    code_uses_4m = "_4M" in os.path.basename(code_path)
++    candidates.sort(
++        key=lambda path: (
++            0 if ("_4M" in os.path.basename(path)) == code_uses_4m else 1,
++            0 if os.path.basename(path) == "OVMF_VARS.fd" else 1,
++            path,
++        )
++    )
++    return candidates[0]
++
++
+ # OVMF firmware discovery shared by env.py (single-VM) and
+ # run_parallel_tasks.py (parallel runs). Resolution order:
+ #   1. MYPCBENCH_OVMF_CODE [+ MYPCBENCH_OVMF_VARS] explicit override
+@@ -47,13 +99,13 @@ def _discover_ovmf() -> Tuple[Optional[str], Optional[str]]:
+ 
+     code_env = os.environ.get("MYPCBENCH_OVMF_CODE")
+     if code_env:
+-        vars_env = os.environ.get("MYPCBENCH_OVMF_VARS") or code_env.replace("CODE", "VARS")
++        vars_env = os.environ.get("MYPCBENCH_OVMF_VARS") or _matching_ovmf_vars(code_env)
+         if not os.path.exists(code_env):
+             raise RuntimeError(
+                 f"MYPCBENCH_OVMF_CODE={code_env!r} does not exist. "
+                 f"Point it at a readable OVMF_CODE*.fd file."
+             )
+-        if not os.path.exists(vars_env):
++        if not vars_env or not os.path.exists(vars_env):
+             raise RuntimeError(
+                 f"MYPCBENCH_OVMF_VARS={vars_env!r} does not exist. "
+                 f"Set MYPCBENCH_OVMF_VARS explicitly to the matching VARS file."
+@@ -82,8 +134,8 @@ def _discover_ovmf() -> Tuple[Optional[str], Optional[str]]:
+             base = os.path.basename(code_path).lower()
+             if any(tag in base for tag in excluded):
+                 continue
+-            vars_path = code_path.replace("CODE", "VARS")
+-            if os.path.exists(vars_path):
++            vars_path = _matching_ovmf_vars(code_path)
++            if vars_path:
+                 candidates.append((code_path, vars_path))
+ 
+     if not candidates:
+@@ -480,7 +532,7 @@ class MyPCBenchEnv:
+ 
+         serial_log = f"/tmp/mypcbench-{self.container_name}-serial.log"
+         cmd = [
+-            "qemu-system-x86_64",
++            _discover_qemu_binary(),
+             "-name", self.container_name,
+             "-machine", "q35,accel=kvm:tcg",
+             *kvm_args,
+@@ -767,20 +819,47 @@ class MyPCBenchEnv:
+     def _enforce_resolution(self):
+         """Verify VM resolution matches expected screen_size. Fix via xrandr if drifted."""
+         try:
++            x11 = "DISPLAY=:0 XAUTHORITY=/run/user/1000/gdm/Xauthority"
+             result = self._execute_shell(
+-                "DISPLAY=:0 XAUTHORITY=/run/user/1000/gdm/Xauthority xrandr 2>/dev/null | grep ' connected' | grep -oP '\\d+x\\d+'"
++                f"{x11} xrandr 2>/dev/null | grep ' connected' | grep -oP '\\d+x\\d+'"
+             )
+             current = result.get("output", "").strip().split("\n")[0]
+             expected = f"{self.screen_width}x{self.screen_height}"
+             if current and current != expected:
+                 log.warning("Resolution drift: VM=%s, expected=%s — fixing via xrandr", current, expected)
+-                self._execute_shell(
+-                    f"DISPLAY=:0 XAUTHORITY=/run/user/1000/gdm/Xauthority xrandr -s {expected} 2>/dev/null || true"
++                fix = self._execute_shell(
++                    f"export {x11}; "
++                    "output=$(xrandr | awk '/ connected/ {print $1; exit}'); "
++                    f"if ! xrandr --output \"$output\" --mode {expected} 2>/dev/null; then "
++                    f"mode=$(cvt {self.screen_width} {self.screen_height} 60 | "
++                    "awk '/^Modeline/ {gsub(/\"/, \"\", $2); print $2}'); "
++                    f"cvt {self.screen_width} {self.screen_height} 60 | "
++                    "sed -n 's/^Modeline //p' | xargs xrandr --newmode 2>/dev/null || true; "
++                    "xrandr --addmode \"$output\" \"$mode\" 2>/dev/null || true; "
++                    "xrandr --output \"$output\" --mode \"$mode\"; "
++                    "fi"
+                 )
++                if fix.get("returncode") != 0:
++                    raise RuntimeError(f"xrandr resolution fix failed: {fix}")
++                verified = ""
++                for verify_attempt in range(1, 6):
++                    verified = self._execute_shell(
++                        f"{x11} xrandr 2>/dev/null | grep ' connected' | "
++                        "grep -oP '\\d+x\\d+'"
++                    ).get("output", "").strip().split("\n")[0]
++                    if verified == expected:
++                        break
++                    if verify_attempt < 5:
++                        time.sleep(0.5)
++                if verified != expected:
++                    raise RuntimeError(
++                        f"VM resolution remains {verified or 'unknown'} after requesting {expected}"
++                    )
++                log.info("Resolution fixed and verified: %s", verified)
+             elif current:
+                 log.debug("Resolution OK: %s", current)
+         except Exception as e:
+-            log.debug("Resolution check skipped: %s", e)
++            raise RuntimeError(f"Resolution enforcement failed: {e}") from e
+ 
+     def _inject_llm_key(self):
+         """Inject OPENAI_API_KEY into chat app services for LLM auto-replies.
+diff --git a/agent-harness/run_mypcbench.py b/agent-harness/run_mypcbench.py
+index aac97a9..71bb0b3 100644
+--- a/agent-harness/run_mypcbench.py
++++ b/agent-harness/run_mypcbench.py
+@@ -31,6 +31,8 @@ Usage:
+ import argparse
+ import datetime
+ import glob
++import hashlib
++import io
+ import json
+ import logging
+ import os
+@@ -177,6 +179,20 @@ def get_agent(agent_type: str, model: str, screen_size, client_password: str, **
+             env=kwargs.get("env"),
+         )
+ 
++    # DERAIL keeps benchmark-specific adapters in its own repository.  This
++    # small plugin hook is the only local change to the frozen MyPCBench runner.
++    if agent_type.startswith("derail_"):
++        derail_repo = os.environ.get("DERAIL_REPO_ROOT")
++        if not derail_repo:
++            raise RuntimeError("DERAIL_REPO_ROOT is required for DERAIL agents")
++        derail_src = str(Path(derail_repo).resolve() / "src")
++        if derail_src not in sys.path:
++            sys.path.insert(0, derail_src)
++        from derail.mypcbench.factory import create_mypcbench_agent
++        return create_mypcbench_agent(
++            agent_type, model, screen_size, client_password, **kwargs
++        )
++
+     raise ValueError(
+         f"Unknown agent_type: {agent_type!r}\n"
+         "Available (paper agents only, <provider>_<input>):\n"
+@@ -285,6 +301,38 @@ def _fsync_write(path: str, data, mode: str = "w") -> None:
+             pass
+ 
+ 
++# DERAIL (2026-08-11): perceptual screen digest for the loop-stall detector.
++# Byte-identical md5 is too strict — the desktop clock/cursor changes every
++# second, so a genuinely frozen screen never hashes equal across steps.
++# Downscale to 64x40 grayscale and compare mean absolute difference instead:
++# clock ticks and cursor blips move a handful of pixels (well under the
++# tolerance), a truly unchanged screen stays ~0.
++try:
++    from PIL import Image as _PILImage
++    _HAVE_PIL = True
++except ImportError:  # Pillow is in the collection venv; md5 fallback only
++    _HAVE_PIL = False
++
++_STALL_SAME_SCREEN_MAD = float(os.environ.get("MYPCBENCH_STALL_SAME_SCREEN_MAD", "2.0"))
++
++def _screen_digest(shot):
++    if _HAVE_PIL:
++        try:
++            im = _PILImage.open(io.BytesIO(shot)).convert("L").resize((64, 40))
++            return ("px", im.getdata())
++        except Exception:
++            pass
++    return ("md5", hashlib.md5(shot).hexdigest())
++
++def _same_screen(a, b):
++    if a is None or b is None or a[0] != b[0]:
++        return False
++    if a[0] == "md5":
++        return a[1] == b[1]
++    mad = sum(abs(x - y) for x, y in zip(a[1], b[1])) / len(a[1])
++    return mad <= _STALL_SAME_SCREEN_MAD
++
++
+ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0, timeout=3600):
+     """OSWorld-style react loop: predict → execute → screenshot → repeat."""
+     instruction = task.get("instruction", "")
+@@ -330,6 +378,23 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+     task_start_time = time.time()
+     consecutive_api_errors = 0
+ 
++    # DERAIL (2026-08-11): loop-stall detector. A task hammering the same
++    # action with a byte-identical screen is non-convergent trial-and-error
++    # (opus F2: ~15% of truncated trajectories, worst case the same scroll
++    # 20x in 33 steps). Abort early instead of burning the wall-clock budget.
++    # The terminal state stays a plain non-DONE truncation (no schema
++    # change); detection is greppable via STALL_ABORT and the stall.txt
++    # marker. Set MYPCBENCH_STALL_REPEAT=0 to disable.
++    _stall_threshold = int(os.environ.get("MYPCBENCH_STALL_REPEAT", "10"))
++    _prev_shot_digest = None
++    _same_shot_run = 0
++    _stalled = False
++
++    # Effective budget at task start — makes timeout-propagation breaks
++    # (2026-08-11: trajectories escaping any budget) traceable from logs.
++    logger.info("Task budget: timeout=%ds max_steps=%d stall_repeat=%s",
++                timeout, max_steps, _stall_threshold or "off")
++
+     # 3. React loop
+     while not done and step_idx < max_steps:
+         # Agent predicts action(s) from current observation.
+@@ -340,6 +405,7 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+             response, actions = agent.predict(instruction, obs)
+         except Exception as e:
+             logger.error("Agent predict crashed at step %d: %s", step_idx, e, exc_info=True)
++            agent_metadata = getattr(agent, "agent_metadata", None)
+             error_line = json.dumps({
+                 "step_num": step_idx + 1,
+                 "action_timestamp": datetime.datetime.now().strftime("%Y%m%d@%H%M%S%f"),
+@@ -348,6 +414,7 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+                 "reward": 0,
+                 "done": True,
+                 "info": {"error": str(e)},
++                "agent_metadata": agent_metadata,
+                 "screenshot_file": "",
+             }, ensure_ascii=False) + "\n"
+             with open(traj_path, "a") as f:
+@@ -405,6 +472,7 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+                     "reward": 0.0,
+                     "done": False,
+                     "info": {"kind": "tool_call_round"},
++                    "agent_metadata": getattr(agent, "agent_metadata", None),
+                     "screenshot_file": screenshot_file if screenshot_saved else "",
+                 }, ensure_ascii=False) + "\n"
+                 with open(traj_path, "a") as f:
+@@ -441,6 +509,11 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+                     mode="wb",
+                 )
+                 screenshot_saved = True
++                # DERAIL: stall tracking — perceptual digest of the screen
++                # this action saw (clock/cursor tolerant, see _screen_digest).
++                _digest = _screen_digest(obs["screenshot"])
++                _same_shot_run = _same_shot_run + 1 if _same_screen(_digest, _prev_shot_digest) else 1
++                _prev_shot_digest = _digest
+             else:
+                 # Cold-start fallback: if env.step's screenshot came back
+                 # None (the /screenshot HTTP endpoint sometimes lags the
+@@ -455,6 +528,14 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+                         mode="wb",
+                     )
+                     screenshot_saved = True
++                    _digest = _screen_digest(retry_shot)
++                    _same_shot_run = _same_shot_run + 1 if _same_screen(_digest, _prev_shot_digest) else 1
++                    _prev_shot_digest = _digest
++                else:
++                    # No screen evidence this step — reset the stall counter
++                    # rather than falsely accumulating it.
++                    _prev_shot_digest = None
++                    _same_shot_run = 0
+ 
+             # Save trajectory line (append + fsync). Build the line first
+             # so we never leave a half-written or empty traj.jsonl behind
+@@ -467,6 +548,7 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+                 "reward": reward,
+                 "done": done,
+                 "info": info,
++                "agent_metadata": getattr(agent, "agent_metadata", None),
+                 "screenshot_file": screenshot_file if screenshot_saved else "",
+             }, ensure_ascii=False) + "\n"
+             with open(traj_path, "a") as f:
+@@ -489,6 +571,23 @@ def run_single_example(agent, env, task, max_steps, result_dir, sleep_after=1.0,
+             logger.warning("Task %s hit global timeout (%ds)", task_id, timeout)
+             break
+ 
++        # DERAIL: loop-stall abort — N consecutive actions that left the
++        # screen byte-identical means the agent is re-issuing ineffective
++        # actions without perceiving no progress. Leave a stall.txt marker
++        # so analysis can separate STALL_ABORT from budget truncation.
++        if _stall_threshold > 0 and _same_shot_run >= _stall_threshold:
++            task_id = task.get("id", "unknown")
++            logger.warning("STALL_ABORT task %s: %d consecutive identical "
++                           "screenshots at step %d — non-convergent loop, "
++                           "aborting early", task_id, _same_shot_run, step_idx)
++            try:
++                with open(os.path.join(result_dir, "stall.txt"), "w") as _sf:
++                    _sf.write(f"{task_id}\trepeat={_same_shot_run}\tstep={step_idx}\n")
++            except OSError:
++                pass
++            _stalled = True
++            break
++
+     # Ensure final screenshot is captured. If the step count exceeds
+     # the number of saved PNGs (e.g. screenshot endpoint was down on
+     # the last step), capture one last screenshot so graders/humans
+@@ -676,6 +775,9 @@ def main():
+                             "claude_cuabash",
+                             "openai_cuabash",
+                             "qwen_cuabash", "qwen_cua",
++                            "derail_qwen36", "derail_qwen38", "derail_evocua",
++                            "derail_opencua", "derail_holo31",
++                            "derail_kimi_k3", "derail_kimi_k3_cuabash",
+                         ],
+                         help="Paper agents (<provider>_<input>): "
+                              "claude_cuabash (Claude main), openai_cuabash "
+diff --git a/agent-harness/run_parallel_tasks.py b/agent-harness/run_parallel_tasks.py
+index e42eb4b..7fc1944 100755
+--- a/agent-harness/run_parallel_tasks.py
++++ b/agent-harness/run_parallel_tasks.py
+@@ -298,10 +298,11 @@ def run_vm_batch(
+         # distro locations. Raises a clear error (caught below) if no
+         # OVMF is present on the host.
+         try:
+-            from env import _discover_ovmf
++            from env import _discover_ovmf, _discover_qemu_binary
+             code_path, vars_src = _discover_ovmf()
++            qemu_binary = _discover_qemu_binary()
+         except RuntimeError as e:
+-            return {"vm_idx": vm_idx, "error": f"OVMF discovery failed: {e}",
++            return {"vm_idx": vm_idx, "error": f"QEMU host preflight failed: {e}",
+                     "scores": []}
+         subprocess.run(
+             ["qemu-img", "convert", "-O", "qcow2", "-f", "raw", vars_src, vars_qcow2],
+@@ -321,7 +322,7 @@ def run_vm_batch(
+         else:
+             serial_log = f"/tmp/mypcbench-{container_name}-serial.log"
+         qemu_cmd = [
+-            "qemu-system-x86_64", "-name", container_name,
++            qemu_binary, "-name", container_name,
+             "-machine", "q35,accel=kvm:tcg", *kvm_args,
+             "-m", "8G", "-smp", "4",
+             *uefi_args,
+@@ -465,6 +466,18 @@ def run_vm_batch(
+         cmd.extend(["--screen_height", str(args_dict["screen_height"])])
+     if args_dict.get("sleep_after") is not None:
+         cmd.extend(["--sleep_after", str(args_dict["sleep_after"])])
++    # DERAIL: forward the per-task budget so a task that gets stuck cannot eat
++    # into the per-VM batch timeout and take the whole VM's remaining tasks
++    # down with it (killpg on batch timeout would leave them as empty shells).
++    # DERAIL (2026-08-11): ALWAYS pass an explicit --timeout. The conditional
++    # pass-through let some runs fall back to run_mypcbench's implicit
++    # default, and F2 produced trajectories that escaped any budget entirely
++    # (see COLLECTION_LOG 08-11 截断专项). Fallback order: caller arg >
++    # TASK_TIMEOUT env > 7200s.
++    _task_timeout = args_dict.get("task_timeout")
++    if _task_timeout is None:
++        _task_timeout = int(os.environ.get("TASK_TIMEOUT", "7200"))
++    cmd.extend(["--timeout", str(_task_timeout)])
+     if args_dict.get("soft_reset"):
+         cmd.append("--soft-reset")
+ 
+@@ -603,6 +616,15 @@ def main() -> int:
+                         help="Use in-place soft reset instead of container restart")
+     parser.add_argument("--timeout-per-vm", type=int, default=3600,
+                         help="Wall-clock timeout per VM batch (seconds)")
++    # DERAIL: run_mypcbench.py already enforces a per-task wall-clock budget,
++    # but this launcher never forwarded it, so every run silently used that
++    # script's 7200s default. Making it explicit lets the collection protocol
++    # pin the value and record it in the manifest instead of inheriting
++    # whatever upstream's default happens to be.
++    parser.add_argument("--task-timeout", type=int, default=None,
++                        help="Wall-clock timeout per single task (seconds), "
++                             "forwarded to run_mypcbench.py --timeout. "
++                             "Default None keeps run_mypcbench.py's own default.")
+     parser.add_argument("--screen-width", type=int, default=None,
+                         help="Override VM screen width (forwarded to run_mypcbench.py). "
+                              "Default lets run_mypcbench.py pick (1280).")
+@@ -684,6 +706,7 @@ def main() -> int:
+         "container_base": args.container_base,
+         "soft_reset": args.soft_reset,
+         "timeout": args.timeout_per_vm,
++        "task_timeout": args.task_timeout,
+         "screen_width": args.screen_width,
+         "screen_height": args.screen_height,
+         "sleep_after": args.sleep_after,

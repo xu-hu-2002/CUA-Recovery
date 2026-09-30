@@ -1,0 +1,53 @@
+# scaffold: upstream_runner —— 走 MyPCBench 自带的 claude_cuabash agent
+# （Anthropic Messages API + 原生 computer_20251124 工具），不经过
+# SafePyAutoGUICompiler，也没有 DERAIL 的 loop guard / schema repair / multi-tool
+# 归一化。与 gpt_5_5 同属原生 baseline 层；和走 derail_tool_agent 的那三个 agent
+# 失败分布形状本来就不同，对比时必须写进正文。
+#
+# DERAIL 的 factory 碰不到它，本文件除身份与并发字段外是纯文档。
+# model 由 CLAUDE_OPUS_4_8_MODEL 在 resolve_agent 里冻结，缺该变量拒绝启动。
+agent_id: claude_opus_4_8
+family: anthropic_computer_use
+scaffold: upstream_runner
+agent_type: claude_cuabash
+model: claude-opus-4-8
+api_snapshot: routify/protocol/anthropic/v1 (2026-08-06, AWS Bedrock 后端)
+output_format: native_tool_use
+history_renderer: anthropic_messages_full_history
+live_adapter: MyPCBench.agent-harness.agents.claude_cua
+runner_requires_env: CLAUDE_OPUS_4_8_MODEL
+computer_tool_type: computer_20251124
+anthropic_beta: computer-use-2025-11-24
+prompt_caching: disabled
+
+# 实测动作形如 pyautogui.click(1131, 131) / pyautogui.scroll(-5, x=640, y=444)，
+# 是上游 agent 自己拼的 PyAutoGUI 代码，不带 button= 参数（DERAIL compiler 才会加）。
+coordinate_protocol: absolute_pixels
+
+# scroll 单位理解正确，不需要 clamp。v1 实测 811 次 scroll 100% 落在 30 格以内
+# （中位数 5，最大 30）—— 与 qwen3_5 的 95.2% 同侧，和 kimi_k3 的 8.3% / holo 的
+# 9.6% 形成对照，是「scroll 单位歧义只打击部分模型」的证据之一。
+scroll_unit_understanding: notches_native
+
+# 工具轮（traj.jsonl 里 action=TOOL_CALL 的行）占约 14.6%。这些行的 response 是
+# 空字符串，判官只看到一行 "Action: TOOL_CALL"，见 configs/harness/mypcbench.yaml
+# 的 known_defects.tool_call_payload_empty。占比远低于 gpt_5_5 的 50.5%。
+tool_turn_ratio_observed: 0.146
+
+# VM 并发度。托管 API 不占卡，上限是配额而非显存。
+num_vms: 4
+# 01_collect_all.sh 预估时长用；不影响采集行为。
+eta_step_seconds: 60.0
+eta_step_seconds_source: v1 全量采集步间间隔中位（docs/ROUTIFY_API_MATRIX.md §9.3）
+status: collected_f2_complete
+
+notes: >-
+  Anthropic 协议本身无状态（每轮回传全历史），不受 routify 的 Zero Data
+  Retention 影响。必须设 CLAUDE_PROMPT_CACHING_BETA=0：Bedrock 拒绝
+  computer-use 与 prompt-caching 组合的 anthropic-beta 头
+  （ValidationException: invalid beta flag），单独任一可用。
+  经 Bedrock 托管（内部别名 claude-saffron），与 Anthropic 一方 API 的版本
+  口径可能存在细微差异，须记入 collection manifest。
+  2026-08-10 拍板：采集维持裸名不改 aws. 前缀——F2 已全量收官且裸名有实证，
+  换前缀不改变模型固有推理延迟（采集步长 ~60s 中位为模型固有），且 aws. 前缀
+  无全量采集实证。详见 docs/ROUTIFY_API_MATRIX.md §2.2.1。

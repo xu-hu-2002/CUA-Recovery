@@ -1,0 +1,41 @@
+# Automatic Task-IR validation against rubric expectations (execution doc v1.2 section 5.3).
+schema_version: rubric-check-config/1.0
+expectations:
+  # Literal values pulled from rubric criteria and variables.json only, never from the
+  # instruction (D-018 R1): instruction values are givens, matching them proves nothing.
+  # ${TODAY+-k} in variables.json is expanded from reference_time.
+  use_instruction: false
+  date_formats: ["%Y-%m-%d", "%B %d, %Y", "%b %d, %Y", "%B %d", "%b %d", "%m/%d/%Y", "%m/%d"]
+  # Year assumed for month-day dates without a year (the world's bake year).
+  default_year: 2026
+  amount_pattern: "\\$\\s?([0-9]{1,3}(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?|[0-9]+(?:\\.[0-9]{1,2})?)"
+  email_pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+  quoted_pattern: "[\"“]([^\"”]{3,80})[\"”]"
+  # Quoted text containing a placeholder like <date> is a template, not an expectation.
+  template_marker_pattern: "<[^<>]{1,40}>"
+  # variables.json values are matched when their string form appears in the rubric text;
+  # numbers within this relative tolerance count as present.
+  variable_number_tolerance: 0.005
+verdict:
+  # auto_validated when matched / comparable >= threshold and comparable >= min_expectations.
+  match_threshold: 0.8
+  min_expectations: 1
+  # Rubrics with no comparable literal value are judged by wording (researcher decision,
+  # 2026-09-05): a criterion counts when at least keyword_threshold of its content words
+  # appear in the gold values, the produced/written rows or the IR's semantic goals; the task
+  # is auto_validated (code LEXICAL_MATCH) when the weighted share of satisfied criteria is at
+  # least criteria_threshold and the final verifier passed.
+  lexical:
+    enabled: true
+    keyword_threshold: 0.5
+    criteria_threshold: 0.7
+    min_word_length: 4
+    stopwords: [agent, agents, that, this, with, from, into, then, than, when, which, what, where,
+                their, there, these, those, should, would, could, must, only, also, each, every,
+                have, been, being, does, done, make, made, task, user, users, michael, scott,
+                correctly, correct, appropriate, relevant, specific, specified, given, using,
+                include, includes, including, provide, provides, provided, identify, identifies,
+                identified, list, lists, listed, note, notes, noted, explain, explains, mention,
+                mentions, mentioned, report, reports, reported, state, states, stated, show, shows]
+  # Rubric weight below which a criterion's expectations are advisory (not counted).
+  min_rubric_weight: 0.0

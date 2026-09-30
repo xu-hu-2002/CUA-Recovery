@@ -1,0 +1,74 @@
+diff --git a/agent-harness/env.py b/agent-harness/env.py
+index aa937fa..81da497 100644
+--- a/agent-harness/env.py
++++ b/agent-harness/env.py
+@@ -457 +457,4 @@ class MyPCBenchEnv:
+-            if self.vm_ip != "localhost" and self.vm_ip != "127.0.0.1":
++            if (
++                self.vm_ip != "localhost" and self.vm_ip != "127.0.0.1"
++                or os.environ.get("MYPCBENCH_REMOTE_ATTACH") == "1"
++            ):
+@@ -636,0 +640,22 @@ class MyPCBenchEnv:
++    def _remote_lifecycle(self, mode: str) -> None:
++        """POST reset operations to the Nebula-side ROCK lifecycle server."""
++
++        port = int(os.environ.get("MYPCBENCH_LIFECYCLE_PORT", "19090"))
++        url = f"http://127.0.0.1:{port}/{mode}"
++        for attempt in range(3):
++            try:
++                response = self._session.post(url, timeout=1800)
++                response.raise_for_status()
++                log.info("Remote lifecycle %s OK: %s", mode, str(response.text)[:200])
++                return
++            except Exception as error:
++                log.warning(
++                    "Remote lifecycle %s attempt %d/3 failed: %s",
++                    mode,
++                    attempt + 1,
++                    error,
++                )
++                if attempt == 2:
++                    raise
++                time.sleep(10)
++
+@@ -645,0 +671,4 @@ class MyPCBenchEnv:
++        if os.environ.get("MYPCBENCH_REMOTE_ATTACH") == "1":
++            self._remote_lifecycle("reset")
++            self._wait_for_ready()
++            return
+diff --git a/agent-harness/run_parallel_tasks.py b/agent-harness/run_parallel_tasks.py
+index 7fc1944..084cca3 100755
+--- a/agent-harness/run_parallel_tasks.py
++++ b/agent-harness/run_parallel_tasks.py
+@@ -205,0 +206,4 @@ def _allocate_port_windows(start: int, num_vms: int, stride: int = 30,
++    if os.environ.get("MYPCBENCH_REMOTE_ATTACH") == "1":
++        # DERAIL: the Nebula-side ROCK bridge already listens on these local
++        # ports, so the window must stay pinned to PORT_BASE.
++        return bases
+@@ -260 +264,10 @@ def run_vm_batch(
+-    if backend == "qemu":
++    remote_attach = os.environ.get("MYPCBENCH_REMOTE_ATTACH") == "1"
++
++    if remote_attach:
++        logger.info(
++            "VM %d: remote attach -- guest pre-booted in ROCK sandbox "
++            "(control api 127.0.0.1:%d), skipping local VM launch",
++            vm_idx,
++            api_port,
++        )
++    elif backend == "qemu":
+@@ -396,0 +410,6 @@ def run_vm_batch(
++        if remote_attach:
++            return {
++                "vm_idx": vm_idx,
++                "error": "API never ready (remote attach via bridge)",
++                "scores": [],
++            }
+@@ -686 +705,6 @@ def main() -> int:
+-        args.qcow2_path = _ensure_current_qcow2(args.qcow2_path or os.environ.get("MYPCBENCH_QCOW2"))
++        if os.environ.get("MYPCBENCH_REMOTE_ATTACH") == "1":
++            args.qcow2_path = args.qcow2_path or os.environ.get("MYPCBENCH_QCOW2")
++        else:
++            args.qcow2_path = _ensure_current_qcow2(
++                args.qcow2_path or os.environ.get("MYPCBENCH_QCOW2")
++            )

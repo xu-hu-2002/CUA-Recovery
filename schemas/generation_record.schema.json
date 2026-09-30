@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/generation_record.schema.json",
+  "title": "DERAIL task-synthesis candidate or rejection record",
+  "oneOf": [
+    {
+      "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/accepted"
+    },
+    {
+      "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/rejected"
+    },
+    {
+      "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/v1_0"
+    }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "candidate_id",
+        "status",
+        "source_skeleton_ids",
+        "anchor_module_id",
+        "release_eligible",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "generation-record/0.1"
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "symbolic_accepted",
+            "rejected"
+          ]
+        },
+        "source_skeleton_ids": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "anchor_module_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_eligible": {
+          "const": false
+        },
+        "provenance": {
+          "type": "object",
+          "required": [
+            "candidate_fingerprint",
+            "llm_calls"
+          ],
+          "properties": {
+            "candidate_fingerprint": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "llm_calls": {
+              "type": "array"
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "accepted": {
+      "allOf": [
+        {
+          "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/base"
+        },
+        {
+          "type": "object",
+          "required": [
+            "generation_version",
+            "sampling_mode",
+            "source_task_ids",
+            "source_module_ids",
+            "environment_id",
+            "snapshot_id",
+            "instruction",
+            "realization_status",
+            "task_ir",
+            "world_bindings",
+            "complexity",
+            "rubric",
+            "validation"
+          ],
+          "properties": {
+            "status": {
+              "const": "symbolic_accepted"
+            },
+            "generation_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sampling_mode": {
+              "enum": [
+                "empirical_only",
+                "failure_informed_bounded"
+              ]
+            },
+            "source_task_ids": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string"
+              }
+            },
+            "source_module_ids": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string"
+              }
+            },
+            "environment_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "instruction": {
+              "type": "null"
+            },
+            "realization_status": {
+              "const": "pending_round_trip_validation"
+            },
+            "task_ir": {
+              "$ref": "https://derail.local/schemas/task_fragment.schema.json"
+            },
+            "world_bindings": {
+              "type": "object"
+            },
+            "complexity": {
+              "type": "object"
+            },
+            "rubric": {
+              "type": "object"
+            },
+            "validation": {
+              "type": "object",
+              "required": [
+                "static_pass",
+                "environment_status",
+                "verifier_coverage",
+                "empirical_likelihood",
+                "gold_execution_pass",
+                "fixture_reset_pass",
+                "human_review_status"
+              ],
+              "properties": {
+                "static_pass": {
+                  "const": true
+                },
+                "environment_status": {
+                  "const": "direct"
+                },
+                "verifier_coverage": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "empirical_likelihood": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "gold_execution_pass": {
+                  "const": false
+                },
+                "fixture_reset_pass": {
+                  "const": false
+                },
+                "human_review_status": {
+                  "const": "pending"
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "rejected": {
+      "allOf": [
+        {
+          "$ref": "https://derail.local/schemas/generation_record.schema.json#/$defs/base"
+        },
+        {
+          "type": "object",
+          "required": [
+            "rejection_code",
+            "rejection_detail",
+            "attempt"
+          ],
+          "properties": {
+            "status": {
+              "const": "rejected"
+            },
+            "rejection_code": {
+              "enum": [
+                "UNBOUND_PORT",
+                "INVALID_GROUNDING",
+                "TYPE_MISMATCH",
+                "GLOBAL_CONSTRAINT_UNSAT",
+                "WORLD_NOT_MATERIALIZABLE",
+                "FIXTURE_RESET_FAILED",
+                "VERIFIER_INVALID",
+                "REALIZATION_DRIFT",
+                "INSUFFICIENT_DEPENDENCY",
+                "SHORTCUT_DETECTED",
+                "DUPLICATE_TASK",
+                "NEEDS_HUMAN_REVIEW",
+                "DECORATIVE_CARRY",
+                "EFFECT_SAFETY_UNSAT"
+              ]
+            },
+            "rejection_detail": {
+              "type": "string",
+              "minLength": 1
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "v1_0": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "candidate_id",
+        "status",
+        "origin",
+        "source_task_ids",
+        "operators",
+        "grafts",
+        "score",
+        "rejections",
+        "bucket",
+        "gold_execution",
+        "mutation_test",
+        "hazards",
+        "variants",
+        "realization",
+        "selected",
+        "release_eligible",
+        "provenance"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "generation-record/1.0"
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "rejected"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "seed",
+            "composed"
+          ]
+        },
+        "source_task_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "operators": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "grafts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "score": {
+          "type": "number"
+        },
+        "rejections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "profile_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gold_execution": {
+          "type": "object",
+          "required": [
+            "passed"
+          ],
+          "properties": {
+            "passed": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "final_verifier_passed": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "verifier_bundle_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mutation_test": {
+          "type": "object",
+          "required": [
+            "outcomes",
+            "rejection_rate"
+          ],
+          "properties": {
+            "outcomes": {
+              "type": "integer"
+            },
+            "rejection_rate": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "hazards": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "variants": {
+          "type": "object",
+          "required": [
+            "base_world",
+            "injectable",
+            "total",
+            "status"
+          ],
+          "properties": {
+            "injectable": {
+              "type": "integer"
+            },
+            "status": {
+              "enum": [
+                "ok",
+                "short"
+              ]
+            },
+            "base_world": {
+              "type": "integer"
+            },
+            "total": {
+              "type": "integer"
+            }
+          }
+        },
+        "realization": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "dry_run",
+                "accepted",
+                "re_realize",
+                "parse_error"
+              ]
+            },
+            "instruction": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "selection_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_eligible": {
+          "const": false
+        },
+        "provenance": {
+          "type": "object",
+          "required": [
+            "candidate_fingerprint",
+            "generation_version",
+            "llm_calls"
+          ],
+          "properties": {
+            "candidate_fingerprint": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "generation_version": {
+              "type": "string"
+            },
+            "llm_calls": {
+              "type": "array"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

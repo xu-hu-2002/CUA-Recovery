@@ -1,0 +1,38 @@
+# Schema graph construction (execution doc v1.2 section 2.1: entities = rows, relations =
+# foreign keys and seeder links).  Explicit foreign keys come from PRAGMA foreign_key_list;
+# the application databases declare very few, so relations are also inferred from column
+# names under the rules below.  Every inferred relation carries its rule name so a later
+# audit can drop a rule wholesale.
+schema_version: schema-graph-config/1.0
+
+# Tables that are bookkeeping, never entities.
+exclude_tables: [sqlite_sequence, sqlite_stat1, _seed_meta, _meta, _changelog, _cursor,
+                 messages_idempotency_cache, sync_cursors]
+
+# Confidence per rule (D-015 R1).  Generation (typed compatibility) uses only relations with
+# confidence >= min_confidence_for_generation; lower ones are analysis-only.
+confidence:
+  foreign_key: 1.0
+  id_suffix_exact: 0.9
+  id_suffix_plural: 0.8
+  email_principal: 0.7
+  polymorphic_pair: 0.5
+min_confidence_for_generation: 0.7
+
+inference:
+  # <prefix>_id -> table named <prefix>, <prefix>s, <prefix>es (same database).
+  id_suffix: "_id"
+  # Columns that carry an e-mail address point at the database's principal table
+  # (the first table listed here that exists in that database, matched on its e-mail column).
+  email_column_pattern: "(^|_)email$"
+  principal_tables:
+    - {table: members, column: email}
+    - {table: users, column: email}
+    - {table: contacts, column: email}
+    - {table: profiles, column: email}
+  # Polymorphic references: (scope_type, scope_id) / (target_type, target_id) pairs whose
+  # target table is stored in the *_type column.  Recorded as relations with kind
+  # "polymorphic" and no fixed target table.
+  polymorphic_pairs:
+    - {type_column: scope_type, id_column: scope_id}
+    - {type_column: target_type, id_column: target_id}

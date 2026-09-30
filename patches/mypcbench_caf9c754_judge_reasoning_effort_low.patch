@@ -1,0 +1,50 @@
+diff --git a/agent-harness/utils/osworld_full_traj_judge.py b/agent-harness/utils/osworld_full_traj_judge.py
+index 6d6182a..77189d4 100644
+--- a/agent-harness/utils/osworld_full_traj_judge.py
++++ b/agent-harness/utils/osworld_full_traj_judge.py
+@@ -68,6 +68,8 @@ DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
+ DEFAULT_MAX_IMAGES = 200
+ DEFAULT_CONCURRENCY = 4
+ FINAL_JUDGMENT_MAX_COMPLETION_TOKENS = 8192
++DEFAULT_REASONING_EFFORT = "low"
++VALID_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high"}
+
+
+ FULL_TRAJ_JUDGMENT_SYSTEM = """You are an expert evaluator of desktop-agent trajectories.
+@@ -368,6 +370,17 @@ async def _judge_one_rubric_openai(
+         user_content.append(
+             {"type": "image_url", "image_url": {"url": s["data_url"], "detail": "high"}}
+         )
++    effort = (
++        os.environ.get("MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT")
++        or DEFAULT_REASONING_EFFORT
++    ).strip().lower()
++    if effort not in VALID_REASONING_EFFORTS:
++        raise ValueError(f"invalid judge reasoning effort: {effort}")
++    reasoning_kwargs: dict[str, Any]
++    if model.lower().startswith(("claude-", "anthropic.")):
++        reasoning_kwargs = {"extra_body": {"output_config": {"effort": effort}}}
++    else:
++        reasoning_kwargs = {"reasoning_effort": effort}
+     response = await client.chat.completions.create(
+         model=model,
+         messages=[
+@@ -375,6 +388,7 @@ async def _judge_one_rubric_openai(
+             {"role": "user", "content": user_content},
+         ],
+         max_completion_tokens=FINAL_JUDGMENT_MAX_COMPLETION_TOKENS,
++        **reasoning_kwargs,
+     )
+     text = ""
+     try:
+@@ -580,6 +594,10 @@ async def main_async() -> None:
+             f"weighted fraction={final_fraction:.4f}"
+         ),
+         "model": model,
++        "reasoning_effort": (
++            os.environ.get("MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT")
++            or DEFAULT_REASONING_EFFORT
++        ).strip().lower(),
+         "max_images": max_images,
+         "concurrency": concurrency,
+         "n_steps_total": n_steps,

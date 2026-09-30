@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/cleaning_proposal.schema.json",
+  "title": "DERAIL Clean Prefix Review Proposal v0.2",
+  "$comment": "One reviewer's immutable proposal. It is not a repair authorization until at least two reviewers agree and a PrefixAudit is emitted.",
+  "type": "object",
+  "properties": {
+    "proposal_id": {"type": "string", "minLength": 1},
+    "trajectory_id": {"type": "string", "minLength": 1},
+    "source_trajectory_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reviewer_id": {"type": "string", "minLength": 1},
+    "root_cause_action_index": {"type": "integer", "minimum": 0},
+    "audit_end_action_index": {"type": "integer", "minimum": 0},
+    "audited_action_indices": {
+      "type": "array",
+      "items": {"type": "integer", "minimum": 0},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "drop_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action_index_global": {"type": "integer", "minimum": 0},
+          "recovery_action_index": {"type": "integer", "minimum": 0},
+          "old_action": {"$ref": "canonical_action.schema.json"},
+          "self_recovered": {"const": true},
+          "persistent_state_effect": {"const": false},
+          "causal_to_root_or_task": {"const": false},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "required": [
+          "action_index_global", "recovery_action_index", "old_action", "self_recovered",
+          "persistent_state_effect", "causal_to_root_or_task", "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "review_complete": {"const": true},
+    "schema_version": {"const": "0.2.0"}
+  },
+  "required": [
+    "proposal_id", "trajectory_id", "source_trajectory_sha256", "reviewer_id",
+    "root_cause_action_index", "audit_end_action_index", "audited_action_indices",
+    "drop_candidates", "review_complete", "schema_version"
+  ],
+  "additionalProperties": false
+}

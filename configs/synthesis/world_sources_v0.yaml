@@ -1,0 +1,190 @@
+# How the frozen MyPCBench seed (persona file + ground-truth variables) maps onto world-graph/0.1
+# entities, relations and observation surfaces (manual v0.2 sections 3.1, 6.1).
+#
+# The persona is the seed of the VM image, so every entity here is reproducible from the public
+# release.  Stable IDs are derived from the listed identifying fields.  Whether the in-VM app
+# store exposes the same identifier still needs a per-app check; ``id_confidence`` records it.
+schema_version: world-sources/0.1
+environment_id: mypcbench-michael-scott
+snapshot_id: mypcbench-base-v1
+world_schema_version: mypcbench-world/0.1
+
+# Canonical application id -> every spelling seen in tasks (``apps_involved``) or in the persona.
+app_aliases:
+  hoolimail: [HooliMail, mail, email, email_w2_pdf]
+  gringotts: [Gringotts, vaultbank]
+  hoolichat: [HooliChat, buzzchat]
+  hooliwork: [HooliWork, workbuzz]
+  hoolicalendar: [HooliCalendar, calendar]
+  files: [Files, filesystem, Thunar, thunar]
+  libreoffice: [LibreOffice, LibreOffice Calc, LibreOffice Writer, LibreOffice Impress]
+  lockedin: [LockedIn]
+  cheskepdia: [Cheskepdia]
+  sprintboard: [SprintBoard]
+  dinoco_airlines: [Dinoco Airlines, dinoco-airlines]
+  hangrydash: [HangryDash]
+  batbucks: [BatBucks]
+  oddsmarket: [OddsMarket]
+  speedtax: [SpeedTax]
+  hoolishop: [HooliShop]
+  tablefind: [TableFind]
+  etaxi: [eTaxi]
+  kwik_e_mart: [Kwik-E-Mart, kwik-e-mart]
+  firefox: [Firefox, browser]
+
+persona:
+  root_entity:
+    path: identity
+    entity_type: Person
+    id_fields: [name]
+    # The signed-in persona is observable in every application.
+    surfaces: all
+    mutable: false
+  # ``id_fields`` are tried in order; the first present field(s) form the stable id.
+  # ``surfaces_field`` names a per-element list of app spellings; ``surfaces`` is a static list.
+  sections:
+    - path: contacts
+      entity_type: Person
+      id_fields: [name]
+      surfaces_field: apps_present_in
+      mutable: false
+      relation: {type: contact_of, to_root: true}
+    - path: financial
+      entity_type: BankProfile
+      singleton: true
+      surfaces: [gringotts]
+      mutable: true
+      relation: {type: account_of, to_root: true}
+    - path: financial.recurring_charges
+      entity_type: RecurringCharge
+      id_fields: [name]
+      surfaces: [gringotts]
+      mutable: true
+      relation: {type: charged_to, to_root: true}
+    - path: investments.holdings
+      entity_type: Holding
+      id_fields: [ticker]
+      surfaces: [batbucks]
+      mutable: true
+      relation: {type: held_by, to_root: true}
+    - path: investments.order_history
+      entity_type: BrokerageOrder
+      id_fields: [date, action, ticker]
+      surfaces: [batbucks]
+      mutable: false
+    - path: investments.dividends
+      entity_type: Dividend
+      id_fields: [date, ticker]
+      surfaces: [batbucks]
+      mutable: false
+    - path: prediction_markets.active_positions
+      entity_type: MarketPosition
+      id_fields: [market_ticker]
+      surfaces: [oddsmarket]
+      mutable: true
+    - path: trips
+      entity_type: Trip
+      id_fields: [destination, dates]
+      surfaces: [hoolicalendar, hoolimail, gringotts]
+      # The ``generates`` block says which apps carry traces of the trip (charges, confirmation
+      # mail, calendar block, chat mention, airport ride, shop order); keep it and derive surfaces.
+      nested_attributes: [generates]
+      surfaces_from_keys:
+        path: generates
+        key_apps:
+          vaultbank_charge: gringotts
+          vaultbank_charge_flight: gringotts
+          email_confirmation: hoolimail
+          calendar_event: hoolicalendar
+          buzzchat_mention: hoolichat
+          browser_history: firefox
+          etaxi_to_airport: etaxi
+          hoolishop_order: hoolishop
+      mutable: false
+      relation: {type: trip_of, to_root: true}
+      children:
+        - path: flight
+          entity_type: Flight
+          id_fields: [number]
+          surfaces: [dinoco_airlines]
+          mutable: true
+          relation_type: flight_of
+        - path: hotel
+          entity_type: HotelReservation
+          id_fields: [confirmation, name]
+          surfaces: [cheskepdia]
+          mutable: true
+          relation_type: hotel_of
+    - path: work.projects
+      entity_type: Project
+      id_fields: [name]
+      surfaces: [sprintboard, files]
+      mutable: true
+      children:
+        - path: sprintboard_tasks
+          entity_type: SprintTask
+          id_fields: [title, name, id]
+          surfaces: [sprintboard]
+          mutable: true
+          relation_type: task_of
+    - path: tax_info.w2
+      entity_type: W2Form
+      singleton: true
+      surfaces: [speedtax, files]
+      mutable: false
+    - path: tax_info.freelance_1099
+      entity_type: Income1099
+      id_fields: [payer]
+      surfaces: [speedtax, gringotts]
+      mutable: false
+    - path: tax_info.deductions.charitable
+      entity_type: CharitableDonation
+      id_fields: [org, organization, name]
+      surfaces: [speedtax, gringotts]
+      mutable: false
+    - path: shopping.online_orders
+      entity_type: ShopOrder
+      id_fields: [item]
+      surfaces: [hoolishop, gringotts]
+      mutable: true
+    - path: shopping.wishlist
+      entity_type: WishlistItem
+      id_fields: [item]
+      surfaces: [hoolishop]
+      mutable: true
+    - path: routines.improv_class
+      entity_type: RecurringActivity
+      singleton: true
+      surfaces: [hoolicalendar, gringotts]
+      mutable: true
+    - path: cross_app_events
+      entity_type: LifeEvent
+      id_fields: [type, date]
+      surfaces_field: apps
+      nested_attributes: [generates]
+      mutable: false
+    - path: planted_contradictions
+      entity_type: PlantedContradiction
+      id_fields: [id]
+      surfaces_field: apps
+      mutable: false
+    - path: planted_dependencies
+      entity_type: PlantedDependency
+      id_fields: [id]
+      # ``affected`` lists the cascade (app, item, consequence); it is the whole point of the entity.
+      nested_attributes: [affected]
+      surfaces_field: affected.app
+      mutable: false
+
+# Ground-truth reference values (tasks/final/variables.json).  Keys are matched by prefix to
+# the application where the value can be observed.
+variables:
+  entity_type: ReferenceValue
+  prefix_surfaces:
+    GRINGOTTS_: [gringotts]
+    STREAMING_: [gringotts]
+    IMPROV_: [gringotts, hoolicalendar]
+    JAMAICA_: [dinoco_airlines, cheskepdia, hoolimail, hoolicalendar]
+    NYC_: [dinoco_airlines, cheskepdia, hoolimail, hoolicalendar]
+    MICHAEL_: [lockedin, hoolimail]
+  default_surfaces: []

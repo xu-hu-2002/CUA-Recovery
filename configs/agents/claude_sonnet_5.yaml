@@ -1,0 +1,36 @@
+# scaffold: upstream_runner —— 与 claude_opus_4_8 同族，走 MyPCBench 自带的
+# claude_cuabash agent（Anthropic Messages API + 原生 computer_20251124 工具），
+# 不经过 SafePyAutoGUICompiler。DERAIL 的 factory 碰不到它，本文件除身份与并发
+# 字段外是纯文档。
+#
+# model 由 CLAUDE_SONNET_5_MODEL 在 resolve_agent 里冻结，缺该变量拒绝启动。
+agent_id: claude_sonnet_5
+family: anthropic_computer_use
+scaffold: upstream_runner
+agent_type: claude_cuabash
+model: claude-sonnet-5
+api_snapshot: routify/protocol/anthropic/v1 (2026-08-06, AWS Bedrock 后端)
+output_format: native_tool_use
+history_renderer: anthropic_messages_full_history
+live_adapter: MyPCBench.agent-harness.agents.claude_cua
+runner_requires_env: CLAUDE_SONNET_5_MODEL
+computer_tool_type: computer_20251124
+anthropic_beta: computer-use-2025-11-24
+prompt_caching: disabled
+coordinate_protocol: absolute_pixels
+
+# VM 并发度。托管 API 不占卡，上限是配额而非显存。
+num_vms: 4
+# 01_collect_all.sh 预估时长用；不影响采集行为。步长是三个 API agent 里最慢的，
+# >5min 的步占 43.4%，也是 73.9% 超时率的主因（见 results/COLLECTION_LOG.md
+# 2026-08-11 的截断偏差分析）。
+eta_step_seconds: 198.0
+eta_step_seconds_source: v1 全量采集步间间隔中位（docs/ROUTIFY_API_MATRIX.md §9.3）
+status: collected_f2_complete
+
+notes: >-
+  实测响应含 thinking 块。Anthropic 协议本身无状态，不受 routify 的 Zero Data
+  Retention 影响。必须设 CLAUDE_PROMPT_CACHING_BETA=0：Bedrock 拒绝 computer-use
+  与 prompt-caching 组合的 anthropic-beta 头。经 Bedrock 托管（内部别名
+  claude-saffron），须在 collection manifest 记录与 Anthropic 一方 API 的口径
+  差异。详见 docs/ROUTIFY_API_MATRIX.md。

@@ -1,0 +1,60 @@
+# Qwen3.6-27B 没有冻结的官方 computer-use 协议，这里显式使用 DERAIL general-VLM
+# scaffold，不能在论文中写成 native CUA baseline。
+#
+# 标 `# live` 的字段由 agent_config.load_agent_config() 读取，经
+# tool_agent.protocol_from_config() 装配成 ToolAgentProtocol —— 改这里就会改变
+# 实际行为。缺字段、拼错、取值越界一律 hard fail，代码侧没有默认值可回退。
+agent_id: qwen3_6_27b
+family: qwen36
+scaffold: derail_tool_agent
+agent_type: derail_qwen36
+checkpoint: Qwen/Qwen3.6-27B
+revision: 6a9e13bd6fc8f0983b9b99948120bc37f49c13e9
+output_format: openai_compatible_function_calling
+scaffold_origin: derail_general_vlm
+live_adapter: derail.mypcbench.factory.create_mypcbench_agent
+# 每个 endpoint 占几张卡。VM 并发度 = 可用 GPU 数 / 这个数，由
+# scripts/lib/collection_config.sh 在起服务时算，不写死在配置里。
+tensor_parallel_size: 2
+# live —— SafePyAutoGUICompiler 的枚举值。1280x800 是 VM 显示分辨率，由 runner
+# 传入 screen_size，不是协议名的一部分。
+coordinate_protocol: absolute_pixels
+# live —— prompts/agents/ 下的文件名，由 tool_agent._read_frozen_prompt() 读取。
+system_prompt_file: qwen3_6_27b_mypcbench_system.txt
+# live
+temperature: 0.0
+# live
+max_tokens: 2048
+# live —— 上下文策略对齐上游 qwen35vl_agent（history_n=100 / image_max=20 /
+# fold_size=10 + Previous actions）。四个 derail_tool_agent 统一到这一套。
+max_images_in_context: 20
+# live —— 保留完整消息的 turn 数（上游 history_n）。超出的 turn 整组丢掉，动作由
+# previous_action_log 兜住。
+history_turns: 100
+# live —— 折叠图片的粒度（上游 fold_size）。成块折叠让前缀只增不减，prompt cache
+# 才不会每步失效。
+image_fold_size: 10
+# live —— 窗口外 turn 的动作压成 `Previous actions:` 附在当前 user 消息上。这是
+# 上游唯一让「第 5 步做过什么」在第 90 步还可见的机制。
+previous_action_log: true
+# live —— required 会逼模型每轮必须调工具，想说"做不到"时没有出口；v1 里 Holo
+# 因此一次都没主动发过 fail，70 次 FAIL 全是守卫掐的。统一为 auto。
+tool_choice: auto
+# live —— 2 而不是 1：一次修复后仍违规就整局判 FAIL，v1 smoke 里 115 次拒绝因此
+# 杀掉 10 局。四个 derail_tool_agent 必须同值，否则失败分布不可比。
+schema_repair_attempts: 2
+# live —— Qwen3.6 用保守的单交互策略；Holo 那边是 execute_all_calls_in_order。
+# Qwen3.8 与本项相同；Holo 的多工具策略是刻意保留的差异，横比时必须说明。
+multi_tool_policy: one_interaction_plus_collapsed_waits
+# live —— 0 = 停用。v1 的实测代价：Holo 184 局里 70 局被守卫掐断，被掐断的局判分
+# 均值 0.066，自己跑到 DONE 的局是 0.379 —— 杀掉的绝大多数不是死循环，是还没走完
+# 的长任务。真正的死循环由 max_steps 兜底。要复现 v1 就设回 8 / 15。
+alternating_action_repeat_limit: 0
+# live
+stalled_state_step_limit: 0
+# live —— GUI-only，无 bash 工具面。
+enable_bash: false
+# 01_collect_all.sh 预估时长用；不影响采集行为。
+eta_step_seconds: 13.3
+eta_step_seconds_source: v1 smoke 实测单步中位（eager 配置下测得，实际更快）
+status: code_repair_revalidated_no_schema_crash_model_behavior_failure_remains

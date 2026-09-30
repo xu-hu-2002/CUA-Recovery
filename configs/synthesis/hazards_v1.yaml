@@ -1,0 +1,48 @@
+# World-side hazard injection (execution doc v1.2 section 7.3).  Base rates are counted with
+# the queries below on the base world; a hazard type with base rate zero may not be injected,
+# and after injection the rate may not exceed base_rate_multiplier_max times the base rate.
+# Injection edits the persona JSON (patches below); seeding and the consistency check run in
+# the VM (collaborator).  Each task needs at least min_variants_per_task variants (D-023).
+schema_version: hazards-config/1.0
+base_rate_multiplier_max: 2.0
+max_hazards_per_task: 2
+min_variants_per_task: 2
+base_rate_queries:
+  identity_alias:
+    - {app: workbuzz, unit: duplicate_display_names, query: "SELECT COUNT(*) FROM (SELECT display_name FROM members GROUP BY display_name HAVING COUNT(*) > 1)"}
+    - {app: buzzchat, unit: duplicate_contact_names, query: "SELECT COUNT(*) FROM (SELECT name FROM contacts GROUP BY name HAVING COUNT(*) > 1)"}
+  stale_version:
+    - {app: workbuzz, unit: duplicate_file_names, query: "SELECT COUNT(*) FROM (SELECT file_name FROM files GROUP BY file_name HAVING COUNT(*) > 1)"}
+  cross_app_inconsistency:
+    - {app: hoolicalendar, unit: mirrored_events, query: "SELECT COUNT(*) FROM events WHERE source_kind = 'mirror'"}
+  distractor_candidates:
+    - {app: hoolicalendar, unit: same_title_prefix_events, query: "SELECT COUNT(*) FROM (SELECT substr(title, 1, 12) p FROM events GROUP BY p HAVING COUNT(*) > 1)"}
+  constraint_drift:
+    - {app: hoolicalendar, unit: events_rescheduled, query: "SELECT COUNT(*) FROM events WHERE updated_at > created_at"}
+  precondition_gap:
+    - {app: cheskepdia, unit: unconfirmed_bookings, query: "SELECT COUNT(*) FROM bookings WHERE status NOT IN ('confirmed', 'completed')"}
+# Persona JSON patches per hazard (RFC 6902 style, values filled from the target edge).
+patches:
+  identity_alias:
+    target_paper_type: misunderstand_task_objective
+    template:
+      - {op: add, path: /contacts/-, value: {name: "{name}", email: "{alias_email}", relationship: acquaintance, apps_present_in: ["{app}"]}}
+  stale_version:
+    target_paper_type: state_misinterpretation
+    template:
+      - {op: add, path: "/app_overrides/filesystem/documents/-", value: {path: "{path}", stale_copy_of: "{path}", version_note: "older draft"}}
+  distractor_candidates:
+    target_paper_type: detail_misperception
+    template:
+      - {op: add, path: "/app_overrides/calendar/events/-", value: {summary: "{title} (prep)", start: "{start}", end: "{end}"}}
+  precondition_gap:
+    target_paper_type: premature_completion
+    template:
+      - {op: replace, path: "{status_path}", value: pending}
+# Which data edges a hazard may target (derail.gen.pipeline.hazard_candidates): the source
+# port's type or name must match ``pattern``; ``value_kind: text`` requires a string gold value.
+edge_selectors:
+  identity_alias: {pattern: "name|person|contact|member|user|recipient|sender", value_kind: text}
+  stale_version: {pattern: "file|path|document|attachment", value_kind: text}
+  distractor_candidates: {pattern: "event|title|meeting|subject", value_kind: text}
+  precondition_gap: {pattern: "booking|order|status|reservation|ticket", value_kind: any}

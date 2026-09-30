@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/evaluation_result.schema.json",
+  "title": "DERAIL Takeover Evaluation Episode v0.2",
+  "type": "object",
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "build_id": {"type": "string", "minLength": 1},
+    "instance_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "agent_model_revision": {"type": "string", "minLength": 1},
+    "agent_prompt_sha256": {"type": "string", "minLength": 1},
+    "adapter_sha256": {"type": "string", "minLength": 1},
+    "depth": {"enum": [0, 5, 10, 15, 20, 25]},
+    "repeat_id": {"type": "integer", "minimum": 1},
+    "valid": {"type": "boolean"},
+    "replay_verification_id": {"type": "string", "minLength": 1},
+    "ear": {
+      "type": ["object", "null"],
+      "properties": {"verdict": {"type": "boolean"}},
+      "required": ["verdict"]
+    },
+    "pesr": {
+      "type": ["object", "null"],
+      "properties": {
+        "recovered": {"type": "boolean"},
+        "score": {"type": "number", "minimum": 0, "maximum": 1},
+        "success_threshold": {"const": 1.0},
+        "action_budget": {"const": 50},
+        "per_rubric_results": {"type": "array", "minItems": 1}
+      },
+      "required": ["recovered", "score", "success_threshold", "action_budget", "per_rubric_results"]
+    },
+    "invalid_stage": {"type": ["string", "null"]},
+    "invalid_reason": {"type": ["string", "null"]}
+  },
+  "required": [
+    "run_id", "build_id", "instance_id", "case_id", "agent_id",
+    "agent_model_revision", "agent_prompt_sha256", "adapter_sha256", "depth",
+    "repeat_id", "valid", "replay_verification_id", "ear", "pesr",
+    "invalid_stage", "invalid_reason"
+  ],
+  "allOf": [
+    {
+      "if": {"properties": {"valid": {"const": true}}},
+      "then": {"properties": {"ear": {"type": "object"}, "pesr": {"type": "object"}}},
+      "else": {"properties": {"ear": {"type": "null"}, "pesr": {"type": "null"}}}
+    }
+  ],
+  "additionalProperties": false
+}

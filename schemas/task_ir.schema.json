@@ -1,0 +1,621 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/task_ir.schema.json",
+  "title": "DERAIL Task IR (task-ir/1.0)",
+  "$comment": "Execution doc v1.2 section 2.1 / 13. Node and edge structure is the v0.2 task-fragment structure so derail.synthesis.graph and derail.longhorizon.dag apply unchanged; nodes additionally carry reads / produces / writes (app-qualified table, column, entity_ref), route_hint, reversibility_class and a state verifier. produces[].derivation is executable and read-only (sql | expr | literal | upstream | create); writes[] are executed by the interpreter from their value / value_ref (DECISIONS.md D-003, review R1). Input literals must appear in the instruction (D-009 R1).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "world_id",
+    "nodes",
+    "edges",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "task-ir/1.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_task_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "world_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instruction": {
+      "type": "string"
+    },
+    "reference_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "op",
+          "app",
+          "route_hint",
+          "reads",
+          "produces",
+          "writes",
+          "reversibility_class",
+          "side_effects",
+          "inputs",
+          "outputs",
+          "verifier"
+        ],
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "op": {
+            "enum": [
+              "retrieve",
+              "resolve",
+              "filter",
+              "compare",
+              "aggregate",
+              "verify",
+              "decide",
+              "create",
+              "modify",
+              "delete",
+              "communicate",
+              "confirm"
+            ]
+          },
+          "app": {
+            "type": "string",
+            "minLength": 1
+          },
+          "semantic_goal": {
+            "type": "string"
+          },
+          "route_hint": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "reads": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "table",
+                "column",
+                "entity_ref"
+              ],
+              "properties": {
+                "table": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]+\\.[A-Za-z0-9_]+$"
+                },
+                "column": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "entity_ref": {
+                  "type": "string",
+                  "pattern": "^(file:[^\\s][^\\n]*|[A-Za-z0-9_]+:([A-Za-z0-9_.@+/-]+|\\*)|derived:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+|literal)$"
+                },
+                "equivalent_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "table",
+                      "column"
+                    ],
+                    "properties": {
+                      "table": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_-]+\\.[A-Za-z0-9_]+$"
+                      },
+                      "column": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "entity_ref": {
+                        "type": "string",
+                        "pattern": "^(file:[^\\s][^\\n]*|[A-Za-z0-9_]+:([A-Za-z0-9_.@+/-]+|\\*)|derived:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+|literal)$"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "filter_columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "coarse": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "produces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "type",
+                "derivation"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "derivation": {
+                  "type": "object",
+                  "required": [
+                    "kind"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "sql",
+                        "expr",
+                        "literal",
+                        "upstream",
+                        "create",
+                        "file"
+                      ]
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "query": {
+                      "type": "string"
+                    },
+                    "expr": {
+                      "type": "string"
+                    },
+                    "value": {},
+                    "port_id": {
+                      "type": "string"
+                    },
+                    "returns": {
+                      "enum": [
+                        "scalar",
+                        "row",
+                        "rows",
+                        "column",
+                        "lastrowid",
+                        "rowcount",
+                        "none"
+                      ]
+                    },
+                    "table": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "op": {
+                      "enum": [
+                        "text",
+                        "lines",
+                        "regex",
+                        "regex_all",
+                        "json",
+                        "csv_rows",
+                        "exists"
+                      ]
+                    },
+                    "pattern": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "writes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "table",
+                "column",
+                "entity_ref",
+                "effect_type"
+              ],
+              "properties": {
+                "table": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]+\\.[A-Za-z0-9_]+$"
+                },
+                "column": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "entity_ref": {
+                  "type": "string",
+                  "pattern": "^(file:[^\\s][^\\n]*|[A-Za-z0-9_]+:([A-Za-z0-9_.@+/-]+|\\*)|derived:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+|literal)$"
+                },
+                "effect_type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {}
+              },
+              "additionalProperties": false
+            }
+          },
+          "reversibility_class": {
+            "enum": [
+              "R0",
+              "R1",
+              "R2",
+              "R3"
+            ]
+          },
+          "side_effects": {
+            "type": "array",
+            "items": {
+              "$ref": "https://derail.local/schemas/side_effect.schema.json"
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "port_id",
+                "type",
+                "grounding",
+                "source"
+              ],
+              "properties": {
+                "port_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "grounding": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "enum": [
+                    "world",
+                    "literal",
+                    "upstream"
+                  ]
+                },
+                "cardinality": {
+                  "enum": [
+                    "one",
+                    "optional",
+                    "many"
+                  ]
+                },
+                "bound_from": {
+                  "type": "object",
+                  "required": [
+                    "node_id",
+                    "port_id"
+                  ],
+                  "properties": {
+                    "node_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "port_id": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "literal": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "port_id",
+                "type",
+                "grounding",
+                "source"
+              ],
+              "properties": {
+                "port_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "grounding": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "enum": [
+                    "world",
+                    "literal",
+                    "upstream"
+                  ]
+                },
+                "cardinality": {
+                  "enum": [
+                    "one",
+                    "optional",
+                    "many"
+                  ]
+                },
+                "bound_from": {
+                  "type": "object",
+                  "required": [
+                    "node_id",
+                    "port_id"
+                  ],
+                  "properties": {
+                    "node_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "port_id": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "literal": {}
+              },
+              "additionalProperties": true
+            }
+          },
+          "verifier": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "verifier_id",
+                  "kind",
+                  "observability"
+                ],
+                "properties": {
+                  "verifier_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "kind": {
+                    "enum": [
+                      "sql",
+                      "file",
+                      "derived",
+                      "rubric"
+                    ]
+                  },
+                  "app": {
+                    "type": "string"
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "expected": {},
+                  "observability": {
+                    "enum": [
+                      "environment_state",
+                      "auditable_tool_output",
+                      "derived_from_observable",
+                      "unobservable"
+                    ]
+                  },
+                  "equivalent_final_states": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "source_module_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "minItems": 1
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "edge_id",
+          "from",
+          "to",
+          "kind"
+        ],
+        "properties": {
+          "edge_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": "object",
+            "required": [
+              "node_id",
+              "port_id"
+            ],
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "port_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "to": {
+            "type": "object",
+            "required": [
+              "node_id",
+              "port_id"
+            ],
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "port_id": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "kind": {
+            "enum": [
+              "data_dependency",
+              "state_dependency",
+              "control_dependency"
+            ]
+          },
+          "predicate": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "final_verifier": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "verifier_id",
+            "kind",
+            "observability"
+          ],
+          "properties": {
+            "verifier_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "enum": [
+                "sql",
+                "file",
+                "derived",
+                "rubric",
+                "all_of"
+              ]
+            },
+            "app": {
+              "type": "string"
+            },
+            "predicate": {
+              "type": "string"
+            },
+            "expected": {},
+            "observability": {
+              "enum": [
+                "environment_state",
+                "auditable_tool_output",
+                "derived_from_observable",
+                "unobservable"
+              ]
+            },
+            "equivalent_final_states": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "parts": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "verifier_id",
+                  "kind",
+                  "observability"
+                ]
+              },
+              "description": "kind all_of: every part must hold (composed tasks)"
+            }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "equivalence_records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": false
+}

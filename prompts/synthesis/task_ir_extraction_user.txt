@@ -1,0 +1,56 @@
+# Task
+task_id: {{task_id}}
+category: {{category}}
+applications (canonical ids): {{apps}}
+instruction:
+{{instruction}}
+
+# Grading rubrics (evidence of the semantic goals; prose alone is not a dependency)
+{{rubrics}}
+
+# Required subtasks listed by the benchmark authors
+{{required_subtasks}}
+
+# World subgraph (entities observable in the involved applications; use these entity_ids for grounding)
+{{world_entities}}
+
+# Vocabulary
+operations: {{operations}}
+port types (use these names; "< X" marks the parent type; write a collection as Type with "cardinality": "many"; if no listed type fits, use Record and say so in notes): {{value_types}}
+reversibility classes: {{reversibility_classes}}
+effect types: {{effect_types}}
+commit scopes: {{commit_scopes}}
+observability: environment_state | auditable_tool_output | derived_from_observable | unobservable
+
+# Rules
+1. Split the task into semantic sub-goals (retrieve, resolve, filter, compare, aggregate, verify, decide, create, modify, delete, communicate, confirm). Do not split by screenshots or clicks.
+2. Every port has "type" from the port-type list and "cardinality" one | optional | many. Every input port has "source": "world" (grounding = an entity_id from the world subgraph, optionally ".attribute"), "literal" (grounding = "literal:<value from the instruction>") or "upstream" (bound by an edge). Every output port grounding is "derived:<node_id>:<port_id>" or a world entity_id.
+3. Edges: {"edge_id", "from": {"node_id", "port_id"}, "to": {"node_id", "port_id"}, "kind": data_dependency | state_dependency | control_dependency}. A control edge carries "predicate".
+4. Read-only nodes have "reversibility_class": "R0" and "side_effects": []. State-changing nodes (create/modify/delete/communicate) list structured side effects: {"effect_id", "effect_type", "target_ref", "reversibility_class": R1|R2|R3, "commit_scope", "compensation_available", "compensating_effect_type", "checkpoint_required"}; the node's reversibility_class equals its most consequential effect.
+5. Every node has "verifier": {"verifier_id", "observability", "predicate", "evidence": [...]} and "critical": true|false.
+6. If an entity the task needs is absent from the world subgraph, do not invent an id. Record it in "unbound_entities" as an object: {"name": "<short noun phrase>", "app": "<canonical app id>", "kind": "record | message | policy | account | file | other", "needed_by": "<node_id>", "why": "<one plain sentence>"}. List every missing entity separately; be exhaustive rather than brief. Copy listed entity_ids exactly; an attribute is written "<entity_id>.<attribute>".
+7. verify and confirm nodes are read-only (R0, no side effects). Attach the effect of an action to the create / modify / delete / communicate node that performs it, and add a separate confirm node afterwards if the task checks the result.
+8. Every input port receives at most one edge. If a node needs two values, give it two input ports.
+
+# Output contract (use exactly these field names)
+{
+  "fragment": {
+    "schema_version": "task-fragment/0.1",
+    "fragment_id": "tf_{{task_id}}",
+    "nodes": [{"node_id": "n1", "op": "<operation>", "app": "<canonical app id>", "semantic_goal": "...",
+               "inputs": [{"port_id", "type", "source", "grounding", "cardinality"}],
+               "outputs": [{"port_id", "type", "grounding", "cardinality"}],
+               "reversibility_class": "R0", "side_effects": [], "verifier": {...}, "critical": true}],
+    "edges": [...]
+  },
+  "interface": {
+    "produces": [{"node_id", "port_id", "type", "grounding", "cardinality"}],
+    "accepts": [{"node_id", "port_id", "type", "grounding", "cardinality", "required", "dependency_kind"}],
+    "identity_scope": ["person:michael_scott"],
+    "time_scope": {"timezone": "America/New_York"},
+    "reads": ["<entity_id or entity_id.attribute> ..."],
+    "side_effects": []
+  },
+  "unbound_entities": [{"name", "app", "kind", "needed_by", "why"}],
+  "notes": "one or two sentences on ambiguity"
+}

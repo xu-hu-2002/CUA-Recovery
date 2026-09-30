@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/task_fragment.schema.json",
+  "title": "DERAIL semantic task fragment",
+  "type": "object",
+  "required": ["schema_version", "fragment_id", "nodes", "edges"],
+  "properties": {
+    "schema_version": {"const": "task-fragment/0.1"},
+    "fragment_id": {"type": "string", "minLength": 1},
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "edges": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/edge"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "required": ["node_id", "port_id"],
+      "properties": {
+        "node_id": {"type": "string", "minLength": 1},
+        "port_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "object",
+      "required": ["port_id", "type", "grounding"],
+      "properties": {
+        "port_id": {"type": "string", "minLength": 1},
+        "type": {"type": "string", "minLength": 1},
+        "grounding": {"type": "string", "minLength": 1},
+        "source": {"enum": ["world", "literal", "upstream"]},
+        "cardinality": {"enum": ["one", "optional", "many"]},
+        "bound_from": {"$ref": "#/$defs/endpoint"}
+      },
+      "additionalProperties": true
+    },
+    "node": {
+      "type": "object",
+      "required": ["node_id", "op", "app", "inputs", "outputs", "side_effects"],
+      "properties": {
+        "node_id": {"type": "string", "minLength": 1},
+        "op": {
+          "enum": [
+            "retrieve", "resolve", "filter", "compare", "aggregate", "verify",
+            "decide", "create", "modify", "delete", "communicate", "confirm"
+          ]
+        },
+        "app": {"type": "string", "minLength": 1},
+        "semantic_goal": {"type": "string"},
+        "inputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
+        "outputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
+        "side_effects": {"type": "array", "items": {"type": "object"}},
+        "verifier": {
+          "type": "object",
+          "properties": {
+            "verifier_id": {"type": "string", "minLength": 1},
+            "observability": {
+              "enum": [
+                "environment_state", "auditable_tool_output",
+                "derived_from_observable", "unobservable"
+              ]
+            }
+          },
+          "additionalProperties": true
+        },
+        "critical": {"type": "boolean"},
+        "source_module_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "edge": {
+      "type": "object",
+      "required": ["edge_id", "from", "to", "kind"],
+      "properties": {
+        "edge_id": {"type": "string", "minLength": 1},
+        "from": {"$ref": "#/$defs/endpoint"},
+        "to": {"$ref": "#/$defs/endpoint"},
+        "kind": {
+          "enum": ["data_dependency", "state_dependency", "control_dependency"]
+        },
+        "predicate": {"type": "string", "minLength": 1},
+        "binding_id": {"type": "string", "minLength": 1},
+        "converter_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/phase5_hazard.schema.json",
+  "title": "DERAIL Phase 5 terminal hazard record",
+  "type": "object",
+  "required": [
+    "schema_version", "injection_id", "base_world_id", "variant_world_id", "task_id",
+    "hazard_type", "persona_diff", "profile_before", "profile_after", "gold_unique",
+    "seeder_consistent", "status", "attempt_lineage"
+  ],
+  "properties": {
+    "schema_version": {"const": "phase5-hazard/1.0"},
+    "injection_id": {"type": "string", "minLength": 1},
+    "base_world_id": {"type": "string", "minLength": 1},
+    "variant_world_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "hazard_type": {"type": "string", "minLength": 1},
+    "persona_diff": {"type": "array"},
+    "profile_before": {"type": ["object", "null"]},
+    "profile_after": {"type": ["object", "null"]},
+    "gold_unique": {"type": "boolean"},
+    "seeder_consistent": {"type": "boolean"},
+    "status": {"enum": ["injected", "rejected"]},
+    "rejection_reason": {"type": ["string", "null"]},
+    "attempt_lineage": {
+      "type": "array",
+      "items": {"type": "object"}
+    }
+  },
+  "additionalProperties": true
+}

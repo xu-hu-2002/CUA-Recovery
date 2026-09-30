@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/hazard_injection.schema.json",
+  "title": "DERAIL hazard injection record (hazard-injection/1.0)",
+  "$comment": "Execution doc v1.2 section 7.3 / 13: injector type, target edge, persona diff, profile before and after, gold-branch uniqueness check, and the realism provenance (base rate before and after; the after rate may not exceed twice the base rate). Variant world cases only enter E2 and hazard-grouped appendix tables.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "injection_id",
+    "base_world_id",
+    "variant_world_id",
+    "task_id",
+    "hazard_type",
+    "target_edge",
+    "target_paper_type",
+    "target_cell",
+    "persona_diff",
+    "profile_before",
+    "profile_after",
+    "gold_unique",
+    "seeder_consistent",
+    "status",
+    "hazard_provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "hazard-injection/1.0"
+    },
+    "injection_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_world_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "variant_world_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hazard_type": {
+      "enum": [
+        "identity_alias",
+        "stale_version",
+        "cross_app_inconsistency",
+        "constraint_drift",
+        "distractor_candidates",
+        "precondition_gap"
+      ]
+    },
+    "target_edge": {
+      "type": "object",
+      "required": [
+        "from_node_id",
+        "to_node_id"
+      ],
+      "properties": {
+        "from_node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "edge_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "target_paper_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_cell": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    },
+    "persona_diff": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "op",
+          "path"
+        ],
+        "properties": {
+          "op": {
+            "enum": [
+              "add",
+              "remove",
+              "replace"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    "profile_before": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "profile_after": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "gold_unique": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "seeder_consistent": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "accepted",
+        "HAZARD_BREAKS_GOLD_UNIQUENESS",
+        "SEEDER_CONSISTENCY_FAILED",
+        "BASE_RATE_EXCEEDED",
+        "BASE_RATE_ZERO",
+        "pending"
+      ]
+    },
+    "hazard_provenance": {
+      "type": "object",
+      "required": [
+        "base_rate_before",
+        "base_rate_after"
+      ],
+      "properties": {
+        "base_rate_before": {
+          "type": "number",
+          "minimum": 0
+        },
+        "base_rate_after": {
+          "type": "number",
+          "minimum": 0
+        },
+        "base_rate_unit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [],
+      "properties": {},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

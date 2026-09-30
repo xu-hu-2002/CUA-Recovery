@@ -1,0 +1,191 @@
+# Controlled value-type vocabulary for Task-IR ports (manual v0.2 section 6.2, checklist B).
+#
+# ``types`` is the registry: each entry may name ``parents`` (subtype relation used by the
+# compatibility builder) and a short ``description``.  ``aliases`` fold the free-form names an
+# extractor produces onto registry names.  Collection spellings (``X[]``, ``XCollection``,
+# ``XList``, ``List<X>``) are parsed structurally: the element type is normalised and the port
+# cardinality becomes ``many``.  Names that resolve to nothing stay as written and are reported
+# as unregistered for review; they are never guessed.
+schema_version: value-types/0.1
+
+types:
+  # --- scalars ---
+  Text: {description: free text}
+  Integer: {parents: [Number]}
+  Number: {}
+  Boolean: {}
+  Percentage: {parents: [Number]}
+  MoneyAmount: {parents: [Number], description: currency amount in the persona's currency}
+  Date: {}
+  DateTime: {}
+  Time: {}
+  Duration: {}
+  DateRange: {}
+  URL: {parents: [Text]}
+  EmailAddress: {parents: [Text]}
+  PostalAddress: {parents: [Text]}
+  FilePath: {parents: [Text]}
+  ConfirmationCode: {parents: [Text]}
+  # --- references to world entities (ids from world-graph/0.1) ---
+  EntityRef: {}
+  PersonRef: {parents: [EntityRef]}
+  TripRef: {parents: [EntityRef]}
+  FlightRef: {parents: [EntityRef]}
+  HotelReservationRef: {parents: [EntityRef]}
+  BankProfileRef: {parents: [EntityRef]}
+  RecurringChargeRef: {parents: [EntityRef]}
+  PaymentRecordRef: {parents: [EntityRef]}
+  HoldingRef: {parents: [EntityRef]}
+  MarketPositionRef: {parents: [EntityRef]}
+  OrderRef: {parents: [EntityRef]}
+  ProductRef: {parents: [EntityRef]}
+  CartRef: {parents: [EntityRef]}
+  StoreRef: {parents: [EntityRef]}
+  RestaurantRef: {parents: [EntityRef]}
+  ReservationRef: {parents: [EntityRef]}
+  ReviewRef: {parents: [EntityRef]}
+  MessageRef: {parents: [EntityRef]}
+  ThreadRef: {parents: [EntityRef]}
+  ChannelRef: {parents: [EntityRef]}
+  CalendarEventRef: {parents: [EntityRef]}
+  DocumentRef: {parents: [EntityRef]}
+  FileRef: {parents: [EntityRef]}
+  TaxReturnRef: {parents: [EntityRef]}
+  W2FormRef: {parents: [EntityRef]}
+  DonationRef: {parents: [EntityRef]}
+  LifeEventRef: {parents: [EntityRef]}
+  ReferenceValueRef: {parents: [EntityRef]}
+  # --- derived structures ---
+  Record: {description: a structured intermediate result}
+  Report: {parents: [Record], description: a human-readable deliverable}
+  Summary: {parents: [Record]}
+  Decision: {parents: [Record]}
+  Ranking: {parents: [Record]}
+  Criterion: {parents: [Record]}
+  VerificationResult: {parents: [Record]}
+  ActionResult: {parents: [Record], description: outcome of a state-changing action}
+
+# Lossless converters usable by the compatibility builder (from -> to).
+converters:
+  - {from: DateTime, to: Date, converter_id: datetime_to_local_date_v1}
+  - {from: Integer, to: Number, converter_id: integer_to_number_v1}
+
+# Free-form spellings observed in extractor output -> registry names.  Case-insensitive.
+aliases:
+  string: Text
+  literal: Text
+  text: Text
+  message_draft: Text
+  message_style: Text
+  message_topic: Text
+  channel_name: Text
+  folder_name: Text
+  hotel_name: Text
+  store_name: Text
+  temporal_expression: Text
+  int: Integer
+  count: Integer
+  party_size: Integer
+  float: Number
+  decimal: Number
+  bool: Boolean
+  money: MoneyAmount
+  monetary_amount: MoneyAmount
+  currency_amount: MoneyAmount
+  money_difference: MoneyAmount
+  percentage_split: Percentage
+  scheduled_datetime: DateTime
+  dynamic_date: Date
+  closed_date_range: DateRange
+  tax_period: DateRange
+  person: PersonRef
+  email_address: EmailAddress
+  address: PostalAddress
+  postal_address: PostalAddress
+  file: FileRef
+  file_reference: FileRef
+  png_file: FileRef
+  validated_png_file: FileRef
+  directory: FilePath
+  trip: TripRef
+  flight: FlightRef
+  hotel_reservation: HotelReservationRef
+  bank_profile: BankProfileRef
+  financial_account: BankProfileRef
+  recurring_charge: RecurringChargeRef
+  payment_record: PaymentRecordRef
+  payment_method: PaymentRecordRef
+  market_position: MarketPositionRef
+  order_record: OrderRef
+  order_history_record: OrderRef
+  order_history_entry: OrderRef
+  shop_order: OrderRef
+  submitted_grocery_order: OrderRef
+  order_confirmation: ActionResult
+  catalog_product: ProductRef
+  product_catalog: ProductRef
+  grocery_cart: CartRef
+  shopping_cart: CartRef
+  store: StoreRef
+  reservation_restaurant: RestaurantRef
+  matched_restaurant: RestaurantRef
+  restaurant_review: ReviewRef
+  mail_message: MessageRef
+  sender_attributed_mail_message: MessageRef
+  message: MessageRef
+  direct_message_event: MessageRef
+  channel_ref: ChannelRef
+  scheduled_message_ref: MessageRef
+  libre_office_writer_document: DocumentRef
+  chart: DocumentRef
+  tax_return: TaxReturnRef
+  w2_form: W2FormRef
+  income1099: ReferenceValueRef
+  charitable_donation: DonationRef
+  life_event: LifeEventRef
+  reference_value: ReferenceValueRef
+  confirmation_code: ConfirmationCode
+  url: URL
+  browser_page: URL
+  reservation_page: URL
+  fully_loaded_reservation_page: URL
+  verification_result: VerificationResult
+  comparison_result: VerificationResult
+  reconciliation_verdict: VerificationResult
+  cancellation_result: ActionResult
+  modification_result: ActionResult
+  favorite_confirmation: ActionResult
+  file_confirmation: ActionResult
+  review_confirmation: ActionResult
+  payment_confirmation: ActionResult
+  submission_receipt: ActionResult
+  delivery_confirmation: ActionResult
+  action_plan: Report
+  user_report: Report
+  task_summary: Summary
+  reconciliation_report: Report
+  preference_analysis_report: Report
+  recurring_payment_report: Report
+  ranked_sender_report: Report
+  odds_market_bets_answer: Report
+  decision_criterion: Criterion
+  selection_criterion: Criterion
+  return_selector: Criterion
+  return_scope: Criterion
+  workflow_step: Record
+
+# Cardinality spellings -> {one, optional, many}.
+cardinality_aliases:
+  "1": one
+  one: one
+  single: one
+  "0..1": optional
+  optional: optional
+  zero_or_one: optional
+  many: many
+  "0..*": many
+  "1..*": many
+  zero_or_more: many
+  one_or_more: many
+  list: many
+  five: many

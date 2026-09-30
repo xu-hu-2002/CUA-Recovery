@@ -1,0 +1,486 @@
+{
+ "schema_version": "task-ir/1.0",
+ "task_id": "mw-001",
+ "source_task_id": null,
+ "world_id": "miniworld",
+ "instruction": "Move my next 1:1 with Jim Halpert to the same time on the following day.",
+ "reference_time": "2026-04-06T09:00:00",
+ "nodes": [
+  {
+   "node_id": "n1",
+   "op": "resolve",
+   "app": "hoolicalendar",
+   "semantic_goal": "Find the next '1:1 with Jim Halpert' event on or after the reference time",
+   "route_hint": [
+    "/calendar/week/2026-04-06"
+   ],
+   "reads": [
+    {
+     "table": "hoolicalendar.events",
+     "column": "title",
+     "entity_ref": "derived:n1:event_id"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "start_at",
+     "entity_ref": "derived:n1:event_id"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "user_email",
+     "entity_ref": "derived:n1:event_id"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "status",
+     "entity_ref": "derived:n1:event_id"
+    }
+   ],
+   "produces": [
+    {
+     "name": "event_id",
+     "type": "EventRef",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT id FROM events WHERE user_email = :owner_email AND title = :title AND start_at >= :reference_time AND status != 'cancelled' ORDER BY start_at LIMIT 1",
+      "returns": "scalar"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "owner_email",
+     "type": "Email",
+     "grounding": "person:michael_scott",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "michael.scott@dundermifflin.com"
+    },
+    {
+     "port_id": "title",
+     "type": "Text",
+     "grounding": "literal",
+     "source": "literal",
+     "cardinality": "one",
+     "literal": "1:1 with Jim Halpert"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "event_id",
+     "type": "EventRef",
+     "grounding": "derived:n1:event_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n1",
+    "kind": "derived",
+    "predicate": "event_id == expected",
+    "observability": "derived_from_observable",
+    "expected": 530
+   },
+   "critical": false
+  },
+  {
+   "node_id": "n2",
+   "op": "retrieve",
+   "app": "hoolicalendar",
+   "semantic_goal": "Read the event's start and end",
+   "route_hint": [
+    "/event/:id"
+   ],
+   "reads": [
+    {
+     "table": "hoolicalendar.events",
+     "column": "start_at",
+     "entity_ref": "derived:n1:event_id"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "end_at",
+     "entity_ref": "derived:n1:event_id"
+    }
+   ],
+   "produces": [
+    {
+     "name": "start_at",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT start_at FROM events WHERE id = :event_id",
+      "returns": "scalar"
+     }
+    },
+    {
+     "name": "end_at",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT end_at FROM events WHERE id = :event_id",
+      "returns": "scalar"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "event_id",
+     "type": "EventRef",
+     "grounding": "derived:n1:event_id",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "start_at",
+     "type": "DateTime",
+     "grounding": "derived:n2:start_at",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "end_at",
+     "type": "DateTime",
+     "grounding": "derived:n2:end_at",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n3",
+   "op": "decide",
+   "app": "hoolicalendar",
+   "semantic_goal": "Shift both stamps by one day",
+   "route_hint": [],
+   "reads": [],
+   "produces": [
+    {
+     "name": "new_start",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "expr",
+      "expr": "date_add(start_at, 1)"
+     }
+    },
+    {
+     "name": "new_end",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "expr",
+      "expr": "date_add(end_at, 1)"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "start_at",
+     "type": "DateTime",
+     "grounding": "derived:n2:start_at",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "end_at",
+     "type": "DateTime",
+     "grounding": "derived:n2:end_at",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "new_start",
+     "type": "DateTime",
+     "grounding": "derived:n3:new_start",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "new_end",
+     "type": "DateTime",
+     "grounding": "derived:n3:new_end",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": null,
+   "critical": false
+  },
+  {
+   "node_id": "n4",
+   "op": "modify",
+   "app": "hoolicalendar",
+   "semantic_goal": "Update the event",
+   "route_hint": [
+    "/event/:id/edit"
+   ],
+   "reads": [],
+   "produces": [
+    {
+     "name": "updated",
+     "type": "Int",
+     "derivation": {
+      "kind": "literal",
+      "value": 1
+     }
+    }
+   ],
+   "writes": [
+    {
+     "table": "hoolicalendar.events",
+     "column": "start_at",
+     "entity_ref": "derived:n1:event_id",
+     "effect_type": "modify_event",
+     "value_ref": "new_start"
+    },
+    {
+     "table": "hoolicalendar.events",
+     "column": "end_at",
+     "entity_ref": "derived:n1:event_id",
+     "effect_type": "modify_event",
+     "value_ref": "new_end"
+    }
+   ],
+   "reversibility_class": "R1",
+   "side_effects": [
+    {
+     "effect_id": "fx-n4",
+     "effect_type": "modify_event",
+     "target_ref": "derived:n1:event_id",
+     "reversibility_class": "R1",
+     "commit_scope": "local_app",
+     "compensation_available": true,
+     "compensating_effect_type": "modify_event",
+     "compensation_verifier_id": null,
+     "checkpoint_required": false,
+     "checkpoint_id": null,
+     "restore_verifier_id": null
+    }
+   ],
+   "inputs": [
+    {
+     "port_id": "event_id",
+     "type": "EventRef",
+     "grounding": "derived:n1:event_id",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "new_start",
+     "type": "DateTime",
+     "grounding": "derived:n3:new_start",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "new_end",
+     "type": "DateTime",
+     "grounding": "derived:n3:new_end",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "updated",
+     "type": "Int",
+     "grounding": "derived:n4:updated",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n4",
+    "kind": "sql",
+    "predicate": "SELECT start_at = :new_start AND end_at = :new_end FROM events WHERE id = :event_id",
+    "observability": "environment_state"
+   },
+   "critical": true
+  },
+  {
+   "node_id": "n5",
+   "op": "confirm",
+   "app": "hoolicalendar",
+   "semantic_goal": "Read the event back",
+   "route_hint": [
+    "/event/:id"
+   ],
+   "reads": [
+    {
+     "table": "hoolicalendar.events",
+     "column": "start_at",
+     "entity_ref": "derived:n1:event_id"
+    }
+   ],
+   "produces": [
+    {
+     "name": "confirmed_start",
+     "type": "DateTime",
+     "derivation": {
+      "kind": "sql",
+      "query": "SELECT start_at FROM events WHERE id = :event_id",
+      "returns": "scalar"
+     }
+    }
+   ],
+   "writes": [],
+   "reversibility_class": "R0",
+   "side_effects": [],
+   "inputs": [
+    {
+     "port_id": "event_id",
+     "type": "EventRef",
+     "grounding": "derived:n1:event_id",
+     "source": "upstream",
+     "cardinality": "one"
+    },
+    {
+     "port_id": "after",
+     "type": "Int",
+     "grounding": "derived:n4:updated",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "outputs": [
+    {
+     "port_id": "confirmed_start",
+     "type": "DateTime",
+     "grounding": "derived:n5:confirmed_start",
+     "source": "upstream",
+     "cardinality": "one"
+    }
+   ],
+   "verifier": {
+    "verifier_id": "v-n5",
+    "kind": "derived",
+    "predicate": "confirmed_start == V[\"n3\"][\"new_start\"]",
+    "observability": "derived_from_observable"
+   },
+   "critical": false
+  }
+ ],
+ "edges": [
+  {
+   "edge_id": "e1",
+   "from": {
+    "node_id": "n1",
+    "port_id": "event_id"
+   },
+   "to": {
+    "node_id": "n2",
+    "port_id": "event_id"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e2",
+   "from": {
+    "node_id": "n2",
+    "port_id": "start_at"
+   },
+   "to": {
+    "node_id": "n3",
+    "port_id": "start_at"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e3",
+   "from": {
+    "node_id": "n2",
+    "port_id": "end_at"
+   },
+   "to": {
+    "node_id": "n3",
+    "port_id": "end_at"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e4",
+   "from": {
+    "node_id": "n1",
+    "port_id": "event_id"
+   },
+   "to": {
+    "node_id": "n4",
+    "port_id": "event_id"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e5",
+   "from": {
+    "node_id": "n3",
+    "port_id": "new_start"
+   },
+   "to": {
+    "node_id": "n4",
+    "port_id": "new_start"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e6",
+   "from": {
+    "node_id": "n3",
+    "port_id": "new_end"
+   },
+   "to": {
+    "node_id": "n4",
+    "port_id": "new_end"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e7",
+   "from": {
+    "node_id": "n1",
+    "port_id": "event_id"
+   },
+   "to": {
+    "node_id": "n5",
+    "port_id": "event_id"
+   },
+   "kind": "data_dependency"
+  },
+  {
+   "edge_id": "e8",
+   "from": {
+    "node_id": "n4",
+    "port_id": "updated"
+   },
+   "to": {
+    "node_id": "n5",
+    "port_id": "after"
+   },
+   "kind": "state_dependency"
+  }
+ ],
+ "final_verifier": {
+  "verifier_id": "final-mw-001",
+  "kind": "sql",
+  "predicate": "SELECT (SELECT start_at FROM events WHERE id = 530) = '2026-04-08T11:00:00' AND (SELECT end_at FROM events WHERE id = 530) = '2026-04-08T11:30:00' AND (SELECT count(*) FROM events WHERE title = '1:1 with Jim Halpert' AND start_at = '2026-04-07T11:00:00') = 0",
+  "observability": "environment_state",
+  "app": "hoolicalendar"
+ },
+ "provenance": {
+  "author": "hand-written miniworld fixture",
+  "failure_fixture": "traces/mw001_state_failure.json"
+ }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/repair_patch.schema.json",
+  "title": "DERAIL Prefix Repair Patch v0.2",
+  "$comment": "replace repairs pre-root actions; drop removes audited self-recovered detours while retaining source action IDs. All state evidence from the earliest patch onward is invalid until replay.",
+  "type": "object",
+  "properties": {
+    "patch_id": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "minLength": 1},
+    "operation": {"enum": ["replace", "drop"]},
+    "step_id": {"type": "integer", "minimum": 0, "deprecated": true},
+    "action_index_global": {"type": "integer", "minimum": 0},
+    "root_cause_step": {"type": "integer", "minimum": 0, "deprecated": true},
+    "root_cause_action_index": {"type": "integer", "minimum": 0},
+    "old_action": {"$ref": "canonical_action.schema.json"},
+    "new_action": {"$ref": "canonical_action.schema.json"},
+    "self_recovered": {"type": "boolean"},
+    "persistent_state_effect": {"type": "boolean"},
+    "causal_to_root_or_task": {"type": "boolean"},
+    "reason": {"type": "string", "minLength": 1},
+    "annotator_id": {"type": "string", "minLength": 1},
+    "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "required": [
+    "patch_id", "case_id", "operation", "action_index_global", "root_cause_action_index",
+    "old_action", "reason", "annotator_id", "evidence"
+  ],
+  "allOf": [
+    {
+      "if": {"properties": {"operation": {"const": "replace"}}, "required": ["operation"]},
+      "then": {"required": ["new_action"]}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "drop"}}, "required": ["operation"]},
+      "then": {
+        "required": ["self_recovered", "persistent_state_effect", "causal_to_root_or_task"],
+        "properties": {
+          "self_recovered": {"const": true},
+          "persistent_state_effect": {"const": false},
+          "causal_to_root_or_task": {"const": false}
+        },
+        "not": {"required": ["new_action"]}
+      }
+    }
+  ],
+  "additionalProperties": false
+}

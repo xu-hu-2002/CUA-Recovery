@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail-benchmark.org/schemas/native_history.schema.json",
+  "title": "DERAIL Native History Artifact v0.2",
+  "type": "object",
+  "properties": {
+    "agent_id": {"type": "string", "minLength": 1},
+    "renderer_version": {"type": "string", "minLength": 1},
+    "action_indices": {"type": "array", "items": {"type": "integer", "minimum": 0}, "uniqueItems": true},
+    "messages": {"type": "array", "items": {"type": "object"}},
+    "messages_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "conformance_probe_sha256": {"type": "string"},
+    "conformance_passed": {"type": "boolean"},
+    "replay_verification_id": {"type": "string"},
+    "instance_id": {"type": "string"},
+    "replay_observation_sha256s": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "conformance_probe_uri": {"type": "string"},
+    "release_eligible": {"type": "boolean"},
+    "reasoning_policy": {"enum": ["source_action_only_reasoning_stripped", "preserved_as_recorded"]}
+  },
+  "required": [
+    "agent_id", "renderer_version", "action_indices", "messages", "messages_sha256",
+    "conformance_probe_sha256", "conformance_passed", "replay_verification_id",
+    "instance_id", "replay_observation_sha256s", "conformance_probe_uri",
+    "release_eligible", "reasoning_policy"
+  ],
+  "additionalProperties": false
+}

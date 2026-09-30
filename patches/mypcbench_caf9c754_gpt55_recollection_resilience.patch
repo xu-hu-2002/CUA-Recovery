@@ -1,0 +1,101 @@
+--- a/agent-harness/agents/openai_cuabash.py
++++ b/agent-harness/agents/openai_cuabash.py
+@@ -23,0 +24 @@
++import time
+@@ -35,0 +37,14 @@
++class OpenAIContinuationError(RuntimeError):
++    """A retryable protocol/infrastructure failure, not model capability."""
++
++    trajectory_action = "PROTOCOL_ERROR"
++    failure_class = "protocol_retryable"
++
++
++class ScreenshotUnavailableError(OpenAIContinuationError):
++    """The VM could not provide the output required for a computer call."""
++
++    trajectory_action = "INFRASTRUCTURE_ERROR"
++    failure_class = "screenshot_unavailable"
++
++
+@@ -147,0 +163,7 @@
++        self._empty_output_retries = 0
++        self._empty_output_retry_limit = int(
++            os.environ.get("MYPCBENCH_OPENAI_EMPTY_OUTPUT_RETRIES", "2")
++        )
++        self._screenshot_retry_limit = int(
++            os.environ.get("MYPCBENCH_SCREENSHOT_RETRIES", "3")
++        )
+@@ -212,0 +235,19 @@
++        self._empty_output_retries = 0
++
++    def _recover_screenshot(self, screenshot: Any) -> Any:
++        """Return a real screenshot or fail before sending an unmatched call."""
++        if screenshot or not self._last_computer_call_id:
++            return screenshot
++        for attempt in range(self._screenshot_retry_limit):
++            try:
++                recovered = (self.env._get_obs() or {}).get("screenshot")
++            except Exception as exc:
++                logger.warning("Screenshot retry %d failed: %s", attempt + 1, exc)
++                recovered = None
++            if recovered:
++                return recovered
++            time.sleep(min(2.0, 0.5 * (attempt + 1)))
++        raise ScreenshotUnavailableError(
++            f"no screenshot for computer call {self._last_computer_call_id} "
++            f"after {self._screenshot_retry_limit} retries"
++        )
+@@ -213,0 +255,18 @@
++    def _queue_native_continue(self) -> None:
++        if self._empty_output_retries >= self._empty_output_retry_limit:
++            raise OpenAIContinuationError(
++                "model produced no complete action or terminal response after "
++                f"{self._empty_output_retry_limit} continuation attempts"
++            )
++        self._empty_output_retries += 1
++        self.pending_items.append({
++            "role": "user",
++            "content": [{
++                "type": "input_text",
++                "text": (
++                    "Continue — take the next concrete action toward completing "
++                    "the task. If finished, state the answer and emit ```DONE```."
++                ),
++            }],
++        })
++
+@@ -284 +343,3 @@
+-        screenshot = obs.get("screenshot")
++        screenshot = self._recover_screenshot(obs.get("screenshot"))
++        if screenshot and not obs.get("screenshot"):
++            obs["screenshot"] = screenshot
+@@ -565 +565,4 @@
+-                raw_actions = item.actions or ([item.action] if item.action else [])
++                raw_actions = item.actions or ([item.action] if item.action else [])
++                if not raw_actions:
++                    step_summary_parts.append("computer.incomplete")
++                    continue
+@@ -649,2 +652,8 @@
+-        try:
+-            usage = getattr(response, "usage", None)
++        if not actions and not self.pending_items:
++            self._queue_native_continue()
++            step_summary_parts.append("native_continue")
++        else:
++            self._empty_output_retries = 0
++
++        try:
++            usage = getattr(response, "usage", None)
+--- a/agent-harness/run_mypcbench.py
++++ b/agent-harness/run_mypcbench.py
+@@ -440 +440,3 @@
+-            error_line = json.dumps({
++            trajectory_action = getattr(e, "trajectory_action", "PREDICT_CRASH")
++            failure_class = getattr(e, "failure_class", "predict_crash")
++            error_line = json.dumps({
+@@ -443 +445 @@
+-                "action": "PREDICT_CRASH",
++                "action": trajectory_action,
+@@ -447 +449 @@
+-                "info": {"error": str(e)},
++                "info": {"error": str(e), "failure_class": failure_class},

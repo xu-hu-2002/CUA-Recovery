@@ -1,0 +1,38 @@
+# 走 MyPCBench 自带的 qwen_cua.QwenOSWorldAgent，参数抄自 OSWorld 公布的 args.json，
+# 不经过 SafePyAutoGUICompiler，也没有 DERAIL 的 loop guard / schema repair /
+# multi-tool 归一化。
+#
+# scaffold: upstream_runner —— agent 由 MyPCBench 自己构造（--agent-type
+# qwen_cuabash），DERAIL 的 factory 碰不到它，所以除身份与并发字段外本文件是纯
+# 文档：改其余任何一行都不会改变行为。对它调 load_agent_config() 会明确报错。
+#
+# 与 derail_tool_agent 组对比时必须写进正文：失败分布的形状本来就不同（v1 实测：
+# qwen 48% 跑满 100 步自然截断，holo 38% 被守卫掐断）。
+agent_id: qwen3_5_35b_a3b
+family: qwen35
+scaffold: upstream_runner
+agent_type: qwen_cuabash
+checkpoint: Qwen/Qwen3.5-35B-A3B
+revision: 59d61f3ce65a6d9863b86d2e96597125219dc754
+live_adapter: MyPCBench.agent-harness.agents.qwen_cua.QwenOSWorldAgent
+output_format: native_tool_calling
+# 上游用自己的词汇（coordinate_type="relative"），这一行是可读描述。
+coordinate_protocol: normalized_0_1000
+history_renderer: vendored_osworld_history_n_with_exact_context_budget
+# 上游默认值；实际由 qwen_cua.py 的构造参数决定。
+temperature: 0.6
+generation_budget_source: explicit_MyPCBench_QWEN_MAX_TOKENS
+endpoint_contract: exact_model_id_and_max_model_len_preflight
+# 上游 qwen_cua.py 的 history_n 默认值（OSWorld args.json：history_n=100,
+# image_max=20, fold_size=10）。运行时由 MYPCBENCH_QWEN_HISTORY_N 覆盖，改这一行
+# 不生效。
+probe_history_window: 100
+context_policy: tokenize_oldest_first_v1
+tokenizer_image_policy: same_dimensions_distinct_hash_v1
+# 每个 endpoint 占几张卡。VM 并发度 = 可用 GPU 数 / 这个数，由
+# scripts/lib/collection_config.sh 在起服务时算，不写死在配置里。
+tensor_parallel_size: 2
+# 01_collect_all.sh 预估时长用；不影响采集行为。
+eta_step_seconds: 7.8
+eta_step_seconds_source: smoke30 实测单步中位（换掉 --enforce-eager 之后）
+status: smoke30_task_completed_step25_exact_context_budget_visual_download_evidence

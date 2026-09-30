@@ -1,0 +1,172 @@
+# 服务器 gate 在正式 collection 前冻结的不可变输入。
+generated_at: "2026-08-02"
+mypcbench:
+  commit: caf9c754ffe0b41c7e629e17fff19299774af1cb
+  image_dataset: ljang0/mypcbench-qemu-baseline
+  image_dataset_revision: aca6ec996c60f3567b6701028eb7d177297f405f
+  published_compressed_sha256: 61729f831588720b56a8ed46548fac003205cc53e414cec573ce269d1a52cef3
+  local_uncompressed_sha256: 29e6ef0230655501920ad7b08c38e16c0d39e94c5be8220de2cf723885759e90
+collection_ids:
+  dummy_smoke: smoke_dummy_20260802
+  qwen3_5_35b_a3b_smoke: smoke_qwen3_5_35b_a3b_20260802
+  qwen3_6_27b_smoke: smoke_qwen3_6_27b_20260802
+  evocua_32b_smoke: smoke_evocua_32b_20260802
+  opencua_72b_smoke: smoke_opencua_72b_20260802
+  holo_3_1_35b_a3b_smoke: smoke_holo_3_1_35b_a3b_20260802
+  qwen3_5_35b_a3b_context_smoke: smoke30_qwen3_5_exact_context_v2_20260803
+  evocua_32b_extended_smoke: smoke20_evocua_32b_20260803
+  opencua_72b_extended_smoke: smoke20_opencua_72b_20260803
+  holo_3_1_35b_a3b_extended_smoke: smoke20_holo31_multi_wait_20260803
+  qwen3_5_35b_a3b_formal_reserved: mypcbench_v1_qwen35_20260802
+  qwen3_6_27b_formal_reserved: mypcbench_v1_qwen36_20260802
+  evocua_32b_formal_reserved: mypcbench_v1_evocua32b_20260802
+  opencua_72b_formal_reserved: mypcbench_v1_opencua72b_20260802
+  holo_3_1_35b_a3b_formal_reserved: mypcbench_v1_holo31_20260802
+# 2026-08-04 由用户明确授权开启正式采集。
+formal_collection_authorized: true
+
+collection_policy:
+  full_task_launch_requires_explicit_flag: true
+  full_task_launch_requires_lock_authorization: true
+  runner_owns_max_steps: true
+  official_agent_guard_offset: 1
+runtimes:
+  vllm_0_19_0:
+    image: vllm/vllm-openai
+    amd64_digest: sha256:7a0f0fdd2771464b6976625c2b2d5dd46f566aa00fbc53eceab86ef50883da90
+    python: 3.12.13
+    torch: 2.10.0+cu129
+    transformers: 4.57.6
+  vllm_0_12_0:
+    image: vllm/vllm-openai
+    amd64_digest: sha256:f2309d913a07da49ea20b2a694703f4cfcb5ad8e7437ec0f26145479ac01e002
+    python: 3.12.12
+    torch: 2.9.0+cu129
+    transformers: 4.57.3
+  vllm_0_11_0:
+    image: vllm/vllm-openai
+    amd64_digest: sha256:d8d39b59e909d2378ac4feeb191f7e7b6f1342477dc66b7c47cec89e9985ad8a
+    python: 3.12.11
+    torch: 2.8.0+cu128
+    transformers: 4.57.0
+  # 这个 runtime 不在 registry 上，每台机器都要自己 build（serving/build_evocua_image.sh）。
+  # 身份由 base digest + Dockerfile 哈希确定；local_image_id 只是本机那次构建的产物记录，
+  # 换台机器按同一配方重建必然不同，不要拿它当校验条件。
+  evocua_vllm_0_11_0:
+    image: derail/evocua-vllm:0.11.0-transformers4.57.3
+    base_amd64_digest: sha256:d8d39b59e909d2378ac4feeb191f7e7b6f1342477dc66b7c47cec89e9985ad8a
+    dockerfile_sha256: df0ed5a2a2ffc5dee81770f76f76d18710e9194365f4e08ad01051c923a6cc4e
+    local_image_id_observed_on_build_host: sha256:c4861d44de2b489549d2803faf46488f2a4b6dc56466793a396dede11f52c683
+    python: 3.12.11
+    torch: 2.8.0+cu128
+    transformers: 4.57.3
+    vllm: 0.11.0
+models:
+  qwen3_5_35b_a3b:
+    checkpoint: Qwen/Qwen3.5-35B-A3B
+    revision: 59d61f3ce65a6d9863b86d2e96597125219dc754
+    runtime: vllm_0_19_0
+    precision: bf16
+    probe_overrides:
+      max_tokens: 4096
+      history_n: 100
+      context_policy: tokenize_oldest_first_v1
+      tokenizer_image_policy: same_dimensions_distinct_hash_v1
+      reason: "官方 wrapper 默认 32768 tokens/100-turn history；12288 server context 时代由 HTTP 400 证实不相容（启动时与第 10 步各一次），故把补全预算压到 4096。server context 已抬到 49152（见下方 probe_serving_overrides），但 4096 是补全预算而非上下文预算，仍然保留"
+      formal_collection_requires_confirmation: true
+    probe_serving_overrides:
+      enforce_eager: false
+      disable_custom_all_reduce: true
+      max_model_len: 49152
+      max_model_len_reason: "全部 scaffold 对齐 history_n=100 / image_max=20 后同批抬高。12288 下 tokenize_oldest_first_v1 会把 27429 tokens 压到 8159，名义 100/20 实跑只有三成，横比时是混淆项；49152 之后不再触发裁剪"
+      max_model_len_measured: false
+      max_model_len_invalidates: "12288 下采的 v1 qwen3_5 rollout 与新值不可直接合并"
+      reason: "沿用 evocua_32b 的 A6000 适配。2026-08-04 本机 A/B 实测（GPU 2,3，其余参数一致，400 token 定长生成 ×3）：--enforce-eager 11.2 tok/s，--disable-custom-all-reduce 98.7 tok/s，8.8 倍；短提示下 11.5 -> 117.2 tok/s，10.2 倍。KV cache 241824 -> 239712 tokens。直接去掉 enforce-eager 而不加 disable-custom-all-reduce 会以 custom_all_reduce.cuh:455 'invalid argument' 崩溃"
+      reproducibility_note: "贪心解码不再与 eager 模式逐字一致：实测前 705 字符相同，之后为同义改写。浮点归约顺序差异，同一配置内部仍稳定"
+      formal_collection_requires_confirmation: true
+  qwen3_6_27b:
+    checkpoint: Qwen/Qwen3.6-27B
+    revision: 6a9e13bd6fc8f0983b9b99948120bc37f49c13e9
+    runtime: vllm_0_19_0
+    precision: bf16
+    probe_adapter_compatibility:
+      input: 'x="[878, 160]" with y omitted'
+      handling: "parse only an exact two-number JSON array as absolute x/y; retain original tool arguments and enforce screen bounds"
+      reason: "first real smoke and controlled reproduction showed qwen3_coder returning this unambiguous representation"
+      formal_collection_requires_confirmation: true
+    probe_behavior_repair:
+      tool_choice: auto
+      schema_repair_attempts: 2
+      multi_tool_policy: one_interaction_plus_collapsed_waits
+      alternating_action_repeat_limit: 8
+      stalled_state_step_limit: 15
+      loop_repair_attempts: 1
+      formal_collection_requires_confirmation: true
+    probe_serving_overrides:
+      enforce_eager: false
+      disable_custom_all_reduce: true
+      max_model_len: 49152
+      max_model_len_reason: "上下文策略对齐上游 history_n=100 / image_max=20 后单步 prompt 约 27k tokens，12288 装不下；沿用 evocua_32b 在同款 A6000 TP2 上验过的 49152。未单独实测 KV cache 余量"
+      max_model_len_measured: false
+      reason: "沿用 evocua_32b 的 A6000 适配，与 qwen3_5_35b_a3b 同批改动。稠密模型，未单独做 A/B 实测；提速幅度预期小于 MoE 模型"
+      measured: false
+      formal_collection_requires_confirmation: true
+  qwen3_8_27b:
+    checkpoint: Qwen/Qwen3.8-27B
+    revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+    runtime: vllm_0_19_0
+    precision: bf16
+    probe_serving_overrides:
+      enforce_eager: false
+      disable_custom_all_reduce: true
+      max_model_len: 98304
+      max_model_len_reason: "takeover_v1 d0/unaware 已观测最长输入 58494 tokens，加 2048 completion 后超过 49152；98304 为 100-step post-takeover history 保留增长空间"
+      max_model_len_measured: true
+      max_model_len_measurement: "2026-09-06：Qwen3.8 原生 max_position_embeddings=262144；A6000 TP2, gpu_memory_utilization=0.90 的 vLLM 日志报告 GPU KV cache size=126224 tokens"
+      reason: "Qwen3.8 takeover prefix 的真实 token 长度要求；其余 serving 参数继续复用 qwen3_6_27b"
+      measured: true
+      formal_collection_requires_confirmation: true
+  evocua_32b:
+    checkpoint: meituan/EvoCUA-32B-20260105
+    revision: ce0553438b5f329959b4e740791b580402bbc73e
+    runtime: evocua_vllm_0_11_0
+    precision: bf16
+    probe_serving_overrides:
+      max_model_len: 49152
+      gpu_memory_utilization: 0.95
+      max_num_seqs: 1
+      disable_custom_all_reduce: true
+      reason: "A6000 TP2: native 262144 context required 32.00 GiB KV per GPU but only 4.19 GiB was available; custom all-reduce CUDA graph capture also failed"
+      formal_collection_requires_confirmation: true
+  opencua_72b:
+    checkpoint: xlangai/OpenCUA-72B
+    revision: 3cc4af5337a1d0010f934284df3c482797266547
+    runtime: vllm_0_12_0
+    precision: bf16
+  holo_3_1_35b_a3b:
+    checkpoint: Hcompany/Holo-3.1-35B-A3B
+    revision: 2bdb92851a8cd9d72cdd891fdf38cfcc7fefae2c
+    runtime: vllm_0_19_0
+    precision: bf16
+    probe_adapter_compatibility:
+      input: 'x="867, 163" with y omitted'
+      handling: "parse a bare two-number string as the coordinate pair, same as the qwen3_6 bracket form; scaling and bounds of normalized_0_1000 are unchanged"
+      reason: "2026-08-08 smoke10 的 575 个 turn 里有 45 次 schema_repair，其中 33 次是这种裸逗号对；32 次模型在 repair 轮给出的 x/y 与串里的两个数完全一致，说明按 (A, B) 解读即模型本意。与 qwen3_6 同源，都是 qwen3_coder parser 把两个参数压进一个字段"
+      formal_collection_requires_confirmation: true
+    probe_behavior_repair:
+      tool_choice: required
+      schema_repair_attempts: 2
+      multi_tool_policy: one_interaction_plus_collapsed_waits
+      alternating_action_repeat_limit: 8
+      stalled_state_step_limit: 15
+      loop_repair_attempts: 1
+      formal_collection_requires_confirmation: true
+    probe_serving_overrides:
+      enforce_eager: false
+      disable_custom_all_reduce: true
+      max_model_len: 49152
+      max_model_len_reason: "上下文策略对齐上游 history_n=100 / image_max=20 后单步 prompt 约 27k tokens，12288 装不下；沿用 evocua_32b 在同款 A6000 TP2 上验过的 49152。未单独实测 KV cache 余量"
+      max_model_len_measured: false
+      reason: "沿用 evocua_32b 的 A6000 适配，与 qwen3_5_35b_a3b 同批改动。同为 35B-A3B MoE，eager 惩罚预期与 Qwen3.5 接近（截图时间戳统计显示 eager 下仅 5.0 tok/s，是五个模型里最慢的）；未单独做 A/B 实测"
+      measured: false
+      formal_collection_requires_confirmation: true

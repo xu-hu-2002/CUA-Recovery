@@ -1,0 +1,17 @@
+[
+ {
+  "fact": {
+   "table": "hoolicalendar.events",
+   "column": "start_at",
+   "entity": "events:545"
+  },
+  "equivalents": [
+   {
+    "table": "workbuzz.messages",
+    "column": "content",
+    "entity": "messages:9001",
+    "match": "contains"
+   }
+  ]
+ }
+]

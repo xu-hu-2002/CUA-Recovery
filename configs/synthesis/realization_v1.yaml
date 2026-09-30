@@ -1,0 +1,36 @@
+# Instruction realization and round-trip (execution doc v1.2 section 7.6, v0.2 section 12).
+# Same client, approval policy and credentials as the extractor.
+extractor_id: realization_v1
+provider: openai
+model: gpt-5.6-sol
+api_key_env: OPENAI_API_KEY
+base_url_env: OPENAI_BASE_URL
+base_url_default: https://api.openai.com/v1
+send_temperature: false
+temperature: 1.0
+reasoning_effort: low
+max_completion_tokens: 8000
+timeout_s: 600
+prompt_system: prompts/synthesis/realization_v1_system.txt
+prompt_user: prompts/synthesis/realization_v1_user.txt
+world_sources_config: configs/synthesis/world_sources_v0.yaml
+ontology_config: configs/synthesis/ontology_v0.2.yaml
+value_types_config: configs/synthesis/value_types_v0.yaml
+api_invocation_policy:
+  requires_explicit_user_approval_per_run: true
+  approval_env: DERAIL_OPENAI_API_APPROVED
+  purpose_env: DERAIL_OPENAI_API_PURPOSE
+  allowed_purposes: [task_ir_extraction, realization]
+  credentials_alone_are_not_consent: true
+# Instruction variants per task (D-041): each realization is an independent rollout start;
+# the model is called this many times per task, identical wordings are dropped.
+realizations_per_task: 2
+round_trip:
+  # Re-extraction uses the v1 extractor config; the comparison thresholds are here.
+  min_node_op_recall: 0.8
+  min_edge_recall: 0.7
+  max_unauthorized_nodes: 1
+  forbid_gold_leak: true
+style:
+  # Computed from the 184 seed instructions at run time; placeholders when unavailable.
+  default_length_words: [25, 90]

@@ -1,0 +1,25 @@
+# DERAIL v1 的协议级配置。正式 release 前必须冻结并记录 commit。
+benchmark_id: derail_v1
+environment: mypcbench_1280x800
+depths: [0, 5, 10, 15, 20, 25]
+post_takeover_step_budget: 100   # 论文 05:12 "up to 100 additional steps"（scripts/rock/run_takeover.sh 的 MAX_STEPS 默认同值）
+require_verified_prefix: true
+require_lossless_lowering: true
+canonical_action_space: canonical_v1
+
+# 论文 App. C「Takeover at six depths」：根因后不足 d 步、或接管点落在错误显露步之后（d > h_e）的
+# 深度跳过。唯一实现是 derail.construction.cases.eligible_depths。
+depth_eligibility:
+  # 错误在轨迹内从未显露（h_e 未观测）的失败不产生 case；论文 d=0 的 602 = 619 条失败中在轨迹内显露的条数。
+  require_error_explicit: true
+
+# 论文 §2 Root cause / §3「Constructing erroneous states」/ App. C「Prefix repair」：
+# 只修 t_r 之前的无关错误，t_r 当步及之后一律原样回放；修复后的前缀由标注者确认。
+prefix_repair:
+  # 确认修复前缀所需的独立 reviewer 数。论文未规定人数，App. E 为单标注 + 30% 双标注。
+  min_reviewers: 1
+  # 修复后前缀落盘位置：<build>/<output_layer>/<trajectory_id>/{trajectory.jsonl,repair_report.json,...}
+  # 与 configs/takeover/takeover.yaml 的 prefix.repaired_dir 一致（takeover 从这里读）。
+  output_layer: canonical_repaired
+  # takeover 选样只收有人工确认修复前缀的失败。
+  require_for_takeover: true

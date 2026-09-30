@@ -1,0 +1,31 @@
+# LLM-assisted Task IR extraction (manual v0.2 section 5.4).  The model proposes a candidate
+# IR; programme checks and human review decide.  Same invocation policy as configs/judges:
+# credentials alone are not consent, every run needs the explicit approval variables.
+extractor_id: task_ir_extractor_v0
+provider: openai
+# Same model family as the rubric judge (configs/judges/mypcbench_rubric.yaml), official endpoint.
+model: gpt-5.6-sol
+api_key_env: OPENAI_API_KEY
+# Environment variable wins when set; otherwise the official endpoint below is used.
+base_url_env: OPENAI_BASE_URL
+base_url_default: https://api.openai.com/v1
+# Reasoning models reject a non-default temperature; reasoning tokens count against the
+# completion budget, so keep effort low and the budget generous (judge config uses the same).
+send_temperature: false
+temperature: 1.0
+reasoning_effort: medium
+max_completion_tokens: 16384
+timeout_s: 600
+prompt_system: prompts/synthesis/task_ir_extraction_system.txt
+prompt_user: prompts/synthesis/task_ir_extraction_user.txt
+world_sources_config: configs/synthesis/world_sources_v0.yaml
+ontology_config: configs/synthesis/ontology_v0.2.yaml
+value_types_config: configs/synthesis/value_types_v0.yaml
+api_invocation_policy:
+  requires_explicit_user_approval_per_run: true
+  approval_env: DERAIL_OPENAI_API_APPROVED
+  purpose_env: DERAIL_OPENAI_API_PURPOSE
+  allowed_purposes:
+    - task_ir_extraction
+  credentials_alone_are_not_consent: true
+status: configured_but_not_invoked

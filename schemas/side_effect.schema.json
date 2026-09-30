@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://derail.local/schemas/side_effect.schema.json",
+  "title": "DERAIL structured side effect (side-effect/0.1)",
+  "$comment": "Concrete effect type and R1-R3 class are separate from the abstract operation. Compensation and checkpoint fields are validated for consistency by derail.longhorizon.effects.",
+  "type": "object",
+  "required": [
+    "effect_id", "effect_type", "target_ref", "reversibility_class", "commit_scope",
+    "compensation_available", "checkpoint_required"
+  ],
+  "properties": {
+    "effect_id": {"type": "string", "minLength": 1},
+    "effect_type": {"type": "string", "minLength": 1},
+    "target_ref": {"type": "string", "minLength": 1},
+    "reversibility_class": {"enum": ["R1", "R2", "R3"]},
+    "commit_scope": {"enum": ["local_app", "local_filesystem", "shared_environment", "external_sandbox"]},
+    "compensation_available": {"type": "boolean"},
+    "compensating_effect_type": {"type": ["string", "null"]},
+    "compensation_verifier_id": {"type": ["string", "null"]},
+    "checkpoint_required": {"type": "boolean"},
+    "checkpoint_id": {"type": ["string", "null"]},
+    "restore_verifier_id": {"type": ["string", "null"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"compensation_available": {"const": true}}},
+      "then": {"properties": {"compensating_effect_type": {"type": "string", "minLength": 1}}, "required": ["compensating_effect_type"]}
+    },
+    {
+      "if": {"properties": {"compensation_available": {"const": false}}},
+      "then": {"properties": {"compensating_effect_type": {"type": "null"}}}
+    }
+  ],
+  "additionalProperties": false
+}
