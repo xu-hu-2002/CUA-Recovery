@@ -17,6 +17,7 @@ sys.path.insert(0, str(REPOSITORY / "src"))
 from derail.harness.control_client import DerailControlClient  # noqa: E402
 from derail.harness.env_wrapper import DerailEnvWrapper  # noqa: E402
 from derail.harness.trace_builder import TraceBuilder  # noqa: E402
+from derail.failure_analysis.retrospective import clean_start_step_budget  # noqa: E402
 from derail.phase5.verifier import verify_changelog  # noqa: E402
 
 
@@ -26,7 +27,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", required=True)
     parser.add_argument("--combination-id", action="append", default=[])
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--step-budget", type=int, default=100)
+    parser.add_argument("--step-budget", type=int, default=clean_start_step_budget(),
+                        help="default: max_steps in configs/collection/mypcbench_runtime.yaml")
     parser.add_argument("--pause-after-action-s", type=float, default=2.0)
     return parser.parse_args()
 

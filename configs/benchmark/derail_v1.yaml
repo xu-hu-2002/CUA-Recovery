@@ -2,7 +2,6 @@
 benchmark_id: derail_v1
 environment: mypcbench_1280x800
 depths: [0, 5, 10, 15, 20, 25]
-post_takeover_step_budget: 100   # 论文 05:12 "up to 100 additional steps"（scripts/rock/run_takeover.sh 的 MAX_STEPS 默认同值）
 require_verified_prefix: true
 require_lossless_lowering: true
 canonical_action_space: canonical_v1

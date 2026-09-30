@@ -7,12 +7,17 @@ TARGET_AGENT="${TARGET_AGENT:-qwen3_8_27b}"
 RUN_TAG="${RUN_TAG:-takeover_v1}"
 CONDITIONS="${CONDITIONS:-unaware notified diagnosed}"
 DEPTHS="${DEPTHS:-0 5 10 15 20 25}"
-MAX_STEPS="${MAX_STEPS:-100}"
+MAX_STEPS="${MAX_STEPS:-}"
 RUN_JUDGE="${RUN_JUDGE:-1}"
 REFRESH="${REFRESH:-15}"
 BAR_WIDTH="${BAR_WIDTH:-26}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Budget shown on the dashboard: max_steps of configs/takeover/takeover.yaml unless overridden.
+if [[ -z "$MAX_STEPS" ]]; then
+  MAX_STEPS="$(python3 -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["max_steps"])' \
+    "$REPO_ROOT/configs/takeover/takeover.yaml")"
+fi
 OUTPUT_ROOT="${OUTPUT_ROOT:-$REPO_ROOT/artifacts/model_outputs/takeover/$RUN_TAG/${SOURCE_AGENT}_to_${TARGET_AGENT}}"
 if [[ "$OUTPUT_ROOT" != /* ]]; then OUTPUT_ROOT="$REPO_ROOT/$OUTPUT_ROOT"; fi
 

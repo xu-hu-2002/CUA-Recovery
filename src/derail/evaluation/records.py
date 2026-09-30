@@ -7,8 +7,10 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 from derail.derived.layout import DEPTH_GRID
 from derail.derived.validation import strict_bool
+from derail.takeover.protocol import load_takeover_config
 
-POST_TAKEOVER_ACTION_BUDGET = 50
+# Steps allowed after takeover (paper 05:12); configs/takeover/takeover.yaml max_steps.
+POST_TAKEOVER_ACTION_BUDGET = int(load_takeover_config()["max_steps"])
 PESR_SUCCESS_THRESHOLD = 1.0
 
 
@@ -115,7 +117,9 @@ class PostErrorOutcome:
         if self.action_budget != POST_TAKEOVER_ACTION_BUDGET:
             raise EvaluationRecordError("post-takeover action budget 必须固定为 50")
         if not 0 <= self.post_takeover_action_count <= self.action_budget:
-            raise EvaluationRecordError("post_takeover_action_count 超出 50-action budget")
+            raise EvaluationRecordError(
+                "post_takeover_action_count 超出 %d-action budget" % self.action_budget
+            )
         if not 0 <= self.score <= 1:
             raise EvaluationRecordError("rubric score 必须在 [0,1]")
         if self.success_threshold != PESR_SUCCESS_THRESHOLD:

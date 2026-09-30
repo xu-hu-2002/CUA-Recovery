@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from derail.cases.instantiate import build_cases, dedup_records  # noqa: E402
 from derail.cases.package import write_bundle  # noqa: E402
+from derail.failure_analysis.retrospective import clean_start_step_budget  # noqa: E402
 from derail.cases.repair import repair_prefix  # noqa: E402
 from derail.derived.schema import validate_schema  # noqa: E402
 from derail.longhorizon.ontology import Ontology  # noqa: E402
@@ -113,7 +114,7 @@ def main() -> int:
                     profiles.get(trace["task_id"]),
                     depth_grid,
                     ontology,
-                    step_budget=int(trace.get("step_budget", 100)),
+                    step_budget=int(trace.get("step_budget") or clean_start_step_budget()),
                     task_ir=_task_ir(args.ir_dir, trace["task_id"]),
                     test_eligibility=args.split == "test",
                     require_error_explicit=require_error_explicit,

@@ -292,6 +292,7 @@ class TakeoverJudgeTests(unittest.TestCase):
         shutil.copytree(REPOSITORY / "src/derail", root / "src/derail")
         shutil.copytree(REPOSITORY / "configs/agents", root / "configs/agents")
         shutil.copytree(REPOSITORY / "configs/environments", root / "configs/environments")
+        shutil.copytree(REPOSITORY / "configs/takeover", root / "configs/takeover")
         judge = root / "third_party/MyPCBench/agent-harness/judge_results.py"
         judge.parent.mkdir(parents=True)
         judge.write_text(STUB_JUDGE, encoding="utf-8")

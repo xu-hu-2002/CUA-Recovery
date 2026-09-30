@@ -18,8 +18,18 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
+import yaml
+
 from derail.failure_analysis.detectors import parameter_candidates, pick_root_cause
 from derail.harness.trace_builder import ActionRecord, TraceBuilder
+
+RUNTIME_CONFIG = Path(__file__).resolve().parents[3] / "configs/collection/mypcbench_runtime.yaml"
+
+
+def clean_start_step_budget(path: Path = RUNTIME_CONFIG) -> int:
+    """Clean-start step budget (paper 05:15), ``max_steps`` of the collection runtime config."""
+
+    return int(yaml.safe_load(path.read_text(encoding="utf-8"))["max_steps"])
 
 
 def load_traj(path: Union[str, Path]) -> List[Dict[str, Any]]:
@@ -38,6 +48,7 @@ def trace_from_traj(
     rollout_id: str,
     world_id: str = "legacy",
     instruction: str = "",
+    step_budget: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Minimal rollout-trace/1.0 from a legacy ``traj.jsonl`` (0-based action indices)."""
 
@@ -47,7 +58,7 @@ def trace_from_traj(
         world_id=world_id,
         agent=agent,
         seed=0,
-        step_budget=100,
+        step_budget=step_budget if step_budget is not None else clean_start_step_budget(),
     )
     builder.start({})
     declared_complete = declared_infeasible = False

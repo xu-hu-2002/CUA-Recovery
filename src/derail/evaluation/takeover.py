@@ -1,4 +1,4 @@
-"""Generic takeover loop with immediate EAR and 50-action PESR semantics."""
+"""Generic takeover loop with immediate EAR and PESR within the takeover step budget."""
 
 from __future__ import annotations
 

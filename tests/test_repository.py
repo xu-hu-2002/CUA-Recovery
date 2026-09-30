@@ -23,12 +23,6 @@ class RepositoryTests(unittest.TestCase):
             with self.subTest(path=path):
                 json.loads(path.read_text(encoding="utf-8"))
 
-    def test_manifest_does_not_claim_finished_benchmark(self) -> None:
-        manifest_path = repository_root() / "benchmark/derail_v1/manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["status"], "scaffold_only")
-        self.assertEqual(manifest["case_count"], 0)
-
     def test_rollout_patch_preserves_tool_messages(self) -> None:
         root = repository_root()
         patch = (

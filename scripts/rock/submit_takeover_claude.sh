@@ -32,7 +32,8 @@ export TAKEOVER_CONTEXT_CAP="${CLAUDE_EXPERIMENT_CONTEXT_CAP:-200000}"
 export CLAUDE_OPUS_4_8_MODEL="${CLAUDE_OPUS_4_8_MODEL:-claude-opus-4-8}"
 export CLAUDE_PROMPT_CACHING_BETA=0
 export NUM_VMS_OVERRIDE=1
-export MAX_STEPS="${MAX_STEPS:-8}"
+# Empty = run_takeover.sh reads max_steps from configs/takeover/takeover.yaml (100).
+export MAX_STEPS="${MAX_STEPS:-}"
 export COLLECTION_ID="${COLLECTION_ID:-takeover-claude-self-d${DEPTH}-${CONDITION}-s${SHARD_OFFSET}of${SHARD_COUNT}}"
 export PROXY_RESULTS_OSS_MOUNT="${PROXY_RESULTS_OSS_MOUNT:-/data/oss_bucket_0/${OSS_PREFIX:-<oss-prefix>}/DERAIL/results/takeover/failure_prefix_v1/claude_opus_4_8/claude_opus_4_8/${CONDITION}/d${DEPTH}}"
 
