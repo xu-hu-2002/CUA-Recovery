@@ -183,13 +183,3 @@ Tests that need rollout data or local VM database copies are skipped when that d
 ## License
 
 MIT License - see LICENSE file for details.
-
-## 📣 Citation
-
-```bibtex
-@misc{cuarecovery2026,
-  title  = {CUA-Recovery: Benchmarking Error Recovery in Long-Horizon Computer-Use Agents},
-  year   = {2026},
-  note   = {Under review}
-}
-```
