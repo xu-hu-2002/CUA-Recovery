@@ -235,7 +235,6 @@ fi
 info "待判目录   : ${#targets[@]} 个"
 info "task 总数  : ${total_bundles}（已判 ${already}，$( ((FORCE)) && echo '本次 FORCE=1 会全部重判' || echo '已判的会跳过，不重复计费')）"
 info "日志       : ${judge_log}"
-info "进度       : bash scripts/collection/watch_progress.sh --judge ${collection_id}"
 
 export MYPCBENCH_RUBRIC_JUDGE_COMMAND="$(printf '%q %q' "$PYTHON_BIN" "$JUDGE_WRAPPER")"
 
@@ -259,4 +258,4 @@ rc_total=0
 
 (( rc_total == 0 )) || die "有判分目录以退出码 ${rc_total} 结束，看 ${judge_log}"
 
-info "全部完成。汇总：bash scripts/collection/watch_progress.sh --judge ${collection_id} --once"
+info "全部完成。"

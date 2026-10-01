@@ -20,8 +20,6 @@ from recovery.derived.schema import validate_schema
 
 FINGERPRINT_SCRIPTS = (
     "benchmark/prepare_annotations.py",
-    "benchmark/build_benchmark.py",
-    "benchmark/replay_instance.py",
     "takeover/build_native_history.py",
 )
 DEFAULT_TARGET_AGENTS = (

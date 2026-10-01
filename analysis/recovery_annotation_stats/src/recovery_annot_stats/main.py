@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 
 from . import clean as C
-from . import plots as P
 from . import report as R
 from . import stats as S
 from .paths import Paths
@@ -135,28 +134,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
 
     T["inconsistencies"] = inconsistencies
 
-    F: dict[str, Path] = {}
-    fg = paths.figures
-    F["task_forest"] = P.task_score_forest(T["task_score_by_agent"], fg / "task_score_forest.png")
-    F["rubric_hist"] = P.rubric_ratio_hist(cl, fg / "rubric_pass_ratio_hist.png")
-    F["weighted_hist"] = P.weighted_ratio_hist(cl, fg / "weighted_rubric_score_hist.png")
-    F["weighted_scatter"] = P.weighted_vs_unweighted_scatter(
-        cl, fg / "weighted_vs_unweighted.png")
-    F["rubric_heatmap"] = P.rubric_heatmap(T["rubric_by_agent_matrix"],
-                                           fg / "rubric_by_agent_heatmap.png")
-    F["error_stacked"] = P.error_type_stacked(long, fg / "error_category_stacked.png")
-    F["error_bars"] = P.error_type_bars(T["error_types_by_agent"], fg / "error_type_bars.png")
-    F["depth_hist"] = P.depth_hist(cl, fg / "depth_hist_by_agent.png")
-    F["depth_km_agent"] = P.depth_km(cl, "agent", fg / "depth_km_by_agent.png",
-                                     "Failure depth, Kaplan-Meier by agent")
-    F["depth_km_errcat"] = P.depth_km(sub, "single_error_category",
-                                      fg / "depth_km_by_error_category.png",
-                                      "Failure depth, Kaplan-Meier by error category")
-    F["depth_bins"] = P.depth_bins_bar(T["depth_bins_by_agent"],
-                                       fg / "depth_bins_by_agent.png",
-                                       "Ordinal depth bins by agent")
-    F["coverage"] = P.coverage_bar(coverage, fg / "annotation_coverage.png")
-
     _write(cl.drop(columns=["rubric_scores_json", "rubric_weights"])
              .assign(error_types=cl["error_types"].apply(
                  lambda v: "|".join(v) if isinstance(v, list) else ""),
@@ -171,7 +148,7 @@ def run(paths: Paths, mapping_path: Path) -> None:
     checks = _sanity_checks(cl, exclusions, T, long)
 
     (paths.out_dir / "report.md").write_text(
-        R.build_report(T, F, cl, exclusions, diagnostics), encoding="utf-8")
+        R.build_report(T, cl, exclusions, diagnostics), encoding="utf-8")
     (paths.out_dir / "sanity_checks.md").write_text(
         R.build_sanity(T, cl, exclusions, checks), encoding="utf-8")
 
@@ -180,7 +157,6 @@ def run(paths: Paths, mapping_path: Path) -> None:
 
     n_fail = sum(1 for c in checks if c["result"] == "FAIL")
     print(f"tables -> {paths.tables}")
-    print(f"figures -> {paths.figures}")
     print(f"report -> {paths.out_dir / 'report.md'}")
     print(f"sanity checks: {len(checks)} run, {n_fail} FAIL")
     for c in checks:

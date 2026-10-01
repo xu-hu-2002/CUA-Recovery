@@ -13,7 +13,6 @@ CONCURRENCY="${CONCURRENCY:-}"
 CSV_LABEL="${CSV_LABEL:-}"
 REPEAT="${REPEAT:-}"
 CSV_OUT_DIR="${CSV_OUT_DIR:-}"
-JUDGE_ARCHIVE_ROOT="${JUDGE_ARCHIVE_ROOT:-}"
 FORCE=0
 PREPARE_ONLY=0
 ERROR_AWARENESS=0
@@ -44,7 +43,6 @@ Options:
   --max-images N          Positive integer <= the registered model image limit.
   --csv-label LABEL       CSV filename prefix; known agent IDs get paper-facing defaults.
   --csv-out-dir DIR       CSV destination (default: artifacts/takeover).
-  --archive-root DIR      Persist scores/records/ledger under the independent judge tree.
   --force                 Rejudge every completed episode in the selected cell.
   --prepare-only          Build/validate staging without API calls.
   --error-awareness       Also judge Error-Awareness: the first three post-takeover
@@ -58,8 +56,7 @@ Options:
   -h, --help              Show this help.
 
 The same values can be supplied through SOURCE_AGENT, TAKEOVER_AGENT (or TARGET_AGENT),
-DEPTH, CONDITION, RUN_TAG, REPEAT, JUDGE_MODEL, MAX_IMAGES, CSV_LABEL, CSV_OUT_DIR,
-and JUDGE_ARCHIVE_ROOT.
+DEPTH, CONDITION, RUN_TAG, REPEAT, JUDGE_MODEL, MAX_IMAGES, CSV_LABEL and CSV_OUT_DIR.
 Only task directories with result.txt=1.0, rubric_bundle.json and no protocol_exclusion.json
 are staged.  Without REPEAT, a run with repeat_<k>/ directories is judged repeat by repeat and
 summarized once (scripts/judge/summarize_takeover.py).
@@ -82,7 +79,6 @@ while [[ $# -gt 0 ]]; do
     --max-images) need_value "$@"; MAX_IMAGES="$2"; shift 2 ;;
     --csv-label) need_value "$@"; CSV_LABEL="$2"; shift 2 ;;
     --csv-out-dir) need_value "$@"; CSV_OUT_DIR="$2"; shift 2 ;;
-    --archive-root) need_value "$@"; JUDGE_ARCHIVE_ROOT="$2"; shift 2 ;;
     --force) FORCE=1; shift ;;
     --prepare-only) PREPARE_ONLY=1; shift ;;
     --error-awareness) ERROR_AWARENESS=1; shift ;;
@@ -173,7 +169,6 @@ if (( ${#REPEAT_DIRS[@]} > 0 )); then
     child=(bash "$SCRIPT_PATH" "${forward[@]}"
       --condition "$(IFS=/; echo "${CONDITION_VALUES[*]}")" --max-images "$MAX_IMAGES")
     [[ -n "$CSV_LABEL" ]] && child+=(--csv-label "${CSV_LABEL}_r${repeat_value}")
-    [[ -n "$JUDGE_ARCHIVE_ROOT" ]] && child+=(--archive-root "$JUDGE_ARCHIVE_ROOT")
     REPEAT="$repeat_value" OUTPUT_ROOT="$repeat_dir" "${child[@]}"
   done
   if [[ "$PREPARE_ONLY" != "1" ]]; then
@@ -212,7 +207,6 @@ if [[ "$ERROR_AWARENESS_ONLY" != "1" ]] \
         --max-images "$MAX_IMAGES")
       [[ -n "$CSV_LABEL" ]] && child+=(--csv-label "$CSV_LABEL")
       [[ -n "$CSV_OUT_DIR" ]] && child+=(--csv-out-dir "$CSV_OUT_DIR")
-      [[ -n "$JUDGE_ARCHIVE_ROOT" ]] && child+=(--archive-root "$JUDGE_ARCHIVE_ROOT")
       [[ "$FORCE" == "1" ]] && child+=(--force)
       [[ "$PREPARE_ONLY" == "1" ]] && child+=(--prepare-only)
       "${child[@]}"
@@ -351,16 +345,3 @@ python3 "$CSV_SCRIPT" \
   --out-dir "$CSV_OUT_DIR"
 printf '[takeover judge] CSV complete: %s/%s_d%s_%s.csv\n' \
   "$CSV_OUT_DIR" "$CSV_LABEL" "$DEPTH" "$CONDITION"
-if [[ -n "$JUDGE_ARCHIVE_ROOT" ]]; then
-  python3 "$REPO_ROOT/scripts/judge/archive.py" \
-    --cell "$CELL" \
-    --scores "$STAGING/scores.json" \
-    --csv "$CSV_OUT_DIR/${CSV_LABEL}_d${DEPTH}_${CONDITION}.csv" \
-    --archive-root "$JUDGE_ARCHIVE_ROOT" \
-    --judge-model "$EFFECTIVE_JUDGE_MODEL" \
-    --source-agent "$SOURCE_AGENT" \
-    --target-agent "$TAKEOVER_AGENT" \
-    --condition "$CONDITION" \
-    --depth "$DEPTH" \
-    --exclusions "$OUTPUT_ROOT/judge_exclusions.json"
-fi

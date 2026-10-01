@@ -58,10 +58,6 @@ class Paths:
     def tables(self) -> Path:
         return self.out_dir / "tables"
 
-    @property
-    def figures(self) -> Path:
-        return self.out_dir / "figures"
-
     def ensure_out(self) -> None:
-        for d in (self.out_dir, self.tables, self.figures):
+        for d in (self.out_dir, self.tables):
             d.mkdir(parents=True, exist_ok=True)

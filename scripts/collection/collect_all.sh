@@ -250,16 +250,10 @@ if [[ -z "${TMUX:-}" && "${RECOVERY_TMUX:-1}" != "0" ]]; then
 
   printf -v log_text '%q ' tail -n +1 -f "$COLLECTION_LOG"
   tmux new-session -d -s "$session" -n collection -c "$REPO_ROOT" "$log_text"
-  printf -v progress_text '%q ' \
-    bash "${SCRIPT_DIR}/watch_progress.sh" "$COLLECTION_ID"
-  tmux new-window -d -t "$session" -n progress -c "$REPO_ROOT" "$progress_text"
   tmux new-window -d -t "$session" -n monitor -c "$REPO_ROOT" "watch -n 2 nvidia-smi"
-  tmux select-window -t "${session}:progress"
   printf '\n已启动（PID %s），与终端完全脱离，Ctrl-C 打不到它。\n\n' "$collection_pid"
-  printf '  看进度条: tmux attach -t %s          （默认就停在 progress 窗口）\n' "$session"
-  printf '  看日志  : tmux select-window -t %s:collection\n' "$session"
+  printf '  看日志  : tmux attach -t %s\n' "$session"
   printf '  日志文件: %s\n' "$COLLECTION_LOG"
-  printf '  不进 tmux: bash scripts/collection/watch_progress.sh %s\n' "$COLLECTION_ID"
   printf '  要中止  : pkill -TERM -f "run_parallel_tasks.py.*%s"\n' "$COLLECTION_ID"
   printf '            （正常跑完会自动清理，不需要手动停）\n'
   exit 0
@@ -271,7 +265,6 @@ export RECOVERY_OPENAI_API_APPROVED=1
 export RECOVERY_OPENAI_API_PURPOSE=mypcbench_npc_replies
 
 mkdir -p "$RUN_ROOT"
-date +%s > "${RUN_ROOT}/.progress_started_at"
 
 for agent_id in "${AGENTS[@]}"; do
   agent_vms="$(agent_num_vms "$agent_id")"

@@ -145,23 +145,30 @@ CUA-Recovery/
 ├── src/recovery/           # Core package
 │   ├── gen/                # Workflow composition, frozen verifiers, splits
 │   ├── ir/, world/         # Task IR and gold-lineage interpreter
+│   ├── longhorizon/        # Task-IR extraction client, ontology and value types
+│   ├── synthesis/          # Task-fragment validation
+│   ├── detect/             # Latent-error profiles and mutation tests
+│   ├── harness/            # Rollout harness over the in-VM control API
 │   ├── rollout/            # Collection harness and state probes
 │   ├── failure_analysis/   # Root-cause analysis against gold lineage
+│   ├── annotation/         # Human-annotation records and labelling UI
+│   ├── canonical/          # Canonical actions and trajectories
+│   ├── derived/            # Derived-build layout and schema validation
 │   ├── construction/       # Prefix repair and takeover-state selection
 │   ├── takeover/, replay/  # Takeover protocol and replay verification
 │   ├── mypcbench/          # Agent scaffolds for MyPCBench
 │   ├── adapters/           # Native-history rendering per agent
-│   ├── evaluation/         # Rubric Score, Pass@k, Error Awareness Rate
+│   ├── evaluation/         # Rubric Score and Pass@k
 │   └── train/              # Recovery generation and SFT samples
 ├── scripts/                # Stage scripts called by main.py
 │   ├── synthesis/  collection/  judge/  benchmark/
-│   ├── takeover/   train/       analysis/
-│   └── phase5/  lib/
+│   └── takeover/   train/       lib/
 ├── configs/                # All configuration
-├── prompts/                # Agent and judge prompts
+├── prompts/                # Agent, annotation and synthesis prompts
 ├── schemas/                # JSON Schemas for data formats
 ├── analysis/               # Annotation and error-taxonomy statistics
-├── infra/                  # In-VM state digest and change-log triggers
+├── infra/                  # In-VM change-log triggers, tracer and control-API extension
+├── serving/                # vLLM serving image for EvoCUA
 └── patches/                # Patches applied to MyPCBench
 ```
 

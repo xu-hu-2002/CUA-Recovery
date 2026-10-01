@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 GOLD_ACTION_VERSION = "gold-action/1.0"
 
@@ -49,15 +49,3 @@ def gold_action(
         "source": "programme",
     }
 
-
-def attach_gold_actions(
-    records: List[Dict[str, Any]],
-    analysis: Mapping[str, Any],
-    gold: Mapping[str, Any],
-    task_ir: Optional[Mapping[str, Any]] = None,
-) -> None:
-    action = gold_action(analysis, gold, task_ir)
-    if action is None:
-        return
-    for record in records:
-        record["gold_action"] = action

@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
-from recovery.cases.repair import neutral_segments
+from recovery.train.repair import neutral_segments
 from recovery.derived.layout import DEPTH_GRID
 from recovery.world.facts import date_part, normalize_value
 

@@ -33,7 +33,7 @@ def main() -> int:
     path = Path(args.script)
     updated = patched_text(path.read_text())
     if updated != path.read_text():
-        path.with_suffix(path.suffix + ".phase5.bak").write_text(path.read_text())
+        path.with_suffix(path.suffix + ".bak").write_text(path.read_text())
         path.write_text(updated)
     return 0
 

@@ -12,7 +12,7 @@ import shlex
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from recovery.canonical.actions import (
     Action,

@@ -5,8 +5,6 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from recovery.world.volatile import VolatileColumns
 
-REPAIR_VERSION = "prefix-repair-v1/1.0"
-
 
 def _last_page(step: Mapping[str, Any]) -> Optional[str]:
     pages = step.get("pages") or []
@@ -117,80 +115,3 @@ def neutral_segments(
         i = b + 1
     return segments
 
-
-def non_neutral_pre_root(
-    trace: Mapping[str, Any],
-    root_cause_action_index: int,
-    writes_gold: Sequence[Mapping[str, Any]],
-    volatile: Optional[VolatileColumns] = None,
-) -> List[Dict[str, Any]]:
-    steps = [s for s in trace["steps"] if int(s["action_index"]) < root_cause_action_index]
-    gold = {("%s" % w["table"], w["entity"]) for w in writes_gold}
-    out = []
-    for key, (before, after) in net_change(steps, volatile).items():
-        db, tbl, rowid = key
-        if ("%s.%s" % (db, tbl), "%s:%s" % (tbl, rowid)) in gold:
-            continue
-        touched = [
-            int(s["action_index"])
-            for s in steps
-            if any((r["db"], r["tbl"], int(r["rowid"])) == key for r in s.get("delta", ()))
-        ]
-        out.append(
-            {
-                "start_action_index": min(touched),
-                "end_action_index": max(touched),
-                "net_delta_empty": False,
-                "page_before": None,
-                "page_after": None,
-                "evidence": [
-                    {
-                        "kind": "changelog",
-                        "detail": "%s.%s:%s changed before the root cause and is not a gold write"
-                        % (db, tbl, rowid),
-                    }
-                ],
-            }
-        )
-    return out
-
-
-def repair_prefix(
-    trace: Mapping[str, Any],
-    root_cause_action_index: int,
-    writes_gold: Sequence[Mapping[str, Any]] = (),
-    volatile: Optional[VolatileColumns] = None,
-) -> Dict[str, Any]:
-    removed = neutral_segments(trace, root_cause_action_index, volatile)
-    non_neutral = non_neutral_pre_root(trace, root_cause_action_index, writes_gold, volatile)
-    removed_indices = {
-        i for seg in removed for i in range(seg["start_action_index"], seg["end_action_index"] + 1)
-    }
-    prefix = [
-        int(s["action_index"])
-        for s in trace["steps"]
-        if int(s["action_index"]) < root_cause_action_index
-        and int(s["action_index"]) not in removed_indices
-    ]
-    if non_neutral:
-        status = "PREFIX_UNREPAIRABLE"
-    elif removed:
-        status = "repaired"
-    else:
-        status = "unchanged"
-    return {
-        "schema_version": "prefix-repair/1.0",
-        "rollout_id": str(trace["rollout_id"]),
-        "task_id": str(trace["task_id"]),
-        "root_cause_action_index": int(root_cause_action_index),
-        "removed_segments": removed,
-        "non_neutral_segments": non_neutral,
-        "repaired_prefix_action_indices": prefix,
-        "status": status,
-        "repair_version": REPAIR_VERSION,
-        "provenance": {
-            "original_prefix_length": sum(
-                1 for s in trace["steps"] if int(s["action_index"]) < root_cause_action_index
-            )
-        },
-    }

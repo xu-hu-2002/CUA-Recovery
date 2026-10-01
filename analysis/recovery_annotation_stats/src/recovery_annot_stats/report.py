@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
@@ -271,7 +269,7 @@ def _fact_weighted_gap(rb: pd.DataFrame) -> str:
         f"single authoritative rubric score.\n")
 
 
-def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
+def build_report(tables: dict[str, pd.DataFrame],
                  clean: pd.DataFrame, exclusions: pd.DataFrame,
                  diagnostics: dict) -> str:
     parts: list[str] = []
@@ -313,7 +311,6 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
     lines = [f"- `{r.agent}`: {_fmt_rate(r._asdict())}" for r in ts.itertuples()]
     A("\n".join(lines) + "\n")
     A(_fact_task_score(clean, ts))
-    A(f"\n![task score forest]({figures['task_forest'].name})\n")
     A("### 1.2 Cross-agent test (unpaired)\n")
     A(_md_table(tables["task_score_test"]))
     A("### 1.3 Task success by task category\n")
@@ -350,21 +347,17 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
     A(_md_table(tables["weighted_ratio_distribution"],
                 ["agent", "bin_low", "bin_high", "numerator", "denominator",
                  "rate", "ci_low", "ci_high", "low_n_flag"]))
-    A(f"\n![weighted distribution]({figures['weighted_hist'].name})\n")
-    A(f"\n![weighted vs unweighted]({figures['weighted_scatter'].name})\n")
     A("\n**Rollouts where weighting moves the score the most:**\n")
     A(_md_table(tables["weighted_vs_unweighted_gap"]))
     A("### 2.3 Distribution of rubric pass ratio\n")
     A(_md_table(tables["rubric_ratio_distribution"],
                 ["agent", "bin_low", "bin_high", "numerator", "denominator",
                  "rate", "ci_low", "ci_high", "low_n_flag"]))
-    A(f"\n![rubric distribution]({figures['rubric_hist'].name})\n")
     A("**Is the distribution bimodal?**\n")
     A(_fact_bimodality(tables["rubric_ratio_distribution"]))
     A("### 2.4 Rubric-slot pass rate by agent\n")
     A("Rubric ids are positional inside each task's bundle, so a row pools "
       "different criteria across tasks. Read it as a slot-position view only.\n")
-    A(f"\n![rubric heatmap]({figures['rubric_heatmap'].name})\n")
 
     A("\n## 3. Root cause: error type distribution\n")
     A("Analysis set: rollouts with `task_score == 0` carrying a failure "
@@ -392,13 +385,11 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
     A(_md_table(tables["error_types_by_agent"],
                 ["agent", "value", "numerator", "denominator", "rate", "ci_low",
                  "ci_high", "label_occurrences", "label_normalized", "low_n_flag"]))
-    A(f"\n![error types]({figures['error_bars'].name})\n")
     A(_fact_error_types(tables["error_types_by_agent"], tables["label_cardinality"]))
     A("### 3.2 Error category\n")
     A(_md_table(tables["error_categories_by_agent"],
                 ["agent", "value", "numerator", "denominator", "rate", "ci_low",
                  "ci_high", "label_occurrences", "label_normalized", "low_n_flag"]))
-    A(f"\n![error categories]({figures['error_stacked'].name})\n")
     A("### 3.3 Labels per failed rollout\n")
     A(_md_table(tables["label_cardinality"]))
     A("### 3.4 Cross-agent homogeneity per label (BH-FDR)\n")
@@ -421,24 +412,20 @@ def build_report(tables: dict[str, pd.DataFrame], figures: dict[str, Path],
     A(_md_table(tables["depth_sample_composition"]))
     A("### 4.2 Observed depth by agent\n")
     A(_md_table(tables["depth_by_agent"]))
-    A(f"\n![depth histogram]({figures['depth_hist'].name})\n")
     A("### 4.3 Kaplan-Meier (censoring-aware) by agent\n")
     A(_md_table(tables["depth_km_by_agent"]))
     A(_md_table(tables["depth_logrank_agent"]))
     A(_fact_depth(tables["depth_km_by_agent"], tables["depth_sample_composition"],
                   tables["depth_logrank_agent"]))
-    A(f"\n![depth KM by agent]({figures['depth_km_agent'].name})\n")
     A("### 4.4 Depth by error category and by task category\n")
     A(_md_table(tables["depth_by_error_category"]))
     A(_md_table(tables["depth_km_by_error_category"]))
-    A(f"\n![depth KM by error category]({figures['depth_km_errcat'].name})\n")
     A(_md_table(tables["depth_by_task_category"]))
     A(_md_table(tables["depth_km_by_task_category"]))
     A("### 4.5 Ordinal depth bins\n")
     A(_md_table(tables["depth_bins_by_agent"],
                 ["group_value", "depth_bin", "numerator", "denominator", "rate",
                  "ci_low", "ci_high", "low_n_flag"]))
-    A(f"\n![depth bins]({figures['depth_bins'].name})\n")
     A("### 4.6 Depth by individual error type (latest-surfacing first)\n")
     A("A rollout carrying k labels contributes to k rows, so these groups overlap "
       "and do not partition the failed rollouts.\n")

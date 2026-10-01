@@ -1833,7 +1833,7 @@ def main() -> int:
         "--out-dir",
         type=Path,
         required=True,
-        help="Where raw per-annotator files are written; feeds 04_build_benchmark --annotations.",
+        help="Where raw per-annotator files are written.",
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
