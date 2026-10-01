@@ -49,7 +49,7 @@ RECOVERY_ANTHROPIC_API_APPROVED="${RECOVERY_ANTHROPIC_API_APPROVED:-0}"
 RECOVERY_ANTHROPIC_API_PURPOSE="${RECOVERY_ANTHROPIC_API_PURPOSE:-}"
 
 die() {
-  printf '错误：%s\n' "$*" >&2
+  printf 'error: %s\n' "$*" >&2
   exit 1
 }
 
@@ -86,12 +86,12 @@ resolve_agent_task_timeout() {
 start_in_tmux_if_needed() {
   [[ "$RECOVERY_TMUX" == "0" || -n "${TMUX:-}" ]] && return 0
   command -v tmux >/dev/null 2>&1 || die \
-    "RECOVERY_TMUX=1 但找不到 tmux；安装 tmux 或显式设置 RECOVERY_TMUX=0"
+    "RECOVERY_TMUX=1 but tmux not found; install tmux or set RECOVERY_TMUX=0"
 
   local session_name="${RECOVERY_TMUX_SESSION:-recovery-collect-${COLLECTION_ID}}"
   session_name="$(tr -c '[:alnum:]_-' '-' <<< "$session_name" | sed 's/-$//')"
   tmux has-session -t "=${session_name}" 2>/dev/null && die \
-    "tmux session 已存在：${session_name}"
+    "tmux session already exists: ${session_name}"
 
   local -a env_unset=()
   local -a env_assign=(RECOVERY_TMUX=0)
@@ -133,8 +133,8 @@ start_in_tmux_if_needed() {
     fi
   done
   if (( ${#stale_from_tmux[@]} > 0 )); then
-    info "已丢弃 tmux server global environment 里的残留变量（本次命令未设置）：${stale_from_tmux[*]}"
-    info "  它们来自这个 tmux server 上更早的 session；要彻底清掉：tmux set-environment -gu <名字>"
+    info "Dropped stale variables from the tmux server global environment (not set by this command): ${stale_from_tmux[*]}"
+    info "  They come from an earlier session on this tmux server; to clear them: tmux set-environment -gu <name>"
   fi
   local -a command=(env "${env_unset[@]}" "${env_assign[@]}" bash "$0" "$@")
 
@@ -144,9 +144,9 @@ start_in_tmux_if_needed() {
   tmux new-session -d -s "$session_name" -n collection -c "$REPO_ROOT" "$command_text"
   tmux new-window -d -t "$session_name" -n monitor -c "$REPO_ROOT" \
     "watch -n 2 nvidia-smi"
-  info "已在 tmux 启动；没有在当前 terminal 中后台裸跑"
-  info "查看 collection: tmux attach -t ${session_name}"
-  info "查看 GPU: tmux select-window -t ${session_name}:monitor"
+  info "Started in tmux, not as a bare background job in this terminal"
+  info "View collection: tmux attach -t ${session_name}"
+  info "View GPU: tmux select-window -t ${session_name}:monitor"
   exit 0
 }
 
@@ -157,7 +157,7 @@ sha256_file() {
   elif command -v shasum >/dev/null 2>&1; then
     shasum -a 256 "$path" | awk '{print $1}'
   else
-    die "找不到 sha256sum 或 shasum，无法记录 prompt/image hash"
+    die "sha256sum or shasum not found; cannot record prompt/image hash"
   fi
 }
 
@@ -183,29 +183,29 @@ with open(path, encoding="utf-8") as handle:
         if not stripped or stripped.startswith("#"):
             continue
         if ":" not in raw_line:
-            raise SystemExit(f"{path}:{line_number}: 应为 KEY: VALUE")
+            raise SystemExit(f"{path}:{line_number}: expected KEY: VALUE")
         key, raw_value = raw_line.split(":", 1)
         key = key.strip()
         value_text = raw_value.strip()
         if not key_pattern.fullmatch(key):
-            raise SystemExit(f"{path}:{line_number}: 非法环境变量名 {key!r}")
+            raise SystemExit(f"{path}:{line_number}: invalid environment variable name {key!r}")
         if not value_text or value_text in {"null", "~"}:
             continue
         if value_text.startswith('"'):
             try:
                 value = json.loads(value_text)
             except json.JSONDecodeError as exc:
-                raise SystemExit(f"{path}:{line_number}: 双引号字符串无效: {exc}")
+                raise SystemExit(f"{path}:{line_number}: invalid double-quoted string: {exc}")
         elif value_text.startswith("'"):
             if len(value_text) < 2 or not value_text.endswith("'"):
-                raise SystemExit(f"{path}:{line_number}: 单引号字符串没有闭合")
+                raise SystemExit(f"{path}:{line_number}: unterminated single-quoted string")
             value = value_text[1:-1].replace("''", "'")
         else:
             value = value_text
         if not isinstance(value, str):
-            raise SystemExit(f"{path}:{line_number}: VALUE 必须是字符串")
+            raise SystemExit(f"{path}:{line_number}: VALUE must be a string")
         if "\n" in value or "\x00" in value:
-            raise SystemExit(f"{path}:{line_number}: VALUE 只能占一行")
+            raise SystemExit(f"{path}:{line_number}: VALUE must be a single line")
         if value:
             print(f"{key}={value}")
 PY
@@ -215,14 +215,14 @@ PY
     [[ -n "$env_line" ]] || continue
     env_key="${env_line%%=*}"
     export "$env_line"
-    info "已从 env.yaml 加载 ${env_key}"
+    info "Loaded ${env_key} from env.yaml"
   done <<< "$parsed_env"
 }
 
 load_collection_config() {
   local config_path="$1"
   local parsed line key value
-  [[ -f "$config_path" ]] || die "找不到采集配置：${config_path}（用 COLLECT_CONFIG= 覆盖）"
+  [[ -f "$config_path" ]] || die "Collection config not found: ${config_path} (override with COLLECT_CONFIG=)"
 
   parsed="$(
     "$PYTHON_BIN" - "$config_path" "$REPO_ROOT" <<'PY'
@@ -253,7 +253,7 @@ def parse_flat(p):
         if not stripped or stripped.startswith("#"):
             continue
         if ":" not in stripped:
-            raise SystemExit(f"{p}:{lineno}: 应为 key: value")
+            raise SystemExit(f"{p}:{lineno}: expected key: value")
         k, text = stripped.split(":", 1)
         out[k.strip()] = text.split("#", 1)[0].strip().strip('"').strip("'")
     return out
@@ -262,27 +262,27 @@ def parse_flat(p):
 cfg = parse_flat(path)
 for key, text in cfg.items():
     if key not in VAR_MAP:
-        raise SystemExit(f"{path}: 未知配置键 {key!r}（白名单见 load_collection_config）")
+        raise SystemExit(f"{path}: unknown config key {key!r} (see the allowlist in load_collection_config)")
     if VAR_MAP[key] is None or not text:
         continue
     if not value_pattern.fullmatch(text):
-        raise SystemExit(f"{path}: 键 {key} 的值 {text!r} 含非法字符")
+        raise SystemExit(f"{path}: value {text!r} of key {key} contains invalid characters")
     print(f"{VAR_MAP[key]}={text}")
 
 env_id = cfg.get("environment", "")
 if env_id:
     env_path = repo_root / "configs" / "environments" / f"{env_id}.yaml"
     if not env_path.is_file():
-        raise SystemExit(f"{path}: environment={env_id} 对应的 {env_path} 不存在")
+        raise SystemExit(f"{path}: {env_path} for environment={env_id} does not exist")
     env_cfg = parse_flat(env_path)
     for field, var in (("screen_width", "SCREEN_WIDTH"), ("screen_height", "SCREEN_HEIGHT")):
         text = env_cfg.get(field, "")
         if not text or not value_pattern.fullmatch(text):
-            raise SystemExit(f"{env_path}: 缺少可用的 {field}")
+            raise SystemExit(f"{env_path}: missing usable {field}")
         print(f"{var}={text}")
     print(f"ENVIRONMENT_CONFIG={env_path}")
 PY
-  )" || die "解析采集配置失败：${config_path}"
+  )" || die "Failed to parse collection config: ${config_path}"
 
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
@@ -290,7 +290,7 @@ PY
     value="${line#*=}"
     if [[ -n "${!key:-}" && "${!key}" != "$value" ]]; then
       if [[ "${ALLOW_CONFIG_OVERRIDE:-0}" == "1" ]]; then
-        COLLECT_OVERRIDDEN+=("${key}=${!key}（config 为 ${value}）")
+        COLLECT_OVERRIDDEN+=("${key}=${!key} (config: ${value})")
         continue
       fi
       COLLECT_IGNORED+=("${key}=${!key}")
@@ -326,20 +326,20 @@ with open(path, encoding="utf-8") as handle:
         elif ":" in stripped:
             key, value_text = stripped.split(":", 1)
         else:
-            raise SystemExit(f"{path}:{line_number}: 应为 KEY=VALUE 或 KEY: VALUE")
+            raise SystemExit(f"{path}:{line_number}: expected KEY=VALUE or KEY: VALUE")
         key = key.strip()
         value_text = value_text.strip()
         if not key_pattern.fullmatch(key):
-            raise SystemExit(f"{path}:{line_number}: 非法环境变量名 {key!r}")
+            raise SystemExit(f"{path}:{line_number}: invalid environment variable name {key!r}")
         if value_text.startswith(("\"", "'")):
             try:
                 value = ast.literal_eval(value_text)
             except (SyntaxError, ValueError) as exc:
-                raise SystemExit(f"{path}:{line_number}: quoted value 无效: {exc}")
+                raise SystemExit(f"{path}:{line_number}: invalid quoted value: {exc}")
         else:
             value = value_text
         if not isinstance(value, str) or "\n" in value or "\x00" in value:
-            raise SystemExit(f"{path}:{line_number}: VALUE 必须是单行字符串")
+            raise SystemExit(f"{path}:{line_number}: VALUE must be a single-line string")
         if value:
             print(f"{key}={value}")
 PY
@@ -349,7 +349,7 @@ PY
     [[ -n "$env_line" ]] || continue
     env_key="${env_line%%=*}"
     export "$env_line"
-    info "已从 $(basename "$dotenv_path") 加载 ${env_key}"
+    info "Loaded ${env_key} from $(basename "$dotenv_path")"
   done <<< "$parsed_env"
 }
 
@@ -384,7 +384,7 @@ resolve_agent() {
       RESOLVED_BASE_URL_ENV="QWEN35_BASE_URL"
       ;;
     rerail_35b_a3b)
-      [[ -n "${RERAIL_CHECKPOINT:-}" ]] || die "rerail_35b_a3b 需要 RERAIL_CHECKPOINT"
+      [[ -n "${RERAIL_CHECKPOINT:-}" ]] || die "rerail_35b_a3b requires RERAIL_CHECKPOINT"
       RESOLVED_AGENT_TYPE="qwen_cuabash"
       RESOLVED_MODEL="${RERAIL_CHECKPOINT}"
       RESOLVED_REQUIRED_ENV="LOCAL_ENDPOINT"
@@ -393,7 +393,7 @@ resolve_agent() {
       ;;
     claude_opus_4_8)
       [[ -n "${CLAUDE_OPUS_4_8_MODEL:-}" ]] || die \
-        "claude_opus_4_8 尚未冻结真实 API model ID；请先设置 CLAUDE_OPUS_4_8_MODEL"
+        "claude_opus_4_8 has no frozen API model ID yet; set CLAUDE_OPUS_4_8_MODEL first"
       RESOLVED_AGENT_TYPE="claude_cuabash"
       RESOLVED_MODEL="${CLAUDE_OPUS_4_8_MODEL}"
       RESOLVED_REQUIRED_ENV="ANTHROPIC_API_KEY"
@@ -420,7 +420,7 @@ resolve_agent() {
       RESOLVED_BASE_URL_ENV=""
       ;;
     *)
-      die "未知 agent_id：${agent_id}；请使用 configs/agents/ 中定义的名称"
+      die "Unknown agent_id: ${agent_id}; use a name defined in configs/agents/"
       ;;
   esac
 }
@@ -461,7 +461,7 @@ assert_endpoint_is_ours() {
   published="$(docker ps --filter label=recovery.project=RECOVERY \
     --filter "label=recovery.agent_id=${agent_id}" --format '{{.Ports}}' 2>/dev/null || true)"
   grep -q "127\.0\.0\.1:${port}->" <<< "$published" || die \
-    "端口 ${port} 上有服务在应答，但它不是 ${agent_id} 的 container（本次发布的端口：${published//$'\n'/ }）；换一段端口重跑：SERVING_PORT_BASE=8100"
+    "Something answers on port ${port}, but it is not the ${agent_id} container (published ports: ${published//$'\n'/ }); rerun on another port range: SERVING_PORT_BASE=8100"
 }
 
 wait_for_endpoints() {
@@ -476,7 +476,7 @@ wait_for_endpoints() {
   local url
   local http_code
   for url in "${url_list[@]}"; do
-    info "等待 endpoint ready：${url}（最多 ${SERVE_READY_TIMEOUT}s）"
+    info "Waiting for endpoint ready: ${url} (up to ${SERVE_READY_TIMEOUT}s)"
     while true; do
       http_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
         "${url}/models" || true)"
@@ -488,13 +488,13 @@ wait_for_endpoints() {
       container_count="$(serving_container_count "$agent_id")"
       (( container_count > 0 )) && seen_container=1
       if (( seen_container == 1 && container_count == 0 )); then
-        die "${agent_id} 的 serving container 已退出；日志见 ${SERVING_LOG_ROOT} 下最新的 endpoint_*.log"
+        die "${agent_id} serving container exited; see the latest endpoint_*.log under ${SERVING_LOG_ROOT}"
       fi
       if (( seen_container == 0 && SECONDS > startup_grace )); then
-        die "${agent_id} 的 serving container 在 ${SERVE_STARTUP_GRACE}s 内没有出现；检查 tmux session recovery-serve-* 和 ${SERVING_LOG_ROOT}"
+        die "${agent_id} serving container did not appear within ${SERVE_STARTUP_GRACE}s; check tmux session recovery-serve-* and ${SERVING_LOG_ROOT}"
       fi
       (( SECONDS < deadline )) || die \
-        "${agent_id} 的 endpoint 在 ${SERVE_READY_TIMEOUT}s 内没有 ready：${url}"
+        "${agent_id} endpoint not ready within ${SERVE_READY_TIMEOUT}s: ${url}"
       sleep "$SERVE_POLL_SECONDS"
     done
   done
@@ -506,9 +506,9 @@ auto_serve_stop() {
   [[ -n "$AUTO_SERVED_AGENT" ]] || return 0
   local agent_id="$AUTO_SERVED_AGENT"
   AUTO_SERVED_AGENT=""
-  info "停止自动启动的 endpoint：${agent_id}"
+  info "Stopping auto-started endpoint: ${agent_id}"
   bash "$SERVE_SCRIPT" stop "$agent_id" || \
-    printf '[RECOVERY collection] 警告：停止 %s 失败，请手动检查 docker ps\n' "$agent_id" >&2
+    printf '[RECOVERY collection] warning: failed to stop %s; check docker ps manually\n' "$agent_id" >&2
   sleep "${SERVE_SETTLE_SECONDS:-15}"
 }
 
@@ -549,7 +549,7 @@ endpoint_watchdog_start() {
         failures["$url"]=$(( failures["$url"] + 1 ))
         if (( failures["$url"] >= max_failures )); then
           printf '%s\n' "$url" > "$trip_file"
-          printf '[RECOVERY collection] endpoint %s 连续 %d 次探测失败，正在中止 runner\n' \
+          printf '[RECOVERY collection] endpoint %s failed %d consecutive probes; aborting runner\n' \
             "$url" "${failures["$url"]}" >&2
           pkill -TERM -f "run_parallel_tasks.py.*${runner_pattern}" || true
           exit 0
@@ -591,16 +591,16 @@ auto_serve_start() {
   running="$(serving_container_count "$agent_id")"
   if (( running > 0 )); then
     replicas="$running"
-    info "${agent_id} 已有 ${replicas} 个 serving container 在跑；复用，结束时不会停掉它"
+    info "${agent_id} already has ${replicas} serving containers running; reusing them, they will not be stopped at the end"
   else
     replicas="${SERVE_REPLICAS:-$(default_serve_replicas "$agent_id")}"
     local ceiling
     ceiling="$(default_serve_replicas "$agent_id")"
     if (( replicas > ceiling )); then
-      info "${agent_id} 在本机的 endpoint 上限是 ${ceiling}（按可用 GPU 推导）；忽略 SERVE_REPLICAS=${replicas}"
+      info "${agent_id} endpoint ceiling on this host is ${ceiling} (derived from usable GPUs); ignoring SERVE_REPLICAS=${replicas}"
       replicas="$ceiling"
     fi
-    info "自动启动 ${agent_id} 的 vLLM endpoint（${replicas} 个 replica）"
+    info "Auto-starting ${agent_id} vLLM endpoint (${replicas} replicas)"
     bash "$SERVE_SCRIPT" start "$agent_id" "$replicas"
     AUTO_SERVED_AGENT="$agent_id"
   fi
@@ -609,7 +609,7 @@ auto_serve_start() {
   urls="$(serving_base_urls "$replicas")"
   if [[ -n "$urls_variable" ]]; then
     if [[ -n "${!urls_variable:-}" && "${!urls_variable}" != "$urls" ]]; then
-      info "覆盖 ${urls_variable}：${!urls_variable} → ${urls}（RECOVERY_AUTO_SERVE=0 可保留 .env 的值）"
+      info "Overriding ${urls_variable}: ${!urls_variable} → ${urls} (RECOVERY_AUTO_SERVE=0 keeps the .env value)"
     fi
     export "${urls_variable}=${urls}"
   fi
@@ -620,50 +620,50 @@ start_in_tmux_if_needed "$@"
 
 load_collection_config "$COLLECT_CONFIG"
 
-is_positive_integer "$REPEATS" || die "REPEATS 必须是正整数"
-is_positive_integer "$MAX_STEPS" || die "MAX_STEPS 必须是正整数"
-is_positive_integer "$TIMEOUT_PER_VM" || die "TIMEOUT_PER_VM 必须是正整数"
-is_positive_integer "$TASK_TIMEOUT" || die "TASK_TIMEOUT 必须是正整数"
-is_positive_integer "$CONTEXT_IMAGES" || die "CONTEXT_IMAGES 必须是正整数"
-(( TASK_TIMEOUT < TIMEOUT_PER_VM )) || die "TASK_TIMEOUT 必须小于 TIMEOUT_PER_VM，否则单任务上限形同虚设"
-(( ${#AGENTS[@]} > 0 )) || die "AGENTS 不能为空"
-[[ "$DRY_RUN" == "0" || "$DRY_RUN" == "1" ]] || die "DRY_RUN 只能是 0 或 1"
+is_positive_integer "$REPEATS" || die "REPEATS must be a positive integer"
+is_positive_integer "$MAX_STEPS" || die "MAX_STEPS must be a positive integer"
+is_positive_integer "$TIMEOUT_PER_VM" || die "TIMEOUT_PER_VM must be a positive integer"
+is_positive_integer "$TASK_TIMEOUT" || die "TASK_TIMEOUT must be a positive integer"
+is_positive_integer "$CONTEXT_IMAGES" || die "CONTEXT_IMAGES must be a positive integer"
+(( TASK_TIMEOUT < TIMEOUT_PER_VM )) || die "TASK_TIMEOUT must be less than TIMEOUT_PER_VM, otherwise the per-task limit is meaningless"
+(( ${#AGENTS[@]} > 0 )) || die "AGENTS must not be empty"
+[[ "$DRY_RUN" == "0" || "$DRY_RUN" == "1" ]] || die "DRY_RUN must be 0 or 1"
 [[ "$FORMAL_COLLECTION" == "0" || "$FORMAL_COLLECTION" == "1" ]] || \
-  die "FORMAL_COLLECTION 只能是 0 或 1"
+  die "FORMAL_COLLECTION must be 0 or 1"
 [[ "$RECOVERY_TMUX" == "0" || "$RECOVERY_TMUX" == "1" ]] || \
-  die "RECOVERY_TMUX 只能是 0 或 1"
+  die "RECOVERY_TMUX must be 0 or 1"
 [[ "$RECOVERY_OPENAI_API_APPROVED" == "0" || "$RECOVERY_OPENAI_API_APPROVED" == "1" ]] || \
-  die "RECOVERY_OPENAI_API_APPROVED 只能是 0 或 1"
+  die "RECOVERY_OPENAI_API_APPROVED must be 0 or 1"
 [[ "$BACKEND" == "qemu" || "$BACKEND" == "docker" ]] || \
-  die "BACKEND 只能是 qemu 或 docker"
+  die "BACKEND must be qemu or docker"
 [[ "$RECOVERY_AUTO_SERVE" == "0" || "$RECOVERY_AUTO_SERVE" == "1" ]] || \
-  die "RECOVERY_AUTO_SERVE 只能是 0 或 1"
-is_positive_integer "$SERVE_READY_TIMEOUT" || die "SERVE_READY_TIMEOUT 必须是正整数"
-is_positive_integer "$SERVE_POLL_SECONDS" || die "SERVE_POLL_SECONDS 必须是正整数"
-is_positive_integer "$SERVE_STARTUP_GRACE" || die "SERVE_STARTUP_GRACE 必须是正整数"
+  die "RECOVERY_AUTO_SERVE must be 0 or 1"
+is_positive_integer "$SERVE_READY_TIMEOUT" || die "SERVE_READY_TIMEOUT must be a positive integer"
+is_positive_integer "$SERVE_POLL_SECONDS" || die "SERVE_POLL_SECONDS must be a positive integer"
+is_positive_integer "$SERVE_STARTUP_GRACE" || die "SERVE_STARTUP_GRACE must be a positive integer"
 if [[ -n "$SERVE_REPLICAS" ]]; then
-  is_positive_integer "$SERVE_REPLICAS" || die "SERVE_REPLICAS 必须是正整数"
+  is_positive_integer "$SERVE_REPLICAS" || die "SERVE_REPLICAS must be a positive integer"
 fi
 if [[ -n "$NUM_VMS_OVERRIDE" ]]; then
-  is_positive_integer "$NUM_VMS_OVERRIDE" || die "NUM_VMS_OVERRIDE 必须是正整数"
+  is_positive_integer "$NUM_VMS_OVERRIDE" || die "NUM_VMS_OVERRIDE must be a positive integer"
 fi
 if [[ "$RECOVERY_AUTO_SERVE" == "1" && "$DRY_RUN" == "0" ]]; then
   [[ -x "$SERVE_SCRIPT" || -f "$SERVE_SCRIPT" ]] || die \
-    "RECOVERY_AUTO_SERVE=1 但找不到 serving 脚本：${SERVE_SCRIPT}"
+    "RECOVERY_AUTO_SERVE=1 but serving script not found: ${SERVE_SCRIPT}"
   command -v curl >/dev/null 2>&1 || die \
-    "RECOVERY_AUTO_SERVE=1 需要 curl 探测 endpoint ready；请安装 curl 或设置 RECOVERY_AUTO_SERVE=0"
+    "RECOVERY_AUTO_SERVE=1 needs curl to probe endpoint readiness; install curl or set RECOVERY_AUTO_SERVE=0"
   command -v docker >/dev/null 2>&1 || die \
-    "RECOVERY_AUTO_SERVE=1 需要 docker；请安装 docker 或设置 RECOVERY_AUTO_SERVE=0"
+    "RECOVERY_AUTO_SERVE=1 needs docker; install docker or set RECOVERY_AUTO_SERVE=0"
 fi
-command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "找不到 Python：${PYTHON_BIN}"
-command -v git >/dev/null 2>&1 || die "找不到 git"
-[[ -f "$MODELS_LOCK" ]] || die "找不到模型锁文件：${MODELS_LOCK}"
+command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "Python not found: ${PYTHON_BIN}"
+command -v git >/dev/null 2>&1 || die "git not found"
+[[ -f "$MODELS_LOCK" ]] || die "Model lock file not found: ${MODELS_LOCK}"
 export PYTHONPATH="${REPO_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
 for image_var in OPENAI_ZDR_KEEP_IMAGES MYPCBENCH_QWEN_IMAGE_MAX; do
   if [[ -n "${!image_var:-}" && "${!image_var}" != "$CONTEXT_IMAGES" ]]; then
     if [[ "${ALLOW_CONFIG_OVERRIDE:-0}" == "1" ]]; then
-      COLLECT_OVERRIDDEN+=("${image_var}=${!image_var}（config context_images 为 ${CONTEXT_IMAGES}）")
+      COLLECT_OVERRIDDEN+=("${image_var}=${!image_var} (config context_images: ${CONTEXT_IMAGES})")
       continue
     fi
     COLLECT_IGNORED+=("${image_var}=${!image_var}")
@@ -677,10 +677,10 @@ export PYTHONPATH="${REPO_ROOT}/src/recovery/rollout/site_hook:${PYTHONPATH}"
 if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   for secret_file in .env env.yaml; do
     if git -C "$REPO_ROOT" ls-files --error-unmatch "$secret_file" >/dev/null 2>&1; then
-      die "${secret_file} 已进入 Git index；请先将它从 index 移除，禁止上传敏感信息"
+      die "${secret_file} is in the Git index; remove it from the index first, secrets must not be uploaded"
     fi
     git -C "$REPO_ROOT" check-ignore --quiet "$secret_file" || \
-      die "${secret_file} 没有被 .gitignore 保护"
+      die "${secret_file} is not covered by .gitignore"
   done
 fi
 
@@ -689,12 +689,12 @@ actual_commit="$(git -C "$MYPCBENCH_ROOT" rev-parse HEAD)"
 
 RUNNER="${MYPCBENCH_ROOT}/agent-harness/run_parallel_tasks.py"
 PROMPT_SOURCE="${MYPCBENCH_ROOT}/agent-harness/agents/prompts.py"
-[[ -f "$RUNNER" ]] || die "找不到官方 runner：${RUNNER}"
-[[ -f "$PROMPT_SOURCE" ]] || die "找不到官方 prompt source：${PROMPT_SOURCE}"
+[[ -f "$RUNNER" ]] || die "Official runner not found: ${RUNNER}"
+[[ -f "$PROMPT_SOURCE" ]] || die "Official prompt source not found: ${PROMPT_SOURCE}"
 
 SOURCE_TASKS_FILE="${TASKS_FILE:-$("$PYTHON_BIN" -m recovery.rollout.tasks --source "$TASK_SOURCE")}" \
-  || die "解析 task_source=${TASK_SOURCE} 失败"
-[[ -f "$SOURCE_TASKS_FILE" ]] || die "找不到 ${TASK_SOURCE} 的任务文件：${SOURCE_TASKS_FILE}"
+  || die "Failed to resolve task_source=${TASK_SOURCE}"
+[[ -f "$SOURCE_TASKS_FILE" ]] || die "Task file for ${TASK_SOURCE} not found: ${SOURCE_TASKS_FILE}"
 if [[ "$TASK_SOURCE" == "mypcbench" ]]; then
   TASKS_FILE="$SOURCE_TASKS_FILE"
 else
@@ -705,11 +705,11 @@ else
   fi
   task_source_summary="$("$PYTHON_BIN" -m recovery.rollout.tasks --source "$TASK_SOURCE" \
     --tasks-file "$SOURCE_TASKS_FILE" --out "$converted_tasks")" \
-    || die "转换 ${TASK_SOURCE} 任务失败"
+    || die "Failed to convert ${TASK_SOURCE} tasks"
   info "task_source=${TASK_SOURCE}：${task_source_summary}"
   TASKS_FILE="$converted_tasks"
 fi
-[[ -f "$TASKS_FILE" ]] || die "找不到 task 文件：${TASKS_FILE}"
+[[ -f "$TASKS_FILE" ]] || die "Task file not found: ${TASKS_FILE}"
 
 full_tasks_path="$($PYTHON_BIN - "${MYPCBENCH_ROOT}/tasks/final/all_tasks_with_grading.json" <<'PY'
 from pathlib import Path
@@ -738,9 +738,9 @@ export FORMAL_COLLECTION LOCK_FORMAL_AUTHORIZED IS_FULL_TASK_SET
 export TASK_TIMEOUT TIMEOUT_PER_VM TASKS_FILE CONTEXT_IMAGES TASK_SOURCE SOURCE_TASKS_FILE
 if [[ "$DRY_RUN" == "0" && "$IS_FULL_TASK_SET" == "1" ]]; then
   [[ "$FORMAL_COLLECTION" == "1" ]] || die \
-    "检测到完整正式 task 文件；必须在得到用户确认后显式设置 FORMAL_COLLECTION=1"
+    "Full formal task file detected; set FORMAL_COLLECTION=1 explicitly after user confirmation"
   [[ "$LOCK_FORMAL_AUTHORIZED" == "1" ]] || die \
-    "models.lock.yaml 仍为 formal_collection_authorized: false；禁止启动 184×3"
+    "models.lock.yaml still has formal_collection_authorized: false; refusing to start 184×3"
 fi
 
 if [[ -f "${MYPCBENCH_ROOT}/.env" ]]; then
@@ -752,33 +752,33 @@ load_dotenv "$ROOT_DOTENV"
 
 if [[ "$DRY_RUN" != "1" && -n "${OPENAI_API_KEY:-}" ]]; then
   [[ "$RECOVERY_OPENAI_API_APPROVED" == "1" ]] || die \
-    "检测到 OPENAI_API_KEY，但本次运行未获 API 授权；请先说明用途并在获批后仅对本次命令设置 RECOVERY_OPENAI_API_APPROVED=1"
+    "OPENAI_API_KEY detected but this run has no API approval; state the purpose and, once approved, set RECOVERY_OPENAI_API_APPROVED=1 for this command only"
   case "$RECOVERY_OPENAI_API_PURPOSE" in
     mypcbench_npc_replies)
-      info "本次已获批的 OpenAI API 用途：MyPCBench NPC replies；不会用于 judge"
+      info "Approved OpenAI API use for this run: MyPCBench NPC replies; not used for judging"
       ;;
     mypcbench_collection_agent)
-      info "本次已获批的 OpenAI API 用途：MyPCBench collection agent 推理；不会用于 judge"
+      info "Approved OpenAI API use for this run: MyPCBench collection agent inference; not used for judging"
       ;;
     *)
-      die "collection 的 API 用途必须显式为 RECOVERY_OPENAI_API_PURPOSE=mypcbench_npc_replies 或 mypcbench_collection_agent"
+      die "Collection API purpose must be RECOVERY_OPENAI_API_PURPOSE=mypcbench_npc_replies or mypcbench_collection_agent"
       ;;
   esac
 fi
 if [[ "$DRY_RUN" != "1" && "$IS_FULL_TASK_SET" == "1" ]]; then
   [[ -n "${OPENAI_API_KEY:-}" ]] || die \
-    "完整 MyPCBench collection 需要 .env 中的 OPENAI_API_KEY 供 NPC replies 使用"
+    "Full MyPCBench collection needs OPENAI_API_KEY in .env for NPC replies"
 fi
 
 if [[ "$DRY_RUN" != "1" && -n "${ANTHROPIC_API_KEY:-}" ]]; then
   [[ "$RECOVERY_ANTHROPIC_API_APPROVED" == "1" ]] || die \
-    "检测到 ANTHROPIC_API_KEY，但本次运行未获 API 授权；请先说明用途并在获批后仅对本次命令设置 RECOVERY_ANTHROPIC_API_APPROVED=1"
+    "ANTHROPIC_API_KEY detected but this run has no API approval; state the purpose and, once approved, set RECOVERY_ANTHROPIC_API_APPROVED=1 for this command only"
   case "$RECOVERY_ANTHROPIC_API_PURPOSE" in
     mypcbench_collection_agent)
-      info "本次已获批的 Anthropic API 用途：MyPCBench collection agent 推理；不会用于 judge"
+      info "Approved Anthropic API use for this run: MyPCBench collection agent inference; not used for judging"
       ;;
     *)
-      die "collection 的 Anthropic API 用途必须显式为 RECOVERY_ANTHROPIC_API_PURPOSE=mypcbench_collection_agent"
+      die "Collection Anthropic API purpose must be RECOVERY_ANTHROPIC_API_PURPOSE=mypcbench_collection_agent"
       ;;
   esac
 fi
@@ -802,11 +802,11 @@ if [[ "$DRY_RUN" == "0" ]]; then
   for agent_id in "${AGENTS[@]}"; do
     [[ "$(agent_family "$REPO_ROOT" "$agent_id" || true)" == qwen35 ]] || continue
     [[ -n "${MYPCBENCH_QWEN_MAX_TOKENS:-}" ]] || die \
-      "Qwen3.5 真实运行必须显式设置 MYPCBENCH_QWEN_MAX_TOKENS；probe 的 4096 不会自动转为正式配置"
+      "Real Qwen3.5 runs must set MYPCBENCH_QWEN_MAX_TOKENS explicitly; the probe value 4096 is not promoted automatically"
     [[ -n "${MYPCBENCH_QWEN_HISTORY_N:-}" ]] || die \
-      "Qwen3.5 真实运行必须显式设置 MYPCBENCH_QWEN_HISTORY_N；probe 的历史策略不会自动转为正式配置"
+      "Real Qwen3.5 runs must set MYPCBENCH_QWEN_HISTORY_N explicitly; the probe history policy is not promoted automatically"
     [[ "${MYPCBENCH_QWEN_CONTEXT_POLICY:-}" == "tokenize_oldest_first_v1" ]] || die \
-      "Qwen3.5 真实运行必须显式设置 MYPCBENCH_QWEN_CONTEXT_POLICY=tokenize_oldest_first_v1"
+      "Real Qwen3.5 runs must set MYPCBENCH_QWEN_CONTEXT_POLICY=tokenize_oldest_first_v1 explicitly"
   done
 fi
 export QWEN35_ENDPOINT_CONTRACTS_JSON
@@ -840,10 +840,10 @@ except LaunchContractError as exc:
 print(json.dumps(contracts, separators=(",", ":")))
 PY
   )"; then
-    die "Qwen3.5 endpoint/context preflight 未通过"
+    die "Qwen3.5 endpoint/context preflight failed"
   fi
   export QWEN35_ENDPOINT_CONTRACTS_JSON
-  info "Qwen3.5 endpoint/context preflight 通过：${QWEN35_ENDPOINT_CONTRACTS_JSON}"
+  info "Qwen3.5 endpoint/context preflight passed: ${QWEN35_ENDPOINT_CONTRACTS_JSON}"
 }
 
 record_qwen35_contracts() {
@@ -866,12 +866,12 @@ PY
 
 if [[ "$DRY_RUN" != "1" ]]; then
   if [[ "$BACKEND" == "qemu" ]]; then
-    [[ "$(uname -s)" == "Linux" ]] || die "QEMU 正式运行需要 Linux host"
+    [[ "$(uname -s)" == "Linux" ]] || die "Formal QEMU runs need a Linux host"
     if [[ ! -e /dev/kvm && "${ALLOW_NO_KVM:-0}" != "1" ]]; then
-      die "没有 /dev/kvm；如确实接受纯软件模拟，请显式设置 ALLOW_NO_KVM=1"
+      die "No /dev/kvm; to accept pure software emulation, set ALLOW_NO_KVM=1"
     fi
   else
-    command -v docker >/dev/null 2>&1 || die "BACKEND=docker 但找不到 docker"
+    command -v docker >/dev/null 2>&1 || die "BACKEND=docker but docker not found"
   fi
 fi
 
@@ -891,16 +891,16 @@ for banner_agent in "${AGENTS[@]}"; do
   agent_timeout_summary+="${banner_agent}=$(resolve_agent_task_timeout "$banner_agent")"
 done
 info "agents: ${AGENTS[*]}；repeats: ${REPEATS}；VMs: ${agent_vms_summary}"
-info "采集配置: $(realpath --relative-to="$REPO_ROOT" "$COLLECT_CONFIG")"
-info "  max_steps/agent: ${agent_steps_summary}（采集 config 默认 ${MAX_STEPS}）"
-info "  task_timeout/agent: ${agent_timeout_summary}（采集 config 默认 ${TASK_TIMEOUT}s）"
+info "Collection config: $(realpath --relative-to="$REPO_ROOT" "$COLLECT_CONFIG")"
+info "  max_steps/agent: ${agent_steps_summary} (collection config default ${MAX_STEPS})"
+info "  task_timeout/agent: ${agent_timeout_summary} (collection config default ${TASK_TIMEOUT}s)"
 info "  timeout_per_vm=${TIMEOUT_PER_VM}s backend=${BACKEND} screen=${SCREEN_WIDTH}x${SCREEN_HEIGHT} context_images=${CONTEXT_IMAGES}"
 info "  task_source=${TASK_SOURCE} environment_hooks=$(realpath --relative-to="$REPO_ROOT" "$RECOVERY_ENVIRONMENT_CONFIG")"
 if (( ${#COLLECT_OVERRIDDEN[@]} > 0 )); then
-  info "  ★ ALLOW_CONFIG_OVERRIDE=1，以下用环境变量而非 config：${COLLECT_OVERRIDDEN[*]}"
+  info "  ★ ALLOW_CONFIG_OVERRIDE=1, using environment instead of config for: ${COLLECT_OVERRIDDEN[*]}"
 fi
 if (( ${#COLLECT_IGNORED[@]} > 0 )); then
-  info "  已忽略与 config 冲突的环境变量：${COLLECT_IGNORED[*]}（要生效请设 ALLOW_CONFIG_OVERRIDE=1）"
+  info "  Ignored environment variables that conflict with config: ${COLLECT_IGNORED[*]} (set ALLOW_CONFIG_OVERRIDE=1 to apply them)"
 fi
 
 QCOW2_ARGS=()
@@ -908,12 +908,12 @@ image_sha256="not-applicable"
 if [[ "$BACKEND" == "qemu" ]]; then
   qcow2_path="${MYPCBENCH_QCOW2:-${MYPCBENCH_ROOT}/mypcbench-vm/mypcbench.qcow2}"
   if [[ "$DRY_RUN" != "1" && ! -f "$qcow2_path" ]]; then
-    info "首次下载 MyPCBench QEMU image；文件较大，请耐心等待"
+    info "Downloading MyPCBench QEMU image for the first time; this is a large file"
     bash "${MYPCBENCH_ROOT}/scripts/get-eval-image.sh" \
       --out "${MYPCBENCH_ROOT}/mypcbench-vm"
   fi
   if [[ "$DRY_RUN" != "1" ]]; then
-    [[ -f "$qcow2_path" ]] || die "找不到 QEMU image：${qcow2_path}"
+    [[ -f "$qcow2_path" ]] || die "QEMU image not found: ${qcow2_path}"
     qcow2_path="$(cd "$(dirname "$qcow2_path")" && pwd)/$(basename "$qcow2_path")"
     image_sha256="$(sha256_file "$qcow2_path")"
   fi
@@ -1075,15 +1075,15 @@ for agent_id in "${AGENTS[@]}"; do
   agent_max_steps_value="$(resolve_agent_max_steps "$agent_id")"
   agent_task_timeout_value="$(resolve_agent_task_timeout "$agent_id")"
   (( agent_task_timeout_value < TIMEOUT_PER_VM )) || die \
-    "${agent_id} 的 task_timeout(${agent_task_timeout_value}) 必须小于 TIMEOUT_PER_VM"
+    "${agent_id} task_timeout(${agent_task_timeout_value}) must be less than TIMEOUT_PER_VM"
   export RECOVERY_AGENT_MAX_STEPS="$agent_max_steps_value"
   if [[ "$agent_max_steps_value" != "$MAX_STEPS" ]]; then
-    info "${agent_id}：max_steps 取 agent config 声明的 ${agent_max_steps_value}（采集 config 默认 ${MAX_STEPS}）"
+    info "${agent_id}: max_steps from agent config: ${agent_max_steps_value} (collection config default ${MAX_STEPS})"
   fi
   if [[ -n "$NUM_VMS_OVERRIDE" ]]; then
-    info "${agent_id}：★ VM 数被 NUM_VMS_OVERRIDE 压到 ${agent_vms}（不覆盖时是 $(agent_vm_count "$REPO_ROOT" "$agent_id")）"
+    info "${agent_id}: ★ VM count capped to ${agent_vms} by NUM_VMS_OVERRIDE (default: $(agent_vm_count "$REPO_ROOT" "$agent_id"))"
   else
-    info "${agent_id}：VM 数 ${agent_vms}（本地 serving 按可用 GPU / tensor_parallel_size 推导，托管 API 取 yaml 的 num_vms）"
+    info "${agent_id}: ${agent_vms} VMs (local serving: usable GPUs / tensor_parallel_size; hosted API: num_vms from yaml)"
   fi
   VLLM_ARGS=()
   endpoint_urls=""
@@ -1096,24 +1096,24 @@ for agent_id in "${AGENTS[@]}"; do
       endpoint_urls="${!RESOLVED_BASE_URL_ENV:-$GENERIC_OPENAI_BASE_URL}"
     fi
     [[ -n "$endpoint_urls" ]] || die \
-      "${agent_id} 需要 ${RESOLVED_BASE_URLS_ENV}、${RESOLVED_BASE_URL_ENV} 或 OPENAI_BASE_URL"
+      "${agent_id} needs ${RESOLVED_BASE_URLS_ENV}, ${RESOLVED_BASE_URL_ENV} or OPENAI_BASE_URL"
     VLLM_ARGS=(--vllm-base-urls "$endpoint_urls")
     endpoint_count="$(awk -F',' '{print NF}' <<< "$endpoint_urls")"
     if (( agent_vms > endpoint_count )); then
-      info "注意：${agent_id} 的 ${agent_vms} 个 VM 将共享 ${endpoint_count} 个推理 endpoint"
+      info "Note: ${agent_vms} VMs of ${agent_id} will share ${endpoint_count} inference endpoints"
     fi
     if [[ "$(agent_family "$REPO_ROOT" "$agent_id" || true)" == qwen35 && "$DRY_RUN" == "0" ]]; then
       qwen35_endpoint_preflight "$endpoint_urls"
       record_qwen35_contracts "${run_root}/collection_manifest.json"
     fi
   elif [[ -n "$RESOLVED_REQUIRED_ENV" && -z "${!RESOLVED_REQUIRED_ENV:-}" ]]; then
-    die "${agent_id} 需要环境变量 ${RESOLVED_REQUIRED_ENV}"
+    die "${agent_id} needs environment variable ${RESOLVED_REQUIRED_ENV}"
   fi
 
   export RECOVERY_AGENT_ID="$agent_id"
 
   repeat_start_index="${REPEAT_START_INDEX:-1}"
-  is_positive_integer "$repeat_start_index" || die "REPEAT_START_INDEX 必须是正整数"
+  is_positive_integer "$repeat_start_index" || die "REPEAT_START_INDEX must be a positive integer"
   repeat_end_index=$((repeat_start_index + REPEATS - 1))
   for repeat_index in $(seq "$repeat_start_index" "$repeat_end_index"); do
     result_dir="${run_root}/${agent_id}/repeat_${repeat_index}"
@@ -1150,16 +1150,16 @@ for agent_id in "${AGENTS[@]}"; do
       if endpoint_watchdog_tripped; then
         dead_endpoint="$(cat "$ENDPOINT_WATCHDOG_TRIP")"
         rm -f "$ENDPOINT_WATCHDOG_TRIP"
-        die "${agent_id} repeat ${repeat_index}：endpoint ${dead_endpoint} 在采集途中消失，
-     runner 已被中止。${result_dir} 下这一刻之后的 episode 都是空壳（PREDICT_CRASH +
-     result.txt=1.0），必须删掉重跑，不要拿去判分。
-     先确认没有别的 collection 在抢同一批显卡，再看 ${SERVING_LOG_ROOT} 下最新的 endpoint_*.log。"
+        die "${agent_id} repeat ${repeat_index}: endpoint ${dead_endpoint} disappeared mid-collection,
+     runner aborted. Episodes under ${result_dir} from this point on are empty shells (PREDICT_CRASH +
+     result.txt=1.0); delete and rerun them, do not judge them.
+     First make sure no other collection is using the same GPUs, then check the latest endpoint_*.log under ${SERVING_LOG_ROOT}."
       fi
       if [[ -n "$ENDPOINT_WATCHDOG_TRIP" ]]; then
         rm -f "$ENDPOINT_WATCHDOG_TRIP"
       fi
       (( runner_status == 0 )) || die \
-        "${agent_id} repeat ${repeat_index}：runner 以退出码 ${runner_status} 结束"
+        "${agent_id} repeat ${repeat_index}: runner exited with code ${runner_status}"
     fi
   done
 
@@ -1184,13 +1184,13 @@ for field in ("num_vms_per_agent", "max_steps_per_agent", "task_timeout_per_agen
 
 target = run_root / f"collection_manifest.{agent_id}.json"
 target.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-print(f"[RECOVERY collection] 已留存 {target.name}")
+print(f"[RECOVERY collection] Saved {target.name}")
 PY
   fi
 done
 
 if [[ "$DRY_RUN" == "1" ]]; then
-  info "dry run 完成，没有启动 VM 或调用模型"
+  info "Dry run done; no VM started and no model called"
 else
-  info "collection 完成：${run_root}"
+  info "Collection done: ${run_root}"
 fi

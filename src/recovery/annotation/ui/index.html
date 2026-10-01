@@ -216,15 +216,10 @@
   label.chk { display: block; padding: 1px 0; cursor: pointer; }
   label.chk input { margin-right: 6px; }
   label.chk code { font-size: 11px; }
-  label.chk .label-zh { margin-left: 7px; color: var(--muted); font-size: 11px; }
+  label.chk .label-desc { margin-left: 7px; color: var(--muted); font-size: 11px; }
   .label-row { margin-bottom: 3px; }
   .label-row-head { display: flex; align-items: flex-start; gap: 6px; }
   .label-row-head > label.chk { flex: 1; min-width: 0; margin-bottom: 2px; }
-  .new-label-marker { margin-right: 5px; color: var(--accent); font-size: 10px; }
-  .open-label-controls { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; }
-  .open-label-controls select { width: 104px; padding: 1px 3px; font-size: 10px; }
-  .open-label-controls button { height: 23px; padding: 0 5px; font-size: 10px; }
-  .open-label-controls button.open-label-delete { width: 23px; padding: 0; font-size: 15px; }
   .type-step-editor {
     display: grid; grid-template-columns: 1fr auto; gap: 5px; margin: 0 0 7px 22px;
   }
@@ -235,29 +230,11 @@
     grid-column: 1 / -1; min-height: 54px !important; padding: 5px 6px !important;
     font-size: 11px !important;
   }
-  .chips { display: grid; gap: 4px; margin-top: 4px; }
-  .extra-label-row {
-    display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: start;
-    padding-bottom: 7px; border-bottom: 1px solid #eef0f3;
-  }
-  .extra-label-row .type-evidence-input { grid-column: 2 / -1; }
-  .chip {
-    display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px 2px 7px;
-    border: 1px solid var(--evid); border-radius: 10px; font-size: 11px; color: #0d5c39;
-    background: #eaf7f0;
-  }
-  .chip button { border: 0; background: transparent; padding: 0 2px; color: #0d5c39; }
   input[type=text], textarea, select, input[type=number] {
     width: 100%; font: inherit; padding: 5px 7px;
     border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--text);
   }
   textarea { min-height: 96px; resize: vertical; }
-  .row { display: flex; gap: 6px; }
-  .row input { flex: 1; min-width: 0; }
-  .row button { flex: 0 0 auto; white-space: nowrap; }
-  .new-label-row { display: grid; grid-template-columns: minmax(110px, 150px) minmax(0, 1fr) auto; }
-  .new-label-row select, .new-label-row input { min-width: 0; }
-  .new-label-row .new-label-description { grid-column: 1 / -1; }
   .clean-current { margin: 6px 0; }
   .clean-list { margin: 6px 0; padding: 0; list-style: none; }
   .clean-list li {
@@ -302,10 +279,10 @@
   <span class="tag" id="tagCount">— actions</span>
   <span class="grow"></span>
   <span class="tag" id="tagSaved">Unsaved</span>
-  <button class="tiny" id="saveNow" title="Write this draft to a recoverable server-side JSON file">Save Now / 保存</button>
-  <button class="tiny" id="previousTask" title="Save this draft, then open the previous task in this agent and category">Back / 上一条</button>
-  <button class="tiny" id="nextTask" title="Save this draft, then open the next unsubmitted task">Next / 下一条</button>
-  <button class="tiny" id="exportResults" title="Download compact analysis-ready results as JSONL">Export JSONL / 导出</button>
+  <button class="tiny" id="saveNow" title="Write this draft to a recoverable server-side JSON file">Save Now</button>
+  <button class="tiny" id="previousTask" title="Save this draft, then open the previous task in this agent and category">Back</button>
+  <button class="tiny" id="nextTask" title="Save this draft, then open the next unsubmitted task">Next</button>
+  <button class="tiny" id="exportResults" title="Download compact analysis-ready results as JSONL">Export JSONL</button>
 </header>
 
 <main id="layout">
@@ -348,7 +325,7 @@
         <span class="perfect-success-tag" id="perfectSuccessTag" hidden>Perfect Success</span>
         <span class="wrong-rollout-tag" id="wrongRolloutTag" hidden>Needs Rerun</span>
         <button class="tiny" id="clearTask"
-                title="Clear only your draft or submission for this task; other annotators and tasks are unaffected">Clear / 清除</button>
+                title="Clear only your draft or submission for this task; other annotators and tasks are unaffected">Clear</button>
         <button class="tiny" id="wrongRollout" aria-pressed="false"
                 title="Mark this trajectory as the wrong rollout; no scoring or failure annotation will be submitted">Set Wrong Rollout</button>
         <button class="tiny" data-act="root">Set Root Cause (R)</button>
@@ -412,26 +389,9 @@
         <div class="hint">Each checkpoint is Root Cause + configured depth.</div>
       </div>
 
-      <h3>2 · Error Types / 错误类型（多选，开放编码 / multi-select, open coding）</h3>
+      <h3>2 · Error Types (multi-select)</h3>
       <div id="labelGroups"></div>
-      <div class="row new-label-row">
-        <select id="newLabelCategory" aria-label="New label category">
-          <option value="">Category / 分类</option>
-          <option value="planning">规划 · planning</option>
-          <option value="perception">感知 · perception</option>
-          <option value="execution">执行 · execution</option>
-          <option value="termination">终止 · termination</option>
-          <option value="others">其他 · others</option>
-        </select>
-        <input type="text" id="newLabel" list="knownExtra" placeholder="New label / 新标签（空格会自动转为下划线）">
-        <button class="tiny" id="addLabel">Add / 加入</button>
-        <input type="text" id="newLabelDescription" class="new-label-description"
-          placeholder="中文解释（必填）：说明这个错误具体指什么、与相近标签有什么区别">
-      </div>
-      <datalist id="knownExtra"></datalist>
-      <div class="hint" id="extraHint"></div>
-      <div class="chips" id="extraChips"></div>
-      <div class="hint">每个已选错误类型都要填写 Action steps 和 Evidence。Evidence 应说明对应画面或动作具体证明了什么。</div>
+      <div class="hint">Every selected error type needs action steps and evidence. Evidence should state what the screen or action shows.</div>
 
       <h3>3 · reversibility</h3>
       <select id="rev">
@@ -442,7 +402,7 @@
       <div class="hint">Judge the consequence of the <b>root-cause action</b>, not the whole trajectory.</div>
 
       <h3>4 · rationale</h3>
-      <textarea id="rationale" placeholder="Root-cause rationale / 根因说明：请说明为什么选择这个 Step 作为 root cause，并写明该 root cause 的核心 error type 及对应 evidence。"></textarea>
+      <textarea id="rationale" placeholder="Root-cause rationale: explain why this step is the root cause, and name its core error type and the supporting evidence."></textarea>
 
       <h3>5 · Clean Prefix Review</h3>
       <div class="decision-help">
@@ -489,36 +449,12 @@ async function api(path, options) {
   const response = await fetch(path, opts);
   if (response.status === 401) {
     localStorage.removeItem("recovery.annot.token");
-    gate("<div><h2>访问口令缺失或不正确</h2><p>请使用管理员发给你的完整链接打开" +
-         "（形如 <code>…/?token=…</code>）。</p></div>");
+    gate("<div><h2>Missing or wrong access token</h2><p>Open the full link you were given " +
+         "(of the form <code>…/?token=…</code>).</p></div>");
     throw new Error("unauthorized");
   }
   return response;
 }
-
-const ERROR_TYPE_ZH = {
-  detail_misperception: "漏看或误读了影响结果的局部信息、数值、文本或具体要求",
-  fabricate_data: "编造了未从界面、文件、工具结果或其他可靠证据中获得的数据",
-  fail_to_terminate: "任务已明确成功或无法继续时仍未结束，并继续执行无效或重复操作",
-  grounding_failure: "知道要操作什么，但未能准确定位目标，导致点击、拖拽或操作落点失败",
-  incorrect_ui_element: "选择了与目标功能不同的按钮、字段、菜单或其他界面元素",
-  ineffective_action: "操作已执行但没有推进任务，也没有产生预期的界面或系统状态变化",
-  lack_of_knowledge: "缺少完成任务所必需的领域知识、规则知识或操作方法",
-  misunderstand_task_objective: "错误理解了任务的最终目标、交付物、对象范围或关键约束",
-  premature_completion: "尚未满足全部任务要求，就报告成功、提交结果或结束任务",
-  progress_misperception: "错误判断已完成的工作、剩余步骤或当前任务进度",
-  state_misinterpretation: "错误判断当前页面、应用、数据、登录/加载状态或工具能力，例如把已生效当作未生效、把可用工具当作不可用，并据此采取错误行动",
-  typing_or_parameter_error: "输入的文本、数值、日期、路径、坐标或工具参数不正确",
-};
-const GROUP_ZH = {
-  planning: "规划",
-  perception: "感知",
-  execution: "执行",
-  termination: "终止",
-  others: "其他",
-  seed_labels: "候选标签",
-};
-const OPEN_LABEL_CATEGORIES = ["planning", "perception", "execution", "termination", "others"];
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props, kids) => {
@@ -660,11 +596,11 @@ function gate(html) {
 }
 
 function showAnnotatorLogin() {
-  gate('<div class="login"><h2>Annotator Login / 标注者登录</h2>' +
-       '<p>请输入你的 ID。此浏览器会记住它，之后打开同一个链接无需再次填写。</p>' +
+  gate('<div class="login"><h2>Annotator Login</h2>' +
+       '<p>Enter your ID. This browser remembers it for the same link.</p>' +
        '<form id="annotatorLoginForm"><input id="annotatorLoginInput" type="text" ' +
-       'autocomplete="username" autofocus placeholder="Your annotator ID / 你的 ID">' +
-       '<button class="primary" type="submit">Continue / 进入</button></form>' +
+       'autocomplete="username" autofocus placeholder="Your annotator ID">' +
+       '<button class="primary" type="submit">Continue</button></form>' +
        '<div class="error" id="annotatorLoginError"></div></div>');
   const input = $("annotatorLoginInput");
   input.focus();
@@ -673,7 +609,7 @@ function showAnnotatorLogin() {
     const value = input.value.trim();
     if (!SAFE_ANNOTATOR.test(value)) {
       $("annotatorLoginError").textContent =
-        "ID 只能包含英文字母、数字、点、下划线和连字符，且必须以字母或数字开头。";
+        "An ID may contain only letters, digits, dots, underscores, and hyphens, and must start with a letter or digit.";
       input.focus();
       return;
     }
@@ -699,7 +635,6 @@ let RUBRIC_SCORES = {};
 let RANGE_SELECTION = new Set();
 let RANGE_ANCHOR = null;
 let SHOW_REMOVED = false;
-let LABEL_REFRESH_TIMER = null;
 const UI_ACTION_INDEX_BASE = 1;
 
 function displayActionNumber(index) {
@@ -710,48 +645,28 @@ function displayActionRef(index) {
   return `#${displayActionNumber(index)}`;
 }
 
-function applyCurrentTaxonomy(config) {
-  const taxonomy = config && config.taxonomy;
-  if (!taxonomy || taxonomy.mode !== "open_coding") return config;
-  const groups = {
-    planning: ["fabricate_data", "misunderstand_task_objective", "lack_of_knowledge"],
-    perception: ["progress_misperception", "detail_misperception", "state_misinterpretation"],
-    execution: ["grounding_failure", "incorrect_ui_element", "ineffective_action",
-      "typing_or_parameter_error"],
-    termination: ["fail_to_terminate", "premature_completion"],
-  };
-  const seedLabels = new Set(Object.values(groups).flat());
-  for (const [label, override] of Object.entries(config.error_type_overrides || {})) {
-    if (!seedLabels.has(label) || !OPEN_LABEL_CATEGORIES.includes(override.category)) continue;
-    for (const labels of Object.values(groups)) {
-      const index = labels.indexOf(label);
-      if (index >= 0) labels.splice(index, 1);
-    }
-    if (!groups[override.category]) groups[override.category] = [];
-    groups[override.category].push(label);
+function knownErrorTypes() {
+  return new Set(Object.values(CONFIG.taxonomy.groups).flat());
+}
+
+function migrateLegacyErrorTypes() {
+  const known = knownErrorTypes();
+  const map = CONFIG.taxonomy.label_map || {};
+  const types = new Set();
+  const steps = {};
+  const evidence = {};
+  for (const label of S.types) {
+    const target = Object.hasOwn(map, label) ? map[label] : label;
+    if (!known.has(target)) continue;
+    types.add(target);
+    const step = String(S.typeSteps[label] || "").trim();
+    if (step) steps[target] = steps[target] ? `${steps[target]},${step}` : step;
+    const detail = String(S.typeEvidence[label] || "").trim();
+    if (detail) evidence[target] = evidence[target] ? `${evidence[target]}\n${detail}` : detail;
   }
-  taxonomy.groups = groups;
-  taxonomy.seed_labels = [...seedLabels];
-  const currentSeed = new Set(taxonomy.seed_labels);
-  const incoming = config.open_coded_label_groups || {};
-  const grouped = Object.fromEntries(OPEN_LABEL_CATEGORIES.map((category) => [category, []]));
-  const assigned = new Set();
-  for (const category of OPEN_LABEL_CATEGORIES) {
-    for (const label of incoming[category] || []) {
-      if (label === "wrong_subgoal" || currentSeed.has(label) || assigned.has(label)) continue;
-      grouped[category].push(label);
-      assigned.add(label);
-    }
-  }
-  for (const label of config.known_extra_labels || []) {
-    if (label === "wrong_subgoal" || currentSeed.has(label) || assigned.has(label)) continue;
-    grouped.others.push(label);
-    assigned.add(label);
-  }
-  for (const category of OPEN_LABEL_CATEGORIES) grouped[category].sort();
-  config.open_coded_label_groups = grouped;
-  config.known_extra_labels = [...assigned].sort();
-  return config;
+  S.types = types;
+  S.typeSteps = steps;
+  S.typeEvidence = evidence;
 }
 
 const viewLocationKey = () => VIEW_LOCATION_PREFIX + ANNOTATOR;
@@ -779,7 +694,7 @@ function saveViewLocation() {
 
 const S = {
   root: null, ident: null, noHorizon: false,
-  types: new Set(), extra: new Set(),
+  types: new Set(),
   typeSteps: {}, typeEvidence: {}, rev: "", rationale: "", drops: {}, cleanReviewed: false,
   wrongRollout: false,
 };
@@ -807,7 +722,7 @@ function saveRubricDraft() {
 function serializedDraft() {
   return {
     root: S.root, ident: S.ident, noHorizon: S.noHorizon,
-    types: [...S.types], extra: [...S.extra],
+    types: [...S.types],
     typeStepInputBase: UI_ACTION_INDEX_BASE,
     typeSteps: S.typeSteps,
     typeEvidence: S.typeEvidence,
@@ -820,7 +735,7 @@ function serializedDraft() {
 function resetDraftState() {
   Object.assign(S, {
     root: null, ident: null, noHorizon: false,
-    types: new Set(), extra: new Set(),
+    types: new Set(),
     typeSteps: {}, typeEvidence: {}, rev: "", rationale: "", drops: {}, cleanReviewed: false,
     wrongRollout: false,
   });
@@ -830,7 +745,7 @@ function applyDraftState(d) {
   if (!d || typeof d !== "object" || Array.isArray(d)) return false;
   try {
     S.root = d.root; S.ident = d.ident; S.noHorizon = !!d.noHorizon;
-    S.types = new Set(d.types || []); S.extra = new Set(d.extra || []);
+    S.types = new Set([...(d.types || []), ...(d.extra || [])]);
     const typeStepInputBase = Number(d.typeStepInputBase) === UI_ACTION_INDEX_BASE
       ? UI_ACTION_INDEX_BASE
       : 0;
@@ -951,7 +866,7 @@ function submissionToDraftState(submission) {
   const cleaning = submission.cleaning_proposal;
   const state = {
     root: null, ident: null, noHorizon: false,
-    types: [], extra: [],
+    types: [],
     typeStepInputBase: UI_ACTION_INDEX_BASE,
     typeSteps: {}, typeEvidence: {},
     rev: "", rationale: "", drops: {}, cleanReviewed: false,
@@ -959,12 +874,7 @@ function submissionToDraftState(submission) {
   };
   if (annotation) {
     const labels = Array.isArray(annotation.error_types) ? annotation.error_types : [];
-    const taxonomy = (CONFIG && CONFIG.taxonomy) || {};
-    const seed = new Set(taxonomy.groups
-      ? Object.values(taxonomy.groups).flat()
-      : (taxonomy.seed_labels || []));
-    state.types = labels.filter((label) => seed.has(label));
-    state.extra = labels.filter((label) => !seed.has(label));
+    state.types = [...labels];
     state.root = Number.isInteger(annotation.root_cause_action_index)
       ? annotation.root_cause_action_index
       : null;
@@ -1017,15 +927,15 @@ function submittedNotice(restored) {
   let when = "";
   if (restored.submittedAt) {
     const parsed = new Date(restored.submittedAt);
-    when = `（${Number.isNaN(parsed.getTime()) ? restored.submittedAt : parsed.toLocaleString()}）`;
+    when = ` (${Number.isNaN(parsed.getTime()) ? restored.submittedAt : parsed.toLocaleString()})`;
   }
   const what = restored.wrongRollout
-    ? "标记为 wrong rollout"
+    ? "marked as wrong rollout"
     : (restored.taskSuccess
-      ? "判定任务成功，只提交了 rubric 评分"
-      : "rubric 评分 + failure annotation + clean-prefix proposal");
-  return `你已提交过这一条${when}：${what}。下面显示的就是你提交的内容；` +
-    "如需更正，改完再次 Submit 会覆盖为最新一次。";
+      ? "judged successful, rubric scores only"
+      : "rubric scores + failure annotation + clean-prefix proposal");
+  return `You already submitted this task${when}: ${what}. The form shows your submission; ` +
+    "to correct it, edit and Submit again to replace it.";
 }
 
 async function saveNow(options) {
@@ -1056,12 +966,12 @@ async function saveNow(options) {
     $("tagSaved").textContent = "Saved to server";
     if (!quiet) {
       $("okmsg").hidden = false;
-      $("okmsg").textContent = "当前进度已保存；关闭页面后可自动恢复。";
+      $("okmsg").textContent = "Progress saved; it will be restored after you close the page.";
     }
     return true;
   } catch (error) {
     $("tagSaved").textContent = "Server save failed";
-    if (!quiet) alert("服务器草稿保存失败：" + error.message + "\n浏览器内的自动草稿仍然保留。");
+    if (!quiet) alert("Server draft save failed: " + error.message + "\nThe browser auto-draft is kept.");
     return false;
   } finally {
     button.disabled = false;
@@ -1072,9 +982,9 @@ async function clearCurrentTask() {
   if (!TASK) return;
   const trajectoryId = TASK.trajectory_id;
   const confirmed = window.confirm(
-    `清除你在当前任务 ${trajectoryId} 上的全部进度吗？\n\n` +
-    "这会清除你的浏览器/服务器草稿、rubric 评分、failure annotation、" +
-    "clean-prefix proposal 和 wrong-rollout 标记。其他标注者和其他任务不会受影响。"
+    `Clear all your progress on task ${trajectoryId}?\n\n` +
+    "This clears your browser and server drafts, rubric scores, failure annotation, " +
+    "clean-prefix proposal, and wrong-rollout flag. Other annotators and tasks are unaffected."
   );
   if (!confirmed) return;
 
@@ -1102,7 +1012,7 @@ async function clearCurrentTask() {
     cur = 0;
     showBefore = false;
 
-    CONFIG = applyCurrentTaxonomy(await (await api("api/config")).json());
+    CONFIG = await (await api("api/config")).json();
     renderAnnotatorProgress();
     renderSelectors(trajectoryId);
     renderLabelGroups();
@@ -1112,10 +1022,10 @@ async function clearCurrentTask() {
     $("tagSaved").textContent = "Cleared";
     $("okmsg").hidden = false;
     $("okmsg").textContent = body.cleared_count
-      ? "已清除你在当前任务上的全部进度；其他人的进度未改动。"
-      : "当前任务没有已保存的进度；页面状态已重置。";
+      ? "Cleared all your progress on this task; other annotators are unaffected."
+      : "This task had no saved progress; the page state was reset.";
   } catch (error) {
-    alert("清除当前任务失败：" + error.message + "\n原进度未从浏览器中清除。");
+    alert("Clearing this task failed: " + error.message + "\nYour progress was not cleared from the browser.");
   } finally {
     button.disabled = false;
   }
@@ -1189,7 +1099,7 @@ function renderSteps() {
           checked: RANGE_SELECTION.has(actionId),
           disabled: boundary === null || actionId > boundary || actionId === S.root,
           title: boundary === null
-            ? "请先设置 Root Cause"
+            ? "Set the root cause first"
             : (actionId === S.root
               ? "The root-cause step cannot be removed"
               : (actionId > boundary
@@ -1459,8 +1369,7 @@ function renderForm() {
   }
 
   document.querySelectorAll("#labelGroups input[type=checkbox]").forEach((c) => {
-    const selected = c.dataset.openCoded === "true" ? S.extra : S.types;
-    c.checked = selected.has(c.value);
+    c.checked = S.types.has(c.value);
     const editor = document.querySelector(
       `.type-step-editor[data-step-label="${CSS.escape(c.value)}"]`
     );
@@ -1476,30 +1385,6 @@ function renderForm() {
       }
     }
   });
-  $("extraChips").textContent = "";
-  const knownExtraLabels = new Set(CONFIG.known_extra_labels || []);
-  for (const t of S.extra) {
-    if (knownExtraLabels.has(t)) continue;
-    const stepInput = makeTypeStepInput(t);
-    $("extraChips").append(el("div", { className: "extra-label-row" }, [
-      el("span", { className: "chip" }, [
-        t,
-        el("button", {
-          textContent: "×",
-          title: "Remove label",
-          onclick: () => {
-            S.extra.delete(t);
-            delete S.typeSteps[t];
-            delete S.typeEvidence[t];
-            commit();
-          },
-        }),
-      ]),
-      stepInput,
-      makeAddCurrentStepButton(t),
-      makeTypeEvidenceInput(t),
-    ]));
-  }
   $("rev").value = S.rev;
   if ($("rationale").value !== S.rationale) $("rationale").value = S.rationale;
   renderCleanPrefix();
@@ -1539,12 +1424,12 @@ function renderRangeToolbar() {
       ).length
     : 0;
   $("rangeSelectionCount").textContent = S.root === null
-    ? "先设置 Root Cause，才能选择要删除的 detour"
+    ? "Set the root cause before selecting a detour to remove"
     : (selected.length
       ? `${selected.length} selected${removedInside ? ` + ${removedInside} removed` : ""}: ` +
         `${displayActionRef(selectedStart)}` +
         `${selectedStart !== selectedEnd ? `–${displayActionRef(selectedEnd)}` : ""}`
-      : `可选择 ${displayActionRef(0)}–${displayActionRef(cleanBoundary())} 内的 recovered detour`);
+      : `Select a recovered detour within ${displayActionRef(0)}–${displayActionRef(cleanBoundary())}`);
   $("removeRange").disabled = !selected.length;
   const removedCount = Object.keys(S.drops).length;
   $("toggleRemoved").disabled = removedCount === 0;
@@ -1628,30 +1513,29 @@ function validate() {
   } else if (S.root !== null && S.ident < S.root) {
     e.push("The clear failure cannot precede the root cause.");
   }
-  const types = [...S.types, ...S.extra];
-  if (!types.length) e.push("Select or enter at least one error type / 至少选择或填写 1 个错误类型。");
-  if (new Set(types).size !== types.length) e.push("Duplicate error types are not allowed / 错误类型不允许重复。");
+  const types = [...S.types];
+  if (!types.length) e.push("Select at least one error type.");
   const typeSteps = {};
   const typeEvidence = {};
   for (const label of types) {
     const parsed = parseActionSteps(S.typeSteps[label]);
     if (parsed.error) {
-      e.push(`${label}: Action steps 格式错误；请填写类似 1、2-5 或 8,10,12。`);
+      e.push(`${label}: invalid action steps; use a form like 1, 2-5, or 8,10,12.`);
       continue;
     }
     if (!parsed.indices.length) {
-      e.push(`${label}: 请填写这个错误实际发生的 Action step。`);
+      e.push(`${label}: enter the action steps where this error occurs.`);
       continue;
     }
     const outside = parsed.indices.filter((index) => index < 0 || index >= TASK.actions.length);
     if (outside.length) {
-      e.push(`${label}: Action step 超出轨迹范围：${outside.map(displayActionNumber).join(", ")}。`);
+      e.push(`${label}: action steps outside the trajectory: ${outside.map(displayActionNumber).join(", ")}.`);
       continue;
     }
     typeSteps[label] = parsed.indices;
     const evidence = String(S.typeEvidence[label] || "").trim();
     if (!evidence) {
-      e.push(`${label}: 请填写 Evidence，说明对应 step 中看到了什么。`);
+      e.push(`${label}: enter evidence describing what the steps show.`);
     } else {
       typeEvidence[label] = evidence;
     }
@@ -1717,8 +1601,8 @@ function removeSelectedRange() {
   if (uncovered.length) {
     const preview = uncovered.slice(0, 8).map(displayActionRef).join(", ");
     alert(
-      `选区中仍有未选步骤：${preview}${uncovered.length > 8 ? "…" : ""}。` +
-      "请使用 Shift 选择完整连续范围；中间已经 removed 的步骤会自动合并。"
+      `The selection skips steps: ${preview}${uncovered.length > 8 ? "…" : ""}. ` +
+      "Use Shift to select a full contiguous range; removed steps inside it are merged automatically."
     );
     return;
   }
@@ -1805,10 +1689,6 @@ async function loadTask(trajectoryId) {
   const r = await api("api/task/" + encodeURIComponent(trajectoryId));
   if (!r.ok) { gate("<div>Failed to load trajectory: " + (await r.text()) + "</div>"); return; }
   TASK = await r.json();
-  try {
-    await refreshOpenCodedLabels(false);
-  } catch (_) {
-  }
   $("errors").textContent = "";
   const remembered = loadViewLocation();
   const rememberedPosition = remembered && remembered.trajectoryId === TASK.trajectory_id
@@ -1831,22 +1711,19 @@ async function loadTask(trajectoryId) {
     } catch (error) {
       $("tagSaved").textContent = "Recovery check failed";
       $("errors").append(el("li", {
-        textContent: "已提交内容/服务器草稿读取失败；仍可使用浏览器自动草稿：" + error.message,
+        textContent: "Could not read your submission or server draft; the browser auto-draft is still available: " + error.message,
       }));
     }
   }
-  S.types.delete("wrong_subgoal");
-  S.extra.delete("wrong_subgoal");
-  delete S.typeSteps.wrong_subgoal;
-  delete S.typeEvidence.wrong_subgoal;
+  migrateLegacyErrorTypes();
   if (currentTaskNeedsRerun()) S.wrongRollout = true;
   renderLabelGroups();
   renderTaskBrief();
   $("tagCount").textContent = TASK.actions.length + " actions";
   if (currentTaskIsSubmitted()) {
     $("tagSaved").textContent = restoredSubmission
-      ? "Submitted — 已载入你提交的内容"
-      : (hasLocalDraft ? "Submitted — 本地另有未提交的修改" : "Submitted");
+      ? "Submitted — your submission is loaded"
+      : (hasLocalDraft ? "Submitted — unsubmitted local edits exist" : "Submitted");
   } else if (hasLocalDraft && $("tagSaved").textContent !== "Recovered server draft") {
     $("tagSaved").textContent = "Recovered browser draft";
   } else if (!localStorage.getItem(draftKey()) && $("tagSaved").textContent !== "Recovery check failed") {
@@ -1871,12 +1748,12 @@ async function nextTask() {
   button.disabled = true;
   try {
     if (!(await saveNow({ quiet: true }))) {
-      alert("当前草稿没有保存到服务器，因此没有切换任务。请重试 Save Now。");
+      alert("The draft was not saved to the server, so the task was not switched. Retry Save Now.");
       return;
     }
     const response = await api("api/config");
     if (!response.ok) throw new Error("HTTP " + response.status);
-    CONFIG = applyCurrentTaxonomy(await response.json());
+    CONFIG = await response.json();
     renderAnnotatorProgress();
     const items = CONFIG.trajectories;
     const currentIndex = items.findIndex((item) => item.trajectory_id === TASK.trajectory_id);
@@ -1885,13 +1762,13 @@ async function nextTask() {
       : [...items.slice(currentIndex + 1), ...items.slice(0, currentIndex)];
     const next = ordered.find((item) => !item.annotated_by.includes(ANNOTATOR));
     if (!next || next.trajectory_id === TASK.trajectory_id) {
-      alert("没有其他未提交的任务了。可以点击 Export JSONL 导出结果。");
+      alert("No other unsubmitted tasks remain. Use Export JSONL to export results.");
       return;
     }
     renderSelectors(next.trajectory_id);
     await loadTask(next.trajectory_id);
   } catch (error) {
-    alert("切换下一条失败：" + error.message);
+    alert("Opening the next task failed: " + error.message);
   } finally {
     button.disabled = false;
   }
@@ -1902,12 +1779,12 @@ async function previousTask() {
   button.disabled = true;
   try {
     if (!(await saveNow({ quiet: true }))) {
-      alert("当前草稿没有保存到服务器，因此没有切换任务。请重试 Save Now。");
+      alert("The draft was not saved to the server, so the task was not switched. Retry Save Now.");
       return;
     }
     const response = await api("api/config");
     if (!response.ok) throw new Error("HTTP " + response.status);
-    CONFIG = applyCurrentTaxonomy(await response.json());
+    CONFIG = await response.json();
     renderAnnotatorProgress();
     const current = CONFIG.trajectories.find(
       (item) => item.trajectory_id === TASK.trajectory_id
@@ -1918,7 +1795,7 @@ async function previousTask() {
         item.task_category === current.task_category
     );
     if (items.length < 2) {
-      alert("当前 Agent 和 Category 下没有其他任务。");
+      alert("No other tasks exist for this agent and category.");
       return;
     }
     const currentIndex = items.findIndex(
@@ -1928,7 +1805,7 @@ async function previousTask() {
     renderSelectors(previous.trajectory_id);
     await loadTask(previous.trajectory_id);
   } catch (error) {
-    alert("切换上一条失败：" + error.message);
+    alert("Opening the previous task failed: " + error.message);
   } finally {
     button.disabled = false;
   }
@@ -1948,9 +1825,9 @@ async function exportResults() {
       throw new Error(body.error || ("HTTP " + response.status));
     }
     const body = await response.json();
-    alert(`已导出 ${body.record_count} 条结果到本地：\n${body.path}`);
+    alert(`Exported ${body.record_count} results locally:\n${body.path}`);
   } catch (error) {
-    alert("导出失败：" + error.message);
+    alert("Export failed: " + error.message);
   } finally {
     button.disabled = false;
   }
@@ -2009,7 +1886,7 @@ async function submit() {
         ? "Saved rubric scores, failure annotation, and clean-prefix proposal."
         : "Saved rubric scores: this trajectory was judged fully successful.");
     $("tagSaved").textContent = "Submitted";
-    CONFIG = applyCurrentTaxonomy(await (await api("api/config")).json());
+    CONFIG = await (await api("api/config")).json();
     renderAnnotatorProgress();
     renderSelectors(TASK.trajectory_id);
     renderLabelGroups();
@@ -2097,7 +1974,7 @@ function renderAnnotatorProgress() {
   select.textContent = "";
   select.append(el("option", {
     value: "",
-    textContent: `${ANNOTATOR} (current) · progress / 标注进度`,
+    textContent: `${ANNOTATOR} (current) · progress`,
   }));
   const agents = Object.keys(totals).sort();
   for (const annotator of [...annotators].sort()) {
@@ -2109,15 +1986,6 @@ function renderAnnotatorProgress() {
     }
   }
   select.value = "";
-}
-
-function normalizeOpenLabel(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .replace(/_+/g, "_");
 }
 
 function parseActionStepsAtBase(value, inputBase) {
@@ -2162,7 +2030,7 @@ function makeTypeStepInput(label) {
   const input = el("input", {
     type: "text",
     value: String(S.typeSteps[label] || ""),
-    placeholder: "Action steps，如 1、2-5 或 8,10",
+    placeholder: "Action steps, e.g. 1, 2-5, or 8,10",
     ariaLabel: `${label} action steps`,
   });
   input.oninput = (ev) => {
@@ -2176,7 +2044,7 @@ function makeTypeEvidenceInput(label) {
   const input = el("textarea", {
     className: "type-evidence-input",
     value: String(S.typeEvidence[label] || ""),
-    placeholder: "Evidence / 证据：这个 step 中具体看到了什么，为什么支持该错误类型？",
+    placeholder: "Evidence: what do these steps show, and why does it support this error type?",
     ariaLabel: `${label} evidence`,
   });
   input.oninput = (ev) => {
@@ -2189,7 +2057,7 @@ function makeTypeEvidenceInput(label) {
 function makeAddCurrentStepButton(label) {
   return el("button", {
     className: "tiny",
-    textContent: "+ 当前",
+    textContent: "+ Current",
     title: "Add the currently selected action",
     onclick: () => {
       if (!TASK || !TASK.actions.length) return;
@@ -2220,38 +2088,17 @@ function rationaleWithTypeEvidence(rationale, types, typeSteps, typeEvidence) {
   return `${String(rationale || "").trim()}\n\nError type evidence:\n${evidence.join("\n")}`.trim();
 }
 
-function errorTypeSet(openCoded) {
-  return openCoded ? S.extra : S.types;
-}
-
-function errorTypeDescription(label, openCoded) {
-  const override = CONFIG.error_type_overrides?.[label]?.description_zh;
-  if (override) return override;
-  return openCoded
-    ? (CONFIG.open_coded_label_descriptions?.[label] || "新增标签（暂无中文解释）")
-    : (ERROR_TYPE_ZH[label] || "Custom label / 自定义标签");
-}
-
-function errorTypeCategory(label, openCoded) {
-  const groups = openCoded ? CONFIG.open_coded_label_groups : CONFIG.taxonomy.groups;
-  return OPEN_LABEL_CATEGORIES.find(
-    (category) => (groups?.[category] || []).includes(label)
-  ) || "others";
-}
-
-function makeErrorTypeRow(label, openCoded) {
+function makeErrorTypeRow(label) {
   const cb = el("input", {
     type: "checkbox",
     value: label,
-    checked: errorTypeSet(openCoded).has(label),
+    checked: S.types.has(label),
   });
-  if (openCoded) cb.dataset.openCoded = "true";
   cb.onchange = () => {
-    const selectedSet = errorTypeSet(openCoded);
     if (cb.checked) {
-      selectedSet.add(label);
+      S.types.add(label);
     } else {
-      selectedSet.delete(label);
+      S.types.delete(label);
       delete S.typeSteps[label];
       delete S.typeEvidence[label];
     }
@@ -2266,271 +2113,29 @@ function makeErrorTypeRow(label, openCoded) {
     makeTypeEvidenceInput(label),
   ]);
   editor.dataset.stepLabel = label;
-  const labelContents = [cb];
-  if (openCoded) {
-    labelContents.push(el("span", { className: "new-label-marker", textContent: "(new)" }));
-  }
-  labelContents.push(
-    el("code", { textContent: label }),
-    el("span", {
-      className: "label-zh",
-      textContent: errorTypeDescription(label, openCoded),
-    })
-  );
   const header = el("div", { className: "label-row-head" }, [
-    el("label", { className: "chk" }, labelContents),
+    el("label", { className: "chk" }, [
+      cb,
+      el("code", { textContent: label }),
+      el("span", {
+        className: "label-desc",
+        textContent: (CONFIG.taxonomy.descriptions || {})[label] || "",
+      }),
+    ]),
   ]);
-  const categorySelect = el("select", {
-    title: "更换共享标签分类",
-    ariaLabel: `${label} category`,
-  }, OPEN_LABEL_CATEGORIES.map((category) => el("option", {
-    value: category,
-    textContent: `${GROUP_ZH[category]} · ${category}`,
-  })));
-  categorySelect.value = errorTypeCategory(label, openCoded);
-  categorySelect.onchange = () => updateErrorTypeCategory(label, openCoded, categorySelect);
-  const editButton = el("button", {
-    type: "button",
-    textContent: "解释",
-    title: "修改共享中文解释",
-    ariaLabel: `Edit Chinese description for ${label}`,
-    onclick: () => editErrorTypeDescription(label, openCoded),
-  });
-  const controls = [categorySelect, editButton];
-  if (openCoded) {
-    const deleteButton = el("button", {
-      type: "button",
-      className: "open-label-delete",
-      textContent: "×",
-      title: "删除共享新增标签",
-      ariaLabel: `Delete ${label}`,
-      onclick: () => deleteOpenCodedLabel(label),
-    });
-    controls.push(deleteButton);
-  }
-  header.append(el("div", { className: "open-label-controls" }, controls));
-  return el("div", { className: "label-row" }, [
-    header,
-    editor,
-  ]);
+  return el("div", { className: "label-row" }, [header, editor]);
 }
 
 function renderLabelGroups() {
   const box = $("labelGroups");
   box.textContent = "";
-  const customGroups = CONFIG.open_coded_label_groups || {};
-  const displayedGroups = [...Object.keys(CONFIG.taxonomy.groups)];
-  if ((customGroups.others || []).length && !displayedGroups.includes("others")) {
-    displayedGroups.push("others");
-  }
-  for (const group of displayedGroups) {
-    const labels = CONFIG.taxonomy.groups[group] || [];
-    const customLabels = customGroups[group] || [];
+  for (const [group, labels] of Object.entries(CONFIG.taxonomy.groups)) {
     const g = el("div", { className: "grp" }, [
-      el("div", {
-        className: "gname",
-        textContent: `${GROUP_ZH[group] || "标签组"} · ${group}`,
-      }),
+      el("div", { className: "gname", textContent: group }),
     ]);
-    for (const lab of labels) {
-      g.append(makeErrorTypeRow(lab, false));
-    }
-    for (const label of customLabels) g.append(makeErrorTypeRow(label, true));
+    for (const label of labels) g.append(makeErrorTypeRow(label));
     box.append(g);
   }
-  const knownExtraLabels = CONFIG.known_extra_labels || [];
-  const dl = $("knownExtra");
-  dl.textContent = "";
-  for (const t of knownExtraLabels) dl.append(el("option", { value: t }));
-  $("extraHint").textContent = knownExtraLabels.length
-    ? "Shared labels are grouped above and visible to every annotator and task / 共享标签已按分类显示，所有人和所有任务均可复用。"
-    : "No shared labels outside the seed set yet / 目前还没有 seed 之外的共享标签。";
-}
-
-function applySharedLabelGroups(groups, descriptions = {}, overrides = {}) {
-  const next = {
-    ...CONFIG,
-    open_coded_label_groups: groups,
-    error_type_overrides: overrides,
-    known_extra_labels: [],
-  };
-  for (const labels of Object.values(groups || {})) {
-    if (Array.isArray(labels)) next.known_extra_labels.push(...labels);
-  }
-  applyCurrentTaxonomy(next);
-  CONFIG.open_coded_label_groups = next.open_coded_label_groups;
-  CONFIG.known_extra_labels = next.known_extra_labels;
-  CONFIG.open_coded_label_descriptions = { ...(descriptions || {}) };
-  CONFIG.error_type_overrides = { ...(overrides || {}) };
-}
-
-async function mutateOpenCodedLabel(payload) {
-  const response = await api("api/labels", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, annotator_id: ANNOTATOR }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Failed to update label");
-  applySharedLabelGroups(
-    result.groups || {}, result.descriptions || {}, result.overrides || {}
-  );
-  return result;
-}
-
-async function updateErrorTypeCategory(label, openCoded, select) {
-  const oldCategory = errorTypeCategory(label, openCoded);
-  select.disabled = true;
-  try {
-    await mutateOpenCodedLabel({
-      action: "update",
-      label,
-      category: select.value,
-      description_zh: errorTypeDescription(label, openCoded),
-    });
-    renderLabelGroups();
-    renderForm();
-  } catch (error) {
-    select.value = oldCategory;
-    alert("更换分类失败：" + error.message);
-  } finally {
-    select.disabled = false;
-  }
-}
-
-async function editErrorTypeDescription(label, openCoded) {
-  const current = errorTypeDescription(label, openCoded);
-  const descriptionZh = prompt(`修改 ${label} 的共享中文解释：`, current);
-  if (descriptionZh === null || descriptionZh.trim() === current) return;
-  if (!/[\u3400-\u9fff]/.test(descriptionZh)) {
-    alert("中文解释必须包含中文。");
-    return;
-  }
-  try {
-    await mutateOpenCodedLabel({
-      action: "update",
-      label,
-      category: errorTypeCategory(label, openCoded),
-      description_zh: descriptionZh.trim(),
-    });
-    renderLabelGroups();
-    renderForm();
-  } catch (error) {
-    alert("修改解释失败：" + error.message);
-  }
-}
-
-async function deleteOpenCodedLabel(label) {
-  if (!confirm(`确定删除共享标签 ${label}？历史标注不会被修改。`)) return;
-  try {
-    await mutateOpenCodedLabel({ action: "delete", label });
-  } catch (error) {
-    alert("删除标签失败：" + error.message);
-    return;
-  }
-  S.extra.delete(label);
-  delete S.typeSteps[label];
-  delete S.typeEvidence[label];
-  renderLabelGroups();
-  commit();
-}
-
-async function refreshOpenCodedLabels(renderChanges = true) {
-  if (!CONFIG || CONFIG.taxonomy.mode !== "open_coding") return;
-  const response = await api("api/labels");
-  if (!response.ok) throw new Error(await response.text());
-  const payload = await response.json();
-  const before = JSON.stringify([
-    CONFIG.open_coded_label_groups || {},
-    CONFIG.open_coded_label_descriptions || {},
-    CONFIG.error_type_overrides || {},
-  ]);
-  applySharedLabelGroups(
-    payload.groups || {}, payload.descriptions || {}, payload.overrides || {}
-  );
-  const after = JSON.stringify([
-    CONFIG.open_coded_label_groups || {},
-    CONFIG.open_coded_label_descriptions || {},
-    CONFIG.error_type_overrides || {},
-  ]);
-  if (renderChanges && TASK && before !== after) {
-    renderLabelGroups();
-    renderForm();
-  }
-}
-
-async function addExtraLabel() {
-  const raw = $("newLabel").value.trim();
-  if (!raw) return;
-  const v = normalizeOpenLabel(raw);
-  if (!v) {
-    alert("新标签至少需要包含一个英文字母或数字。");
-    return;
-  }
-  if (CONFIG.taxonomy.seed_labels.includes(v)) {
-    S.types.add(v);
-    $("newLabel").value = "";
-    $("newLabelDescription").value = "";
-    commit();
-    return;
-  }
-  const existingCategory = OPEN_LABEL_CATEGORIES.find(
-    (category) => (CONFIG.open_coded_label_groups?.[category] || []).includes(v)
-  );
-  if (existingCategory) {
-    S.extra.add(v);
-    $("newLabel").value = "";
-    $("newLabelDescription").value = "";
-    $("newLabelCategory").value = existingCategory;
-    commit();
-    return;
-  }
-  const category = $("newLabelCategory").value;
-  if (!OPEN_LABEL_CATEGORIES.includes(category)) {
-    alert("请选择新标签的分类：planning、perception、execution、termination 或 others。");
-    $("newLabelCategory").focus();
-    return;
-  }
-  const descriptionZh = $("newLabelDescription").value.trim();
-  if (!descriptionZh) {
-    alert("请填写新标签的中文解释，说明这个错误具体指什么。 ");
-    $("newLabelDescription").focus();
-    return;
-  }
-  if (!/[\u3400-\u9fff]/.test(descriptionZh)) {
-    alert("新标签的解释必须包含中文。 ");
-    $("newLabelDescription").focus();
-    return;
-  }
-  const button = $("addLabel");
-  button.disabled = true;
-  try {
-    const response = await api("api/labels", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        annotator_id: ANNOTATOR,
-        label: v,
-        category,
-        description_zh: descriptionZh,
-      }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || "Failed to register label");
-    applySharedLabelGroups(
-      payload.groups || {}, payload.descriptions || {}, payload.overrides || {}
-    );
-    S.extra.add(payload.label || v);
-  } catch (error) {
-    alert("新增标签失败：" + error.message);
-    return;
-  } finally {
-    button.disabled = false;
-  }
-  $("newLabel").value = "";
-  $("newLabelDescription").value = "";
-  renderLabelGroups();
-  commit();
 }
 
 function moveCurrent(direction) {
@@ -2549,7 +2154,7 @@ function moveCurrent(direction) {
 }
 
 async function initialize() {
-  CONFIG = applyCurrentTaxonomy(await (await api("api/config")).json());
+  CONFIG = await (await api("api/config")).json();
   renderAnnotatorProgress();
   $("tagTaxonomy").textContent =
     `taxonomy ${CONFIG.taxonomy.version} / ${CONFIG.taxonomy.mode}`;
@@ -2606,18 +2211,6 @@ async function initialize() {
     S.cleanReviewed = ev.target.checked;
     saveDraft();
   };
-  $("addLabel").onclick = addExtraLabel;
-  $("newLabel").onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); addExtraLabel(); } };
-  $("newLabelDescription").onkeydown = (ev) => {
-    if (ev.key === "Enter") { ev.preventDefault(); addExtraLabel(); }
-  };
-  $("newLabel").oninput = () => {
-    const value = normalizeOpenLabel($("newLabel").value);
-    const category = OPEN_LABEL_CATEGORIES.find(
-      (name) => (CONFIG.open_coded_label_groups?.[name] || []).includes(value)
-    );
-    if (category) $("newLabelCategory").value = category;
-  };
   $("saveNow").onclick = () => saveNow();
   $("clearTask").onclick = clearCurrentTask;
   $("previousTask").onclick = previousTask;
@@ -2639,12 +2232,6 @@ async function initialize() {
   });
 
   await loadTask(first);
-  if (!LABEL_REFRESH_TIMER) {
-    LABEL_REFRESH_TIMER = window.setInterval(
-      () => refreshOpenCodedLabels().catch(() => {}),
-      30000,
-    );
-  }
 }
 
 async function main() {

@@ -1,0 +1,699 @@
+diff --git a/agent-harness/utils/osworld_full_traj_judge.py b/agent-harness/utils/osworld_full_traj_judge.py
+index c888633..c468175 100644
+--- a/agent-harness/utils/osworld_full_traj_judge.py
++++ b/agent-harness/utils/osworld_full_traj_judge.py
+@@ -34,20 +34,42 @@ Output:
+ 
+ Defaults & env knobs:
+ - Model: `MYPCBENCH_RUBRIC_JUDGE_MODEL` (default `gemini-3.1-flash-lite-preview`).
+-  Gemini-prefixed models route to `google-genai`; everything else routes
+-  to OpenAI-compatible chat completions (so `OPENAI_BASE_URL` + a
+-  Qwen/local key still works as a fallback judge).
++  Routing is by provider, not by "is it Gemini": see `_resolve_provider()`.
++  `MYPCBENCH_JUDGE_PROVIDER=gemini|openai` forces a provider, which is what
++  you need for an OpenAI-compatible endpoint serving a non-`gpt-*` model
++  name (vLLM, Qwen, a proxy) — name-sniffing cannot know that.
+ - Auth: `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) for Gemini;
+-  `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) otherwise. If neither
+-  is present, falls back to `ANTHROPIC_API_KEY` only via the legacy
+-  per-step judge — set `MYPCBENCH_JUDGE_FLAVOR=per_step` to take that path.
++  `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`) otherwise. If only
++  `OPENAI_API_KEY` is set and no model was pinned, the judge switches to
++  `DEFAULT_OPENAI_MODEL` instead of hard-failing on a missing Gemini key.
++  With neither key, use `MYPCBENCH_JUDGE_FLAVOR=per_step` (Anthropic).
+ - `MYPCBENCH_OSWORLD_JUDGE_MAX_IMAGES` (default 200): keep the last N
+   screenshots per trajectory; 0 = unlimited.
+ - `MYPCBENCH_OSWORLD_JUDGE_CONCURRENCY` (default 4): parallel rubric
+   calls. Each rubric is judged independently so concurrency is safe.
++- `MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT` (default `low`): passed as
++  `reasoning_effort` to OpenAI reasoning models (gpt-5.x / o-series).
++  Reasoning tokens are billed against the completion budget, so an
++  unbounded effort can burn the whole budget and return empty content.
++- `MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS` (default 16384 for
++  OpenAI, 8192 for Gemini — the paper value is left alone).
++- `MYPCBENCH_OSWORLD_JUDGE_MAX_RETRIES` (default 4): retries with
++  exponential backoff on transient API failures (429 / 5xx / timeout).
++- `MYPCBENCH_OSWORLD_JUDGE_IMAGE_FORMAT` (`png` default, or `jpeg`) and
++  `MYPCBENCH_OSWORLD_JUDGE_IMAGE_QUALITY` (default 85): re-encode
++  screenshots before upload. OpenAI takes images as base64 data URLs,
++  which inflates payloads ~37%; a 200-screenshot trajectory is ~20-100MB
++  of PNG. JPEG cuts that ~5-10x. It does NOT change the billed image
++  token count (patches depend on pixel dimensions, not file size).
+ - `MYPCBENCH_RUBRIC_JUDGE_MOCK_SCORE`: bypass the LLM and return a
+   fixed score (kept for the same test harness that mocks the legacy
+   judge).
++
++Failure policy: an API error is NOT a failed rubric. Transient errors are
++retried; if a rubric still cannot be judged, the whole task exits non-zero
++so `judge_results.py` records it as `judge_error` (score None -> 0.0 in the
++canonical average, and visible in the tally) rather than silently grading
++the trajectory down for an infrastructure problem.
+ """
+ 
+ from __future__ import annotations
+@@ -64,9 +86,21 @@ from typing import Any
+ 
+ 
+ DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
++DEFAULT_OPENAI_MODEL = "gpt-5.6-terra"
+ DEFAULT_MAX_IMAGES = 200
+ DEFAULT_CONCURRENCY = 4
+ FINAL_JUDGMENT_MAX_COMPLETION_TOKENS = 8192
++OPENAI_MAX_COMPLETION_TOKENS = 16384
++DEFAULT_REASONING_EFFORT = "low"
++DEFAULT_MAX_RETRIES = 4
++DEFAULT_MAX_IMAGE_MB = 42.0
++
++
++class JudgeCallError(RuntimeError):
++    """An LLM call could not be completed. NOT a failed rubric."""
++
++
++_USAGE = {"calls": 0, "prompt": 0, "cached": 0, "completion": 0, "reasoning": 0}
+ 
+ 
+ FULL_TRAJ_JUDGMENT_SYSTEM = """You are an expert evaluator of desktop-agent trajectories.
+@@ -74,21 +108,37 @@ FULL_TRAJ_JUDGMENT_SYSTEM = """You are an expert evaluator of desktop-agent traj
+ You will receive:
+ - The user task (for context).
+ - ONE specific rubric item with a criterion and (optional) verification description.
+-- The agent's full action history (one line per step).
+-- Every screenshot from the trajectory, in chronological order.
++- The agent's full message/action trajectory (one entry per step), including model
++  messages, tool calls, tool outputs, and executed GUI actions.
++- Screenshots from the trajectory, in chronological order, as supplementary visual
++  evidence for details that the message/action trajectory cannot establish directly.
+ 
+ Your goal is to decide whether this single rubric item is satisfied by the trajectory.
+ 
+ Evaluation rules:
+ - Judge ONLY the one rubric item you are given; ignore all other implicit requirements.
+-- Ground your judgment in what the screenshots and actions actually show. Do not invent state.
+-- Filtering / sorting / form requirements must be applied AND confirmed (visible) to count as satisfied.
++- Treat the message/action trajectory as the PRIMARY evidence. Read it step by step and
++  prioritize recorded model messages, executed actions, tool calls, and tool outputs.
++  Use screenshots only as SECONDARY corroborating evidence, especially for visual-only
++  state or when the textual trajectory is ambiguous. Do not infer failure merely because
++  a completed operation is not clearly visible in a screenshot.
++- Evidence counts regardless of its form. A requirement met through a tool call whose
++  output appears in the action history is satisfied even when no screenshot depicts it.
++  Conversely, a claim that appears ONLY in the agent's final message, with no
++  supporting screenshot, action, or tool output, does NOT count.
++- Judge the OUTCOME, not the route. When a rubric names an application or a UI path
++  ("opens the mail app", "in LibreOffice", "navigates to the orders page") but the
++  agent reached the same end state by other means -- reading the underlying data
++  store, calling an API, generating the file programmatically -- the rubric is
++  satisfied, provided the trajectory shows that end state was actually reached.
++- Filtering / sorting / form requirements must be applied AND confirmed -- either by
++  a screenshot, or by tool output that demonstrates the resulting state.
+ - If the agent was blocked (captcha, access denied, crash, etc.) and therefore could not satisfy the rubric, report failure.
+ - If a later step UNDID the rubric (e.g. user-visible state was correct, then was overwritten with wrong data), report failure.
+ 
+ Respond in exactly this format:
+ 
+-Thoughts: <your reasoning, citing specific steps/screenshots>
++Thoughts: <your reasoning, citing specific steps/screenshots/tool output>
+ Status: "success" or "failure"
+ """
+ 
+@@ -124,6 +174,37 @@ def _resolve_screenshot(save_root: Path, rel: str) -> Path | None:
+     return None
+ 
+ 
++def _maybe_recompress(data: bytes, mime: str) -> tuple[bytes, str]:
++    """Optionally re-encode a screenshot to JPEG to shrink the request body.
++
++    Only the transport shrinks: billed image tokens are a function of pixel
++    dimensions (32px patches / 512px tiles), which this does not touch. Any
++    failure returns the original bytes — a grading run must not die because
++    Pillow is missing.
++    """
++    fmt = (os.environ.get("MYPCBENCH_OSWORLD_JUDGE_IMAGE_FORMAT") or "").strip().lower()
++    if fmt not in {"jpeg", "jpg"}:
++        return data, mime
++    try:
++        quality = int(os.environ.get("MYPCBENCH_OSWORLD_JUDGE_IMAGE_QUALITY", "85") or 85)
++    except ValueError:
++        quality = 85
++    try:
++        import io
++
++        from PIL import Image  # type: ignore
++
++        with Image.open(io.BytesIO(data)) as im:
++            rgb = im.convert("RGB")
++            buf = io.BytesIO()
++            rgb.save(buf, format="JPEG", quality=quality, optimize=True)
++        return buf.getvalue(), "image/jpeg"
++    except Exception as exc:  # pragma: no cover
++        print(f"warning: JPEG re-encode failed ({exc}); sending original bytes",
++              file=sys.stderr)
++        return data, mime
++
++
+ def _build_history_and_images(
+     bundle: dict[str, Any], save_root: Path, max_images: int
+ ) -> tuple[str, int, list[dict[str, Any]]]:
+@@ -137,12 +218,9 @@ def _build_history_and_images(
+         if not isinstance(step, dict):
+             continue
+         parts: list[str] = []
+-        # Raw response: short reasoning summary if present
+         raw = (step.get("raw_response_text") or "").strip()
+         if raw:
+-            # Truncate per-step raw response to keep the prompt tight; the
+-            # screenshots are the primary evidence.
+-            parts.append(f"Response: {raw[:600].strip()}")
++            parts.append(f"Message: {raw[:4000].strip()}")
+         parsed = step.get("parsed_action_obj")
+         action_text = ""
+         if isinstance(parsed, dict):
+@@ -163,6 +241,10 @@ def _build_history_and_images(
+                         action_text = pa_path.read_text(encoding="utf-8", errors="ignore").strip()[:400]
+                     except Exception:
+                         action_text = ""
++        if action_text and action_text != "NO_ACTIONS" and not raw:
++            raise JudgeCallError(
++                f"trajectory step {i} has action {action_text!r} but no recorded message"
++            )
+         if action_text:
+             parts.append(f"Action: {action_text}")
+         if parts:
+@@ -189,6 +271,7 @@ def _build_history_and_images(
+         except Exception:
+             continue
+         mime = mimetypes.guess_type(path.name)[0] or "image/png"
++        data, mime = _maybe_recompress(data, mime)
+         screenshot_assets.append(
+             {
+                 "bytes": data,
+@@ -198,7 +281,77 @@ def _build_history_and_images(
+             }
+         )
+ 
+-    return action_history, len(steps), screenshot_assets
++    screenshot_assets, budget_note = _fit_image_budget(screenshot_assets)
++    return action_history, len(steps), screenshot_assets, budget_note
++
++
++def _encode_jpeg(data: bytes, quality: int) -> bytes | None:
++    try:
++        import io
++
++        from PIL import Image  # type: ignore
++
++        with Image.open(io.BytesIO(data)) as im:
++            buf = io.BytesIO()
++            im.convert("RGB").save(buf, format="JPEG", quality=quality, optimize=True)
++        return buf.getvalue()
++    except Exception:
++        return None
++
++
++def _fit_image_budget(
++    assets: list[dict[str, Any]],
++) -> tuple[list[dict[str, Any]], str | None]:
++    """Shrink a trajectory's screenshots until the request is accepted.
++
++    OpenAI rejects a request whose *total image size* exceeds 50MB with a 400,
++    counted on the decoded bytes (not the base64 expansion). 6 of the 184 v1
++    trajectories blow through it — 108MB in the worst case. Without this they
++    score judge_error, which the canonical average counts as 0.0: a long
++    trajectory would be punished for being long.
++
++    Degrade in the order that costs the least evidence: JPEG at high quality,
++    then lower quality, and only then drop the OLDEST screenshots (the tail of
++    a trajectory is what a rubric is usually decided on).
++    """
++    try:
++        limit_mb = float(os.environ.get("MYPCBENCH_OSWORLD_JUDGE_MAX_IMAGE_MB")
++                         or DEFAULT_MAX_IMAGE_MB)
++    except ValueError:
++        limit_mb = DEFAULT_MAX_IMAGE_MB
++    if limit_mb <= 0 or not assets:
++        return assets, None
++
++    limit = limit_mb * 1e6
++    total = sum(len(a["bytes"]) for a in assets)
++    if total <= limit:
++        return assets, None
++
++    original_mb = total / 1e6
++    for quality in (85, 70, 55):
++        shrunk = []
++        for a in assets:
++            data = _encode_jpeg(a["bytes"], quality)
++            if data is None:
++                return assets, (
++                    f"{original_mb:.0f}MB exceeds the {limit_mb:.0f}MB image budget "
++                    "and Pillow is unavailable to re-encode"
++                )
++            shrunk.append({**a, "bytes": data, "mime": "image/jpeg",
++                           "data_url": "data:image/jpeg;base64,"
++                                       + base64.b64encode(data).decode("ascii")})
++        total = sum(len(a["bytes"]) for a in shrunk)
++        if total <= limit:
++            return shrunk, (f"re-encoded {len(shrunk)} screenshots to JPEG q{quality}: "
++                            f"{original_mb:.0f}MB -> {total / 1e6:.0f}MB")
++        assets = shrunk
++
++    dropped = 0
++    while assets and sum(len(a["bytes"]) for a in assets) > limit:
++        assets.pop(0)
++        dropped += 1
++    return assets, (f"re-encoded to JPEG q55 and dropped the {dropped} oldest "
++                    f"screenshots to fit {limit_mb:.0f}MB (from {original_mb:.0f}MB)")
+ 
+ 
+ # ---------------------------------------------------------------------------
+@@ -240,10 +393,77 @@ def _extract_rubrics(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+ # ---------------------------------------------------------------------------
+ 
+ 
++_OPENAI_MODEL_PREFIXES = ("gpt-", "gpt", "o1", "o3", "o4", "chatgpt-")
++_OPENAI_REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
++
++
+ def _is_gemini_model(model: str) -> bool:
+     return model.lower().startswith("gemini")
+ 
+ 
++def _is_openai_reasoning_model(model: str) -> bool:
++    """gpt-5.x and the o-series bill reasoning tokens and take reasoning_effort."""
++    return model.lower().startswith(_OPENAI_REASONING_PREFIXES)
++
++
++def _resolve_provider(model: str) -> str:
++    """Return 'gemini' or 'openai' for `model`.
++
++    Name-sniffing alone is wrong for OpenAI-compatible endpoints: a vLLM or
++    proxy deployment can serve any model name, so an explicit
++    MYPCBENCH_JUDGE_PROVIDER always wins. Unknown names fall through to the
++    OpenAI-compatible path (that is where OPENAI_BASE_URL lives).
++    """
++    explicit = (os.environ.get("MYPCBENCH_JUDGE_PROVIDER") or "").strip().lower()
++    if explicit:
++        if explicit in {"gemini", "google", "google-genai"}:
++            return "gemini"
++        if explicit in {"openai", "oai", "openai-compatible", "openai_compatible"}:
++            return "openai"
++        raise SystemExit(
++            f"unknown MYPCBENCH_JUDGE_PROVIDER={explicit!r}; use 'gemini' or 'openai'"
++        )
++    if _is_gemini_model(model):
++        return "gemini"
++    return "openai"
++
++
++def _resolve_model_and_provider() -> tuple[str, str]:
++    """Pick (model, provider), tolerating an OpenAI-only environment.
++
++    The old behaviour was to default to the Gemini paper model and then die
++    in _make_gemini_client() on a missing GEMINI_API_KEY, even when
++    OPENAI_API_KEY was right there. Only auto-switch when the model was NOT
++    pinned — an explicit model is a deliberate choice and must not be
++    silently replaced.
++    """
++    pinned = (os.environ.get("MYPCBENCH_RUBRIC_JUDGE_MODEL") or "").strip()
++    if pinned:
++        return pinned, _resolve_provider(pinned)
++
++    forced = (os.environ.get("MYPCBENCH_JUDGE_PROVIDER") or "").strip().lower()
++    has_gemini_key = bool(
++        (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip()
++    )
++    has_openai_key = bool((os.environ.get("OPENAI_API_KEY") or "").strip())
++
++    if forced:
++        provider = _resolve_provider("")
++        if provider == "openai":
++            return DEFAULT_OPENAI_MODEL, "openai"
++        return DEFAULT_MODEL, "gemini"
++
++    if not has_gemini_key and has_openai_key:
++        print(
++            f"note: no Gemini key found; judging with {DEFAULT_OPENAI_MODEL} via "
++            "OPENAI_API_KEY. Numbers are not directly comparable to the paper "
++            f"({DEFAULT_MODEL}). Pin MYPCBENCH_RUBRIC_JUDGE_MODEL to silence this.",
++            file=sys.stderr,
++        )
++        return DEFAULT_OPENAI_MODEL, "openai"
++    return DEFAULT_MODEL, "gemini"
++
++
+ def _make_gemini_client():
+     api_key = (
+         os.environ.get("GEMINI_API_KEY")
+@@ -313,7 +533,7 @@ def _user_text_for_rubric(
+         f"User Task (context only): {task_instruction}\n\n"
+         "Evaluate ONLY this rubric item:\n"
+         + "\n".join(rubric_lines)
+-        + f"\n\nFull Action History:\n{action_history}\n\n"
++        + f"\n\nPrimary Message/Action Trajectory:\n{action_history}\n\n"
+         f"Screenshots attached below: {n_screenshots} "
+         f"(trajectory had {n_steps} total step(s)).\n\n"
+         f"Decide whether the rubric ({rubric['id']}) is satisfied. "
+@@ -321,6 +541,44 @@ def _user_text_for_rubric(
+     )
+ 
+ 
++def _shared_prefix_text(
++    task_instruction: str,
++    action_history: str,
++    n_screenshots: int,
++    n_steps: int,
++) -> str:
++    """The part of the prompt that is identical for every rubric of a task.
++
++    Kept separate so the OpenAI path can put it (plus the images) FIRST and
++    let automatic prompt caching hit on rubrics 2..N. With the rubric text
++    up front — as `_user_text_for_rubric` builds it — the shared 90k-token
++    image block sits behind a differing prefix and never caches.
++    """
++    return (
++        f"User Task (context only): {task_instruction}\n\n"
++        f"Primary Message/Action Trajectory:\n{action_history}\n\n"
++        f"Screenshots attached below: {n_screenshots} "
++        f"(trajectory had {n_steps} total step(s))."
++    )
++
++
++def _rubric_suffix_text(rubric: dict[str, Any]) -> str:
++    """The per-rubric tail, appended AFTER the images on the OpenAI path."""
++    rubric_lines = [
++        f"Rubric ID: {rubric['id']}",
++        f"Requirement: {rubric['requirement']}",
++    ]
++    if rubric.get("verification"):
++        rubric_lines.append(f"Verification: {rubric['verification']}")
++    rubric_lines.append(f"Weight: {rubric['weight']}")
++    return (
++        "Evaluate ONLY this rubric item:\n"
++        + "\n".join(rubric_lines)
++        + f"\n\nDecide whether the rubric ({rubric['id']}) is satisfied. "
++        "Use the required 'Thoughts:' / 'Status:' format."
++    )
++
++
+ def _parse_judge_response(text: str) -> tuple[bool, str]:
+     text = (text or "").strip()
+     status_match = re.search(r'Status:\s*["\']?(success|failure)["\']?', text, re.IGNORECASE)
+@@ -330,6 +588,82 @@ def _parse_judge_response(text: str) -> tuple[bool, str]:
+     return success, reasoning
+ 
+ 
++def _record_usage(usage: Any) -> None:
++    """Accumulate OpenAI token usage. Never fatal — this is observability."""
++    if usage is None:
++        return
++    try:
++        _USAGE["calls"] += 1
++        _USAGE["prompt"] += int(getattr(usage, "prompt_tokens", 0) or 0)
++        _USAGE["completion"] += int(getattr(usage, "completion_tokens", 0) or 0)
++        details = getattr(usage, "prompt_tokens_details", None)
++        _USAGE["cached"] += int(getattr(details, "cached_tokens", 0) or 0)
++        c_details = getattr(usage, "completion_tokens_details", None)
++        _USAGE["reasoning"] += int(getattr(c_details, "reasoning_tokens", 0) or 0)
++    except Exception:  # pragma: no cover
++        pass
++
++
++def _openai_max_completion_tokens() -> int:
++    try:
++        return int(
++            os.environ.get("MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS")
++            or OPENAI_MAX_COMPLETION_TOKENS
++        )
++    except ValueError:
++        return OPENAI_MAX_COMPLETION_TOKENS
++
++
++def _is_transient(exc: Exception) -> bool:
++    """Rate limits, timeouts and 5xx are worth retrying; 4xx is not."""
++    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
++    if isinstance(status, int):
++        return status == 408 or status == 429 or status >= 500
++    name = type(exc).__name__.lower()
++    if any(k in name for k in ("ratelimit", "timeout", "connection", "apierror",
++                               "internalserver", "serviceunavailable", "overloaded")):
++        return True
++    blob = str(exc).lower()
++    return any(k in blob for k in ("429", "rate limit", "timeout", "temporarily",
++                                   "overloaded", "503", "502", "500"))
++
++
++async def _with_retries(fn, *, what: str) -> tuple[bool, str]:
++    """Run an LLM call with exponential backoff. Never converts an error
++    into a rubric verdict — exhausted retries raise JudgeCallError."""
++    try:
++        attempts = int(os.environ.get("MYPCBENCH_OSWORLD_JUDGE_MAX_RETRIES")
++                       or DEFAULT_MAX_RETRIES)
++    except ValueError:
++        attempts = DEFAULT_MAX_RETRIES
++    attempts = max(1, attempts)
++
++    last: Exception | None = None
++    tried = 0
++    for attempt in range(attempts):
++        tried = attempt + 1
++        try:
++            return await fn()
++        except JudgeCallError as exc:
++            last = exc
++            if attempt == attempts - 1:
++                break
++            delay = 2.0 * (2**attempt)
++            print(f"warning: {what}: {exc}; retry {attempt + 1}/{attempts - 1} "
++                  f"in {delay:.0f}s", file=sys.stderr)
++            await asyncio.sleep(delay)
++        except Exception as exc:
++            last = exc
++            if not _is_transient(exc) or attempt == attempts - 1:
++                break
++            delay = 2.0 * (2**attempt)
++            print(f"warning: {what}: {type(exc).__name__}: {exc}; retry "
++                  f"{attempt + 1}/{attempts - 1} in {delay:.0f}s", file=sys.stderr)
++            await asyncio.sleep(delay)
++    raise JudgeCallError(f"{what} failed after {tried} attempt(s): "
++                         f"{type(last).__name__}: {last}")
++
++
+ async def _judge_one_rubric_gemini(
+     genai_module: Any,
+     client: Any,
+@@ -350,34 +684,63 @@ async def _judge_one_rubric_gemini(
+             max_output_tokens=FINAL_JUDGMENT_MAX_COMPLETION_TOKENS,
+         ),
+     )
+-    return _parse_judge_response(str(response.text or ""))
++    text = str(response.text or "")
++    if not re.search(r"Status:\s*[\"']?(success|failure)", text, re.IGNORECASE):
++        raise JudgeCallError(
++            f"no 'Status:' verdict in {model} response: {text[:200]!r}"
++        )
++    return _parse_judge_response(text)
+ 
+ 
+ async def _judge_one_rubric_openai(
+     client: Any,
+     model: str,
+-    user_text: str,
++    prefix_text: str,
++    rubric: dict[str, Any],
+     screenshot_assets: list[dict[str, Any]],
+ ) -> tuple[bool, str]:
+-    user_content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
++    user_content: list[dict[str, Any]] = [{"type": "text", "text": prefix_text}]
+     for s in screenshot_assets:
+         user_content.append(
+             {"type": "image_url", "image_url": {"url": s["data_url"], "detail": "high"}}
+         )
+-    response = await client.chat.completions.create(
+-        model=model,
+-        messages=[
++    user_content.append({"type": "text", "text": _rubric_suffix_text(rubric)})
++
++    kwargs: dict[str, Any] = {
++        "model": model,
++        "messages": [
+             {"role": "system", "content": FULL_TRAJ_JUDGMENT_SYSTEM},
+             {"role": "user", "content": user_content},
+         ],
+-        max_completion_tokens=FINAL_JUDGMENT_MAX_COMPLETION_TOKENS,
+-    )
+-    text = ""
+-    try:
+-        text = str(response.choices[0].message.content or "")
+-    except Exception:
+-        text = ""
+-    return _parse_judge_response(text)
++        "max_completion_tokens": _openai_max_completion_tokens(),
++    }
++    if _is_openai_reasoning_model(model):
++        effort = (
++            os.environ.get("MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT")
++            or DEFAULT_REASONING_EFFORT
++        ).strip()
++        if effort and effort.lower() != "none":
++            kwargs["reasoning_effort"] = effort
++
++    response = await client.chat.completions.create(**kwargs)
++    _record_usage(getattr(response, "usage", None))
++
++    choice = response.choices[0] if getattr(response, "choices", None) else None
++    text = str(getattr(getattr(choice, "message", None), "content", "") or "")
++    if not text.strip():
++        finish = getattr(choice, "finish_reason", None)
++        raise JudgeCallError(
++            f"empty content from {model} (finish_reason={finish!r}); "
++            "raise MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS or lower "
++            "MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT"
++        )
++
++    success, reasoning = _parse_judge_response(text)
++    if not re.search(r"Status:\s*[\"']?(success|failure)", text, re.IGNORECASE):
++        raise JudgeCallError(
++            f"no 'Status:' verdict in {model} response: {text[:200]!r}"
++        )
++    return success, reasoning
+ 
+ 
+ # ---------------------------------------------------------------------------
+@@ -419,9 +782,11 @@ async def main_async() -> None:
+         concurrency = DEFAULT_CONCURRENCY
+     concurrency = max(1, concurrency)
+ 
+-    action_history, n_steps, screenshot_assets = _build_history_and_images(
++    action_history, n_steps, screenshot_assets, budget_note = _build_history_and_images(
+         bundle, save_root, max_images
+     )
++    if budget_note:
++        print(f"note: {budget_note}", file=sys.stderr)
+ 
+     if n_steps == 0 and not screenshot_assets:
+         result = {
+@@ -433,34 +798,34 @@ async def main_async() -> None:
+         print(json.dumps(result))
+         return
+ 
+-    model = (os.environ.get("MYPCBENCH_RUBRIC_JUDGE_MODEL") or DEFAULT_MODEL).strip()
++    model, provider = _resolve_model_and_provider()
+ 
+-    if _is_gemini_model(model):
++    if provider == "gemini":
+         genai_module, client = _make_gemini_client()
+ 
+         async def judge_one(rubric: dict[str, Any]) -> tuple[bool, str]:
+             user_text = _user_text_for_rubric(
+                 task_instruction, rubric, action_history, len(screenshot_assets), n_steps
+             )
+-            try:
+-                return await _judge_one_rubric_gemini(
++            return await _with_retries(
++                lambda: _judge_one_rubric_gemini(
+                     genai_module, client, model, user_text, screenshot_assets
+-                )
+-            except Exception as exc:
+-                return False, f"Error judging rubric {rubric['id']}: {exc}"
++                ),
++                what=f"rubric {rubric['id']}",
++            )
+     else:
+         client = _make_openai_client()
++        prefix_text = _shared_prefix_text(
++            task_instruction, action_history, len(screenshot_assets), n_steps
++        )
+ 
+         async def judge_one(rubric: dict[str, Any]) -> tuple[bool, str]:
+-            user_text = _user_text_for_rubric(
+-                task_instruction, rubric, action_history, len(screenshot_assets), n_steps
++            return await _with_retries(
++                lambda: _judge_one_rubric_openai(
++                    client, model, prefix_text, rubric, screenshot_assets
++                ),
++                what=f"rubric {rubric['id']}",
+             )
+-            try:
+-                return await _judge_one_rubric_openai(
+-                    client, model, user_text, screenshot_assets
+-                )
+-            except Exception as exc:
+-                return False, f"Error judging rubric {rubric['id']}: {exc}"
+ 
+     semaphore = asyncio.Semaphore(concurrency)
+ 
+@@ -477,7 +842,19 @@ async def main_async() -> None:
+                 "reasoning": reasoning,
+             }
+ 
+-    rubric_results = await asyncio.gather(*[run_one(r) for r in rubrics])
++    try:
++        pending = list(rubrics)
++        warmed: list[dict[str, Any]] = []
++        if provider == "openai" and len(pending) > 1:
++            warmed.append(await run_one(pending.pop(0)))
++        rubric_results = warmed + list(await asyncio.gather(
++            *[run_one(r) for r in pending]
++        ))
++    except JudgeCallError as exc:
++        payload = {"error": f"judge call failed: {exc}"}
++        _write_debug(save_root, {**payload, "model": model, "provider": provider})
++        print(json.dumps(payload))
++        raise SystemExit(3)
+ 
+     total_w = sum(r["weight"] for r in rubric_results) or 1.0
+     total_s = sum(r["weight"] for r in rubric_results if r["success"])
+@@ -496,10 +873,16 @@ async def main_async() -> None:
+             f"weighted fraction={final_fraction:.4f}"
+         ),
+         "model": model,
++        "provider": provider,
+         "max_images": max_images,
+         "concurrency": concurrency,
+         "n_steps_total": n_steps,
+         "n_screenshots_sent": len(screenshot_assets),
++        "image_budget_note": budget_note,
++        "usage": dict(_USAGE),
++        "cache_hit_rate": (
++            round(_USAGE["cached"] / _USAGE["prompt"], 4) if _USAGE["prompt"] else None
++        ),
+         "final_fraction": round(final_fraction, 4),
+         "rubric_results": rubric_results,
+         "rubric_count": len(rubric_results),
+diff --git a/agent-harness/utils/rubric_judge.py b/agent-harness/utils/rubric_judge.py
+index efc92e7..536593d 100644
+--- a/agent-harness/utils/rubric_judge.py
++++ b/agent-harness/utils/rubric_judge.py
+@@ -16,6 +16,9 @@ from pathlib import Path
+ from typing import Any
+ 
+ 
++OPENAI_FULL_TRAJ_MODEL = "gpt-5.6-terra"
++
++
+ @dataclass(frozen=True)
+ class RubricBundle:
+     path: Path
+@@ -358,8 +361,14 @@ def default_rubric_judge_env(agent_model: str = "") -> dict[str, str]:
+          full-trajectory judge on Gemini 3.1 Flash Lite Preview (the
+          configuration used for every number in the paper).
+       4. ``ANTHROPIC_API_KEY`` only — legacy per-step judge on Sonnet.
+-      5. Otherwise — local vLLM via ``OPENAI_BASE_URL`` + the agent's own
++      5. ``OPENAI_API_KEY`` against real OpenAI — same OSWorld-style
++         full-trajectory judge, on ``OPENAI_FULL_TRAJ_MODEL``. Dropping to
++         the per-step judge here would silently change the metric, not just
++         the model.
++      6. Otherwise — local vLLM via ``OPENAI_BASE_URL`` + the agent's own
+          model as the judge model (final fallback for offline/CI runs).
++         Stays on the per-step judge: a local 7-30B server generally cannot
++         take a 200-image full-trajectory prompt.
+     """
+     if os.environ.get("MYPCBENCH_RUBRIC_JUDGE_MODEL"):
+         return {}
+@@ -387,5 +396,5 @@ def default_rubric_judge_env(agent_model: str = "") -> dict[str, str]:
+             "MYPCBENCH_RUBRIC_JUDGE_MODEL": agent_model,
+         }
+     if os.environ.get("OPENAI_API_KEY"):
+-        return {"MYPCBENCH_JUDGE_FLAVOR": "per_step"}
++        return {"MYPCBENCH_RUBRIC_JUDGE_MODEL": OPENAI_FULL_TRAJ_MODEL}
+     return {}

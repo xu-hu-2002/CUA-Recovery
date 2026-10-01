@@ -15,13 +15,7 @@ third_party_paths() {
   MYPCBENCH_MESSAGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_message_trajectory_agents.patch"
   MYPCBENCH_NATIVE_RESPONSES_PATCH="${repo_root}/patches/mypcbench_caf9c754_native_responses_state.patch"
   MYPCBENCH_GPT55_RESILIENCE_PATCH="${repo_root}/patches/mypcbench_caf9c754_gpt55_recollection_resilience.patch"
-  MYPCBENCH_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_recovery_judge.patch"
-  MYPCBENCH_MESSAGE_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_message_first_judge.patch"
-  MYPCBENCH_JUDGE_RESILIENCE_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_resilience_v2.patch"
-  MYPCBENCH_JUDGE_REASONING_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_reasoning_effort_low.patch"
-  MYPCBENCH_JUDGE_REQUEST_TIMEOUT_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_request_timeout.patch"
-  MYPCBENCH_JUDGE_PROCESS_TIMEOUT_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_process_timeout.patch"
-  MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge_fail_on_errors.patch"
+  MYPCBENCH_JUDGE_PATCH="${repo_root}/patches/mypcbench_caf9c754_judge.patch"
 }
 
 clone_frozen_repo() {
@@ -32,29 +26,29 @@ clone_frozen_repo() {
   local actual_commit
 
   if [[ ! -d "${target}/.git" ]]; then
-    info "clone ${label} 到 ${target}"
+    info "clone ${label} into ${target}"
     mkdir -p "$(dirname "$target")"
     git clone "$repository" "$target"
     git -C "$target" checkout --detach "$expected_commit"
   fi
   actual_commit="$(git -C "$target" rev-parse HEAD)"
   [[ "$actual_commit" == "$expected_commit" ]] || die \
-    "${label} commit 不匹配：期望 ${expected_commit}，实际 ${actual_commit}"
+    "${label} commit mismatch: expected ${expected_commit}, got ${actual_commit}"
 }
 
 apply_mypcbench_patch() {
   local patch_path="$1"
   local label="$2"
-  [[ -f "$patch_path" ]] || die "找不到 MyPCBench ${label} patch：${patch_path}"
+  [[ -f "$patch_path" ]] || die "MyPCBench ${label} patch not found: ${patch_path}"
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
     "$patch_path" >/dev/null 2>&1; then
-    info "MyPCBench ${label} hook 已存在"
+    info "MyPCBench ${label} hook already applied"
   elif git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --check \
     "$patch_path" >/dev/null 2>&1; then
     git -C "$MYPCBENCH_ROOT" apply --unidiff-zero "$patch_path"
-    info "已应用 MyPCBench ${label} hook"
+    info "Applied MyPCBench ${label} hook"
   else
-    die "MyPCBench ${label} patch 无法干净应用；请检查 third_party/MyPCBench 的本地改动"
+    die "MyPCBench ${label} patch does not apply cleanly; check local changes in third_party/MyPCBench"
   fi
 }
 
@@ -65,7 +59,7 @@ apply_mypcbench_patch_series() {
   local tail_label="$4"
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
     "$tail_patch" >/dev/null 2>&1; then
-    info "MyPCBench ${base_label} + ${tail_label} hook 已存在"
+    info "MyPCBench ${base_label} + ${tail_label} hook already applied"
     return
   fi
   apply_mypcbench_patch "$base_patch" "$base_label"
@@ -77,7 +71,7 @@ setup_mypcbench() {
     "$MYPCBENCH_REPOSITORY" "$MYPCBENCH_COMMIT" "$MYPCBENCH_ROOT" "MyPCBench"
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
     "$MYPCBENCH_GPT55_RESILIENCE_PATCH" >/dev/null 2>&1; then
-    info "MyPCBench RECOVERY adapter + native Responses + GPT-5.5 resilience hooks 已存在"
+    info "MyPCBench RECOVERY adapter + native Responses + GPT-5.5 resilience hooks already applied"
     return
   fi
   if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
@@ -96,36 +90,7 @@ setup_mypcbench() {
 }
 
 setup_mypcbench_judge() {
-  if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
-    "$MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH" >/dev/null 2>&1; then
-    info "MyPCBench RECOVERY judge chain + fail-on-errors hook 已存在"
-    return
-  fi
-  if git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
-    "$MYPCBENCH_JUDGE_PROCESS_TIMEOUT_PATCH" >/dev/null 2>&1; then
-    apply_mypcbench_patch \
-      "$MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH" "judge fail on errors"
-    return
-  fi
-  if ! git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
-    "$MYPCBENCH_JUDGE_REASONING_PATCH" >/dev/null 2>&1; then
-    if ! git -C "$MYPCBENCH_ROOT" apply --unidiff-zero --reverse --check \
-      "$MYPCBENCH_JUDGE_RESILIENCE_PATCH" >/dev/null 2>&1; then
-      apply_mypcbench_patch_series \
-        "$MYPCBENCH_JUDGE_PATCH" "RECOVERY judge" \
-        "$MYPCBENCH_MESSAGE_JUDGE_PATCH" "message-first judge"
-      apply_mypcbench_patch \
-        "$MYPCBENCH_JUDGE_RESILIENCE_PATCH" "judge resilience v2"
-    fi
-    apply_mypcbench_patch \
-      "$MYPCBENCH_JUDGE_REASONING_PATCH" "judge reasoning effort low"
-  fi
-  apply_mypcbench_patch \
-    "$MYPCBENCH_JUDGE_REQUEST_TIMEOUT_PATCH" "judge request timeout"
-  apply_mypcbench_patch \
-    "$MYPCBENCH_JUDGE_PROCESS_TIMEOUT_PATCH" "judge process timeout"
-  apply_mypcbench_patch \
-    "$MYPCBENCH_JUDGE_FAIL_ON_ERRORS_PATCH" "judge fail on errors"
+  apply_mypcbench_patch "$MYPCBENCH_JUDGE_PATCH" "judge"
 }
 
 setup_evocua() {

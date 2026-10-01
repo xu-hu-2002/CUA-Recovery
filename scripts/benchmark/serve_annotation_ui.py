@@ -19,61 +19,18 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
+import yaml
+
 from recovery.annotation.records import Adjudication, AnnotationError, HumanAnnotation
 from recovery.construction.cases import eligible_depths
-from recovery.derived.layout import DEPTH_GRID, atomic_write_json, sha256_file
+from recovery.derived.layout import DEPTH_GRID, atomic_write_json
 from recovery.derived.schema import validate_schema
+from recovery.longhorizon.taxonomy import TAXONOMY_PATH, FailureTaxonomy, TaxonomyError
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 MAX_BODY_BYTES = 1 << 20
-OPEN_LABEL_CATEGORIES = ("planning", "perception", "execution", "termination", "others")
-OPEN_LABEL_REGISTRY_SCHEMA = "0.3.0"
-OPEN_LABEL_DESCRIPTION_MAX_CHARS = 300
-ERROR_TYPE_GROUPS = {
-    "planning": (
-        "fabricate_data",
-        "misunderstand_task_objective",
-        "lack_of_knowledge",
-    ),
-    "perception": (
-        "progress_misperception",
-        "detail_misperception",
-        "state_misinterpretation",
-        "ineffective_action",
-    ),
-    "execution": (
-        "grounding_failure",
-        "incorrect_ui_element",
-        "typing_or_parameter_error",
-    ),
-    "termination": ("fail_to_terminate", "premature_completion"),
-}
-ERROR_TYPE_DESCRIPTIONS = {
-    "detail_misperception": "漏看或误读了影响结果的局部信息、数值、文本或具体要求",
-    "fabricate_data": "编造了未从界面、文件、工具结果或其他可靠证据中获得的数据",
-    "fail_to_terminate": "任务已明确成功或无法继续时仍未结束，并继续执行无效或重复操作",
-    "grounding_failure": "知道要操作什么，但未能准确定位目标，导致点击、拖拽或操作落点失败",
-    "incorrect_ui_element": "选择了与目标功能不同的按钮、字段、菜单或其他界面元素",
-    "ineffective_action": "操作已执行但没有推进任务，也没有产生预期的界面或系统状态变化",
-    "lack_of_knowledge": "缺少完成任务所必需的领域知识、规则知识或操作方法",
-    "misunderstand_task_objective": "错误理解了任务的最终目标、交付物、对象范围或关键约束",
-    "premature_completion": "尚未满足全部任务要求，就报告成功、提交结果或结束任务",
-    "progress_misperception": "错误判断已完成的工作、剩余步骤或当前任务进度",
-    "state_misinterpretation": (
-        "错误判断当前页面、应用、数据、登录/加载状态或工具能力，"
-        "例如把已生效当作未生效、把可用工具当作不可用，并据此采取错误行动"
-    ),
-    "typing_or_parameter_error": "输入的文本、数值、日期、路径、坐标或工具参数不正确",
-}
-EDITABLE_SEED_LABELS = {
-    label for labels in ERROR_TYPE_GROUPS.values() for label in labels
-}
-RETIRED_SEED_LABELS = {"wrong_subgoal"}
-OPEN_LABEL_DEFAULT_DESCRIPTIONS = {
-    "scope_error": "处理的数据范围、时间范围或对象范围与任务要求不一致。",
-    "section_content_misplacement": "把内容写入了错误的文档章节、表格区域或其他不合适的位置。",
-}
-DERIVED_BUDGET_LABEL = "hit_budget_limit"
+ANNOTATION_TAXONOMY = Path("prompts") / "annotation" / "taxonomy.yaml"
+DERIVED_BUDGET_LABEL = "budget_exhaustion"
 AUTO_ANALYSIS_DIR = "auto_analysis"
 DOUBLE_ANNOTATION_PLAN = ("protocol", "double_annotation_plan.json")
 ADJUDICATION_DIR = "adjudications"
@@ -100,57 +57,6 @@ def _build_export_stem(build_id: str) -> str:
     return re.sub(r"_vm\d+$", "", stem)
 
 
-def _normalize_open_label(value: str) -> str:
-    value = re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
-    value = re.sub(r"_+", "_", value)
-    if not value:
-        raise UIError("label must contain at least one letter or digit")
-    if len(value) > 96:
-        raise UIError("label must be at most 96 characters after normalization")
-    return value
-
-
-def _normalize_open_label_description(value: Any, *, required: bool) -> str:
-    description = " ".join(str(value or "").split()).strip()
-    if not description:
-        if required:
-            raise UIError("新标签必须填写中文解释")
-        return ""
-    if len(description) > OPEN_LABEL_DESCRIPTION_MAX_CHARS:
-        raise UIError(
-            "中文解释不能超过 %d 个字符" % OPEN_LABEL_DESCRIPTION_MAX_CHARS
-        )
-    if not re.search(r"[\u3400-\u9fff]", description):
-        raise UIError("新标签的解释必须包含中文")
-    return description
-
-
-def _taxonomy_groups(taxonomy: Dict[str, Any]) -> Dict[str, List[str]]:
-    """Recover the YAML grouping for display, or the flat list if the pinned snapshot changed."""
-
-    seed = list(taxonomy.get("seed_labels", ()))
-    uri = taxonomy.get("uri", "")
-    pinned = taxonomy.get("sha256", "")
-    path = Path(uri) if uri else None
-    if not (path and path.is_file() and pinned and sha256_file(path) == pinned):
-        return {"seed_labels": seed}
-    groups: Dict[str, List[str]] = {}
-    current: Optional[str] = None
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        if not raw.strip() or raw.lstrip().startswith("#"):
-            continue
-        stripped = raw.strip()
-        if stripped.startswith("- "):
-            if current is not None:
-                groups[current].append(stripped[2:].strip())
-        elif raw.startswith("    ") or raw.startswith("  ") and stripped.endswith(":"):
-            current = stripped.rstrip(":")
-            groups[current] = []
-    groups = {name: labels for name, labels in groups.items() if labels}
-    flat = sorted(label for labels in groups.values() for label in labels)
-    return groups if flat == sorted(seed) else {"seed_labels": seed}
-
-
 class AnnotationService:
     """Read-only view of one derived build plus a write path for annotations."""
 
@@ -166,12 +72,14 @@ class AnnotationService:
             raise UIError("Build manifest not found: %s" % manifest_path)
         self.manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.taxonomy = dict(self.manifest["taxonomy"])
+        self.paper_taxonomy = FailureTaxonomy.from_yaml(repository / TAXONOMY_PATH)
+        prompt = yaml.safe_load((repository / ANNOTATION_TAXONOMY).read_text(encoding="utf-8"))
+        self.type_descriptions = dict((prompt or {}).get("descriptions") or {})
         collection_root = Path(self.manifest["source_collection"]["uri"]).resolve()
         self.collection_root = collection_root
         self.image_roots: Tuple[Path, ...] = (collection_root, build_dir.resolve())
         self.allowed_images = self._referenced_images()
         self._submit_lock = threading.Lock()
-        self._label_lock = threading.Lock()
 
     def _referenced_images(self) -> set[Path]:
         """Return the exact image allowlist referenced by this build's annotation tasks."""
@@ -233,250 +141,15 @@ class AnnotationService:
                 by_trajectory.setdefault(trajectory, []).append(annotator)
         return by_trajectory
 
-    def _open_label_registry_path(self) -> Path:
-        return self.out_dir / "taxonomy" / "open_coded_labels.json"
-
-    def _open_label_registry(
-        self,
-    ) -> Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, str]]]:
-        path = self._open_label_registry_path()
+    def normalized_error_types(self, labels: List[str]) -> List[str]:
         try:
-            record = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            return {}, {}
-        except (OSError, json.JSONDecodeError) as exc:
-            raise UIError("Open-coded label registry cannot be read: %s" % exc)
-        raw_labels = record.get("labels", {}) if isinstance(record, dict) else {}
-        if not isinstance(raw_labels, dict):
-            raise UIError("Open-coded label registry has an invalid labels object")
-        labels: Dict[str, Dict[str, str]] = {}
-        for raw_label, raw_metadata in raw_labels.items():
-            try:
-                label = _normalize_open_label(raw_label)
-            except UIError:
-                continue
-            metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
-            category = str(metadata.get("category", "others"))
-            if category not in OPEN_LABEL_CATEGORIES:
-                category = "others"
-            labels[label] = {
-                "category": category,
-                "created_by": str(metadata.get("created_by", "")),
-                "created_at": str(metadata.get("created_at", "")),
-                "updated_by": str(metadata.get("updated_by", "")),
-                "updated_at": str(metadata.get("updated_at", "")),
-                "description_zh": _normalize_open_label_description(
-                    metadata.get(
-                        "description_zh",
-                        OPEN_LABEL_DEFAULT_DESCRIPTIONS.get(label, ""),
-                    ),
-                    required=False,
-                ),
-            }
-        raw_deleted = record.get("deleted_labels", {}) if isinstance(record, dict) else {}
-        if not isinstance(raw_deleted, dict):
-            raise UIError("Open-coded label registry has an invalid deleted_labels object")
-        deleted: Dict[str, Dict[str, str]] = {}
-        for raw_label, raw_metadata in raw_deleted.items():
-            try:
-                label = _normalize_open_label(raw_label)
-            except UIError:
-                continue
-            metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
-            deleted[label] = {
-                "deleted_by": str(metadata.get("deleted_by", "")),
-                "deleted_at": str(metadata.get("deleted_at", "")),
-                "last_category": str(metadata.get("last_category", "")),
-                "description_zh": str(metadata.get("description_zh", "")),
-            }
-        return labels, deleted
+            return list(self.paper_taxonomy.normalize(labels)[0])
+        except TaxonomyError as exc:
+            raise UIError(str(exc))
 
-    def _registered_open_labels(self) -> Dict[str, Dict[str, str]]:
-        return self._open_label_registry()[0]
-
-    def _write_open_label_registry(
-        self,
-        labels: Dict[str, Dict[str, str]],
-        deleted: Dict[str, Dict[str, str]],
-    ) -> None:
-        atomic_write_json(
-            self._open_label_registry_path(),
-            {
-                "schema_version": OPEN_LABEL_REGISTRY_SCHEMA,
-                "labels": labels,
-                "deleted_labels": deleted,
-            },
-        )
-
-    def open_coded_label_groups(self) -> Dict[str, List[str]]:
-        """Return shared open-coded labels grouped for every annotator and trajectory."""
-
-        seed = (
-            set(self.taxonomy.get("seed_labels", ()))
-            | EDITABLE_SEED_LABELS
-            | RETIRED_SEED_LABELS
-        )
-        groups: Dict[str, set[str]] = {
-            category: set() for category in OPEN_LABEL_CATEGORIES
-        }
-        registered, deleted = self._open_label_registry()
-        for label, metadata in registered.items():
-            if label not in seed:
-                groups[metadata["category"]].add(label)
-
-        for path in sorted(self.out_dir.glob("*.json")):
-            try:
-                record = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            for item in record.get("error_types", ()):
-                try:
-                    label = _normalize_open_label(item)
-                except UIError:
-                    continue
-                if label not in seed and label not in registered and label not in deleted:
-                    groups["others"].add(label)
-        return {category: sorted(groups[category]) for category in OPEN_LABEL_CATEGORIES}
-
-    def open_coded_label_descriptions(self) -> Dict[str, str]:
-        """Return the shared Chinese definition for each registered open-coded label."""
-
-        return {
-            label: metadata["description_zh"]
-            for label, metadata in sorted(self._registered_open_labels().items())
-            if label not in EDITABLE_SEED_LABELS and metadata["description_zh"]
-        }
-
-    def error_type_overrides(self) -> Dict[str, Dict[str, str]]:
-        """Return shared category and Chinese-description overrides for seed labels."""
-
-        return {
-            label: {
-                "category": metadata["category"],
-                "description_zh": metadata["description_zh"],
-            }
-            for label, metadata in sorted(self._registered_open_labels().items())
-            if label in EDITABLE_SEED_LABELS
-        }
-
-    def add_open_coded_label(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Register one categorized open-coded label for all annotators and tasks."""
-
-        if self.taxonomy.get("mode") != "open_coding":
-            raise UIError("This taxonomy does not allow open-coded labels")
-        label = _normalize_open_label(payload.get("label", ""))
-        category = str(payload.get("category", "")).strip().lower()
-        if category not in OPEN_LABEL_CATEGORIES:
-            raise UIError(
-                "category must be one of: %s" % ", ".join(OPEN_LABEL_CATEGORIES)
-            )
-        annotator_id = _safe_id(payload.get("annotator_id", ""), "annotator_id")
-        description_zh = _normalize_open_label_description(
-            payload.get("description_zh", ""), required=True
-        )
-        if label in EDITABLE_SEED_LABELS or label in RETIRED_SEED_LABELS:
-            raise UIError("Label already exists in the seed taxonomy: %s" % label)
-
-        with self._label_lock:
-            labels, deleted = self._open_label_registry()
-            existing = labels.get(label)
-            if existing is not None:
-                if existing["category"] != category:
-                    raise ConflictError(
-                        "Label %s already exists in category %s"
-                        % (label, existing["category"])
-                    )
-                if existing["description_zh"] != description_zh:
-                    raise ConflictError(
-                        "Label %s already exists with a different Chinese explanation" % label
-                    )
-                return {
-                    "label": label,
-                    "category": category,
-                    "description_zh": existing["description_zh"],
-                }
-            labels[label] = {
-                "category": category,
-                "created_by": annotator_id,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "description_zh": description_zh,
-            }
-            deleted.pop(label, None)
-            self._write_open_label_registry(labels, deleted)
-        return {
-            "label": label,
-            "category": category,
-            "description_zh": description_zh,
-        }
-
-    def update_open_coded_label(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Update the category or Chinese explanation of any active error type."""
-
-        label = _normalize_open_label(payload.get("label", ""))
-        category = str(payload.get("category", "")).strip().lower()
-        if category not in OPEN_LABEL_CATEGORIES:
-            raise UIError(
-                "category must be one of: %s" % ", ".join(OPEN_LABEL_CATEGORIES)
-            )
-        annotator_id = _safe_id(payload.get("annotator_id", ""), "annotator_id")
-        with self._label_lock:
-            labels, deleted = self._open_label_registry()
-            metadata = labels.get(label)
-            if metadata is None and label in EDITABLE_SEED_LABELS:
-                default_category = next(
-                    group for group, members in ERROR_TYPE_GROUPS.items() if label in members
-                )
-                metadata = {
-                    "category": default_category,
-                    "created_by": annotator_id,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "updated_by": "",
-                    "updated_at": "",
-                    "description_zh": ERROR_TYPE_DESCRIPTIONS[label],
-                }
-                labels[label] = metadata
-            if metadata is None or label in RETIRED_SEED_LABELS:
-                raise UIError("Open-coded label is not registered: %s" % label)
-            if "description_zh" in payload:
-                metadata["description_zh"] = _normalize_open_label_description(
-                    payload.get("description_zh"), required=True
-                )
-            metadata["category"] = category
-            metadata["updated_by"] = annotator_id
-            metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
-            self._write_open_label_registry(labels, deleted)
-        return {
-            "label": label,
-            "category": category,
-            "description_zh": metadata["description_zh"],
-        }
-
-    def delete_open_coded_label(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Hide one shared label without rewriting historical annotations that used it."""
-
-        label = _normalize_open_label(payload.get("label", ""))
-        annotator_id = _safe_id(payload.get("annotator_id", ""), "annotator_id")
-        if label in EDITABLE_SEED_LABELS or label in RETIRED_SEED_LABELS:
-            raise UIError("Seed taxonomy labels cannot be deleted: %s" % label)
-        with self._label_lock:
-            labels, deleted = self._open_label_registry()
-            metadata = labels.pop(label, None)
-            if metadata is None:
-                if label in deleted:
-                    return {"label": label, "deleted": True}
-                raise UIError("Open-coded label is not registered: %s" % label)
-            deleted[label] = {
-                "deleted_by": annotator_id,
-                "deleted_at": datetime.now(timezone.utc).isoformat(),
-                "last_category": metadata["category"],
-                "description_zh": metadata["description_zh"],
-            }
-            self._write_open_label_registry(labels, deleted)
-        return {"label": label, "deleted": True}
-
-    def _known_extra_labels(self) -> List[str]:
-        groups = self.open_coded_label_groups()
-        return sorted(label for labels in groups.values() for label in labels)
+    def label_map(self) -> Dict[str, Optional[str]]:
+        legacy = list(self.paper_taxonomy.renamed_labels) + list(self.paper_taxonomy.retired_labels)
+        return {label: next(iter(self.normalized_error_types([label])), None) for label in legacy}
 
     def _trajectory_context(
         self, task: Dict[str, Any], *, include_details: bool = False
@@ -728,13 +401,13 @@ class AnnotationService:
             "taxonomy": {
                 "version": self.taxonomy.get("version", ""),
                 "mode": self.taxonomy.get("mode", ""),
-                "seed_labels": list(self.taxonomy.get("seed_labels", ())),
-                "groups": _taxonomy_groups(self.taxonomy),
+                "groups": {
+                    category: list(labels)
+                    for category, labels in self.paper_taxonomy.categories.items()
+                },
+                "descriptions": self.type_descriptions,
+                "label_map": self.label_map(),
             },
-            "known_extra_labels": self._known_extra_labels(),
-            "open_coded_label_groups": self.open_coded_label_groups(),
-            "open_coded_label_descriptions": self.open_coded_label_descriptions(),
-            "error_type_overrides": self.error_type_overrides(),
             "trajectories": trajectories,
         }
 
@@ -814,14 +487,14 @@ class AnnotationService:
                 if key in raw_record
             }
         task["derived_error_types"] = (
-            [DERIVED_BUDGET_LABEL] if self._hit_budget_limit(task) else []
+            [DERIVED_BUDGET_LABEL] if self._budget_exhausted(task) else []
         )
         task["auto_proposal"] = self.auto_proposal(trajectory_id)
         task["double_annotation"] = trajectory_id in self._double_annotation_ids()
         return task
 
     @staticmethod
-    def _hit_budget_limit(task: Dict[str, Any]) -> bool:
+    def _budget_exhausted(task: Dict[str, Any]) -> bool:
         """Recognize collection-budget termination from the authoritative raw final row."""
 
         actions = list(task.get("actions", ()))
@@ -1055,6 +728,11 @@ class AnnotationService:
                 for rubric_id, weight in zip(rubric_ids, weights)
             )
             weighted_score = max(0.0, min(1.0, passed_weight / total_weight))
+            failure = optional_json(annotation_path)
+            if failure is not None:
+                failure["error_types"] = self.normalized_error_types(
+                    list(failure.get("error_types") or [])
+                )
 
             records.append(
                 {
@@ -1067,7 +745,7 @@ class AnnotationService:
                         review.get("source_trajectory_sha256", "")
                     ),
                     "rubric_bundle_sha256": str(review.get("rubric_bundle_sha256", "")),
-                    "failure_annotation": optional_json(annotation_path),
+                    "failure_annotation": failure,
                     "rollout_status": "valid",
                 }
             )
@@ -1353,6 +1031,9 @@ class AnnotationService:
 
         annotation_id = "%s__%s" % (trajectory_id, annotator_id)
         error_types = list(payload.get("error_types", ()))
+        unknown = sorted(set(error_types) - set(self.paper_taxonomy.paper_types))
+        if unknown:
+            raise UIError("Unknown error types: %s" % ", ".join(unknown))
         record = {
             "annotation_id": annotation_id,
             "trajectory_id": trajectory_id,
@@ -1449,18 +1130,6 @@ class MultiBuildAnnotationService:
             "build_id": "+".join(self.build_ids),
             "build_ids": list(self.build_ids),
             "taxonomy": configs[0]["taxonomy"],
-            "known_extra_labels": sorted(
-                {
-                    label
-                    for config in configs
-                    for label in config["known_extra_labels"]
-                }
-            ),
-            "open_coded_label_groups": configs[0]["open_coded_label_groups"],
-            "open_coded_label_descriptions": configs[0][
-                "open_coded_label_descriptions"
-            ],
-            "error_type_overrides": configs[0]["error_type_overrides"],
             "trajectories": trajectories,
         }
 
@@ -1514,24 +1183,6 @@ class MultiBuildAnnotationService:
             filename_prefix="%s_human_label_results_%s"
             % (export_stem, annotator_id),
         )
-
-    def open_coded_label_groups(self) -> Dict[str, List[str]]:
-        return self.services[0].open_coded_label_groups()
-
-    def open_coded_label_descriptions(self) -> Dict[str, str]:
-        return self.services[0].open_coded_label_descriptions()
-
-    def error_type_overrides(self) -> Dict[str, Dict[str, str]]:
-        return self.services[0].error_type_overrides()
-
-    def add_open_coded_label(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        return self.services[0].add_open_coded_label(payload)
-
-    def update_open_coded_label(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        return self.services[0].update_open_coded_label(payload)
-
-    def delete_open_coded_label(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        return self.services[0].delete_open_coded_label(payload)
 
     def submit_review(
         self, payload: Dict[str, Any], allow_resubmit: bool
@@ -1643,15 +1294,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(401, {"error": "Missing or wrong access token"})
             elif route == "/api/config":
                 self._json(200, self.service.config())
-            elif route == "/api/labels":
-                self._json(
-                    200,
-                    {
-                        "groups": self.service.open_coded_label_groups(),
-                        "descriptions": self.service.open_coded_label_descriptions(),
-                        "overrides": self.service.error_type_overrides(),
-                    },
-                )
             elif route.startswith("/api/task/"):
                 self._json(200, self.service.task(unquote(route[len("/api/task/"):])))
             elif route.startswith("/api/draft/"):
@@ -1703,7 +1345,6 @@ class Handler(BaseHTTPRequestHandler):
         if route not in {
             "/api/annotation",
             "/api/draft",
-            "/api/labels",
             "/api/clear",
             "/api/export-local",
             "/api/adjudication",
@@ -1738,26 +1379,6 @@ class Handler(BaseHTTPRequestHandler):
                         "cleared": result["cleared"],
                         "cleared_count": len(result["cleared"]),
                         "archive_path": result["archive_path"],
-                    },
-                )
-                return
-            if route == "/api/labels":
-                action = str(payload.get("action", "add")).strip().lower()
-                if action == "add":
-                    label = self.service.add_open_coded_label(payload)
-                elif action == "update":
-                    label = self.service.update_open_coded_label(payload)
-                elif action == "delete":
-                    label = self.service.delete_open_coded_label(payload)
-                else:
-                    raise UIError("label action must be add, update, or delete")
-                self._json(
-                    200,
-                    {
-                        **label,
-                        "groups": self.service.open_coded_label_groups(),
-                        "descriptions": self.service.open_coded_label_descriptions(),
-                        "overrides": self.service.error_type_overrides(),
                     },
                 )
                 return

@@ -4,14 +4,14 @@ rules:
   transcription_error:            {paper_type: typing_or_parameter_error, category: execution, confidence: 0.9}
   wrong_ui_element:               {paper_type: incorrect_ui_element,       category: execution, confidence: 0.8}
   wrong_entity_co_displayed:      {paper_type: misunderstand_task_objective, category: planning, confidence: 0.85}
-  wrong_entity:                   {paper_type: wrong_target,               category: execution, confidence: 0.7}
+  wrong_entity:                   {paper_type: incorrect_ui_element,       category: execution, confidence: 0.7}
   stale_value_from_earlier_page:  {paper_type: state_misinterpretation,    category: perception, confidence: 0.8}
-  required_read_never_observed:   {paper_type: lack_of_knowledge,          category: planning,  confidence: 0.6}
+  required_read_never_observed:   {paper_type: misunderstand_task_objective, category: planning, confidence: 0.6}
   duplicate_gold_write:           {paper_type: progress_misperception,     category: perception, confidence: 0.8}
   hallucinated_value:             {paper_type: fabricate_data,             category: planning,  confidence: 0.75}
   wrong_value_written:            {paper_type: typing_or_parameter_error,  category: execution, confidence: 0.75}
   extra_write:                    {paper_type: scope_error,                category: planning,  confidence: 0.6}
-  budget_exhausted_no_root_cause: {paper_type: hit_budget_limit,           category: termination, confidence: 0.95}
+  budget_exhausted_no_root_cause: {paper_type: budget_exhaustion,          category: termination, confidence: 0.95}
   premature_completion_claim:     {paper_type: premature_completion,       category: termination, confidence: 0.95}
 cross_category:
   premature_irreversible_action: {applies_when: r2_r3_write_before_prerequisite}

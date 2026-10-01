@@ -18,7 +18,7 @@ class EpisodeResult:
 
     def __post_init__(self) -> None:
         if self.depth not in DEPTH_GRID:
-            raise ValueError("depth 必须属于 %s" % (DEPTH_GRID,))
+            raise ValueError("depth must be in %s" % (DEPTH_GRID,))
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ def aggregate_metrics(results: Iterable[EpisodeResult]) -> AggregateMetrics:
     all_results: Tuple[EpisodeResult, ...] = tuple(results)
     valid: Tuple[EpisodeResult, ...] = tuple(result for result in all_results if result.valid)
     if not valid:
-        raise ValueError("没有 valid episodes，不能计算指标")
+        raise ValueError("no valid episodes; cannot compute metrics")
     return AggregateMetrics(
         episode_count=len(valid),
         error_awareness_rate=mean(float(result.error_aware) for result in valid),
@@ -48,10 +48,10 @@ def aggregate_metrics(results: Iterable[EpisodeResult]) -> AggregateMetrics:
 
 def rubric_verdict(rubric_results: Sequence[Mapping[str, Any]]) -> Tuple[float, bool]:
     if not rubric_results:
-        raise ValueError("没有 rubric 结果，不能计算 ρ 与 V")
+        raise ValueError("no rubric results; cannot compute ρ and V")
     weights = [float(r["weight"]) for r in rubric_results]
     if any(w <= 0 for w in weights):
-        raise ValueError("rubric 权重必须为正")
+        raise ValueError("rubric weights must be positive")
     satisfied = [bool(r["success"]) for r in rubric_results]
     rho = sum(w for w, c in zip(weights, satisfied) if c) / sum(weights)
     return rho, all(satisfied)
@@ -75,17 +75,17 @@ def pass_at_k(
     missing_counts_as_failure: bool = True,
 ) -> PassAtK:
     if repeats < 1:
-        raise ValueError("repeats 必须 >= 1")
+        raise ValueError("repeats must be >= 1")
     units = tuple(dict.fromkeys(units))
     unknown = set(runs) - set(units)
     if unknown:
-        raise ValueError("runs 含分母以外的单元：%s" % sorted(unknown)[:3])
+        raise ValueError("runs contain units outside the denominator: %s" % sorted(unknown)[:3])
     solved = missing = incomplete = 0
     scores = []
     for unit in units:
         attempts = list(runs.get(unit, ()))
         if len(attempts) > repeats:
-            raise ValueError("%s 有 %d 次 run，超过 repeats=%d" % (unit, len(attempts), repeats))
+            raise ValueError("%s has %d runs, more than repeats=%d" % (unit, len(attempts), repeats))
         valid = [a for a in attempts if a is not None]
         incomplete += int(len(valid) < repeats)
         if not valid:
@@ -97,7 +97,7 @@ def pass_at_k(
         solved += int(bool(success))
         scores.append(success[0] if success else max(rho for rho, _ in valid))
     if not scores:
-        raise ValueError("分母为空，不能计算 Pass@k")
+        raise ValueError("empty denominator; cannot compute Pass@k")
     return PassAtK(
         repeats=repeats,
         unit_count=len(scores),

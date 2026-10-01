@@ -85,7 +85,7 @@ class KimiK3ScaffoldAdapter:
             args = {"x": x, "y": y, "button": action.button}
         elif isinstance(action, TypeAction):
             if len(action.text) > 10000:
-                raise ActionNotSupportedError("write 超过 live compiler 的 10000 字符上限")
+                raise ActionNotSupportedError("write exceeds the live compiler limit of 10000 characters")
             name = "write"
             args = {
                 "content": action.text,
@@ -94,12 +94,12 @@ class KimiK3ScaffoldAdapter:
             }
         elif isinstance(action, HotkeyAction):
             if any(not self._SAFE_KEY.fullmatch(key) for key in action.keys):
-                raise ActionNotSupportedError("hotkey 含 live compiler 不接受的按键名")
+                raise ActionNotSupportedError("hotkey contains key names the live compiler rejects")
             name = "hotkey"
             args = {"keys": list(action.keys)}
         elif isinstance(action, ScrollAction):
             if abs(action.delta_y) > 10000:
-                raise ActionNotSupportedError("scroll 超过 live compiler 的绝对值 10000 上限")
+                raise ActionNotSupportedError("scroll exceeds the live compiler absolute limit of 10000")
             x, y = self._xy(action.x_px, action.y_px, action.frame_width, action.frame_height)
             name = "scroll"
             args = {"x": x, "y": y, "delta_y": action.delta_y}
@@ -109,7 +109,7 @@ class KimiK3ScaffoldAdapter:
             args = {"x": x, "y": y}
         elif isinstance(action, DragAction):
             if action.duration_s > 10:
-                raise ActionNotSupportedError("drag 超过 live compiler 的 10 秒上限")
+                raise ActionNotSupportedError("drag exceeds the live compiler limit of 10 seconds")
             start_x, start_y = self._xy(
                 action.start_x_px,
                 action.start_y_px,
@@ -133,14 +133,14 @@ class KimiK3ScaffoldAdapter:
             }
         elif isinstance(action, WaitAction):
             if action.seconds > 30:
-                raise ActionNotSupportedError("wait 超过 live compiler 的 30 秒上限")
+                raise ActionNotSupportedError("wait exceeds the live compiler limit of 30 seconds")
             name = "wait"
             args = {"seconds": action.seconds}
         elif isinstance(action, TerminateAction):
             name = "answer"
             args = {"status": action.status, "content": action.answer}
         else:
-            raise TypeError("未处理的 action: %s" % type(action).__name__)
+            raise TypeError("unhandled action: %s" % type(action).__name__)
 
         return {
             "id": call_id,

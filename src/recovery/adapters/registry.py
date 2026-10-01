@@ -44,11 +44,11 @@ class NativeHistoryRegistration:
 
     def __post_init__(self) -> None:
         if self.renderer_implemented != (self.factory is not None):
-            raise ValueError("renderer_implemented 与 factory 必须一致")
+            raise ValueError("renderer_implemented and factory must agree")
         if self.renderer_implemented and self.blocker:
-            raise ValueError("已实现 renderer 不能同时声明 blocker")
+            raise ValueError("an implemented renderer cannot declare a blocker")
         if not self.renderer_implemented and not self.blocker:
-            raise ValueError("未实现 renderer 必须记录具体 blocker")
+            raise ValueError("an unimplemented renderer must record a specific blocker")
 
     def create(self, instruction: str, **kwargs: Any) -> AgentAdapter:
         if not self.renderer_implemented or self.factory is None:
@@ -56,7 +56,7 @@ class NativeHistoryRegistration:
                 "%s native-history unavailable: %s" % (self.agent_id, self.blocker)
             )
         if not instruction.strip():
-            raise ValueError("native-history renderer 需要非空 task instruction")
+            raise ValueError("native-history renderer needs a non-empty task instruction")
         return self.factory(instruction, **kwargs)
 
     def status_dict(self) -> Dict[str, object]:

@@ -49,9 +49,9 @@ def _taxonomy_record(path: Path, frozen: bool) -> dict:
         if line.strip().startswith("- ")
     )
     if not version or not labels:
-        raise RuntimeError("taxonomy 必须包含 version 和 labels")
+        raise RuntimeError("taxonomy must contain version and labels")
     if frozen and version == "draft":
-        raise RuntimeError("draft taxonomy 不能标记 frozen")
+        raise RuntimeError("a draft taxonomy cannot be marked frozen")
     return {
         "version": version,
         "frozen": frozen,
@@ -147,19 +147,19 @@ def main() -> int:
     }
     if build.manifest_path.is_file():
         if not args.append:
-            raise RuntimeError("build 已存在；追加 trajectory 必须显式传 --append")
+            raise RuntimeError("build already exists; pass --append to add trajectories")
         manifest = build.read_manifest()
         if manifest["source_collection"]["uri"] != str(collection_root):
-            raise RuntimeError("append collection root 与 build 不一致")
+            raise RuntimeError("append collection root does not match the build")
         if manifest["source_collection"]["collection_id"] != args.collection_id:
-            raise RuntimeError("append collection ID 与 build 不一致")
+            raise RuntimeError("append collection ID does not match the build")
         if manifest["builder_config"] != builder_config or manifest["taxonomy"] != taxonomy:
-            raise RuntimeError("append 不得改变 builder/taxonomy contract")
+            raise RuntimeError("append must not change the builder/taxonomy contract")
         if not build.verify_raw_unchanged():
-            raise RuntimeError("append 前 raw collection 已改变")
+            raise RuntimeError("raw collection changed before append")
     else:
         if args.append:
-            raise RuntimeError("--append 只能用于已有 build")
+            raise RuntimeError("--append only works on an existing build")
         manifest = build.initialize(
             collection_manifest_path=collection_manifest,
             git_commit=_git_commit(repository),
@@ -169,7 +169,7 @@ def main() -> int:
         )
     output_dir = build.artifact_path("canonical", args.trajectory_id, "trajectory.jsonl").parent
     if output_dir.exists() and any(output_dir.iterdir()):
-        raise RuntimeError("trajectory_id 已存在，拒绝覆盖: %s" % args.trajectory_id)
+        raise RuntimeError("trajectory_id already exists, refusing to overwrite: %s" % args.trajectory_id)
     report = normalize_task_directory(
         args.task_dir.resolve(),
         output_dir,
@@ -234,7 +234,7 @@ def main() -> int:
     )
     validate_schema(build.read_manifest(), "derived_build_manifest.schema.json", repository)
     if not build.verify_raw_unchanged():
-        raise RuntimeError("raw collection 在 derived initialization 后发生变化")
+        raise RuntimeError("raw collection changed after derived initialization")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["normalization_complete"] else 2
 

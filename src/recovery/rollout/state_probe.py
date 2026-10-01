@@ -49,9 +49,9 @@ class EnvironmentHooks:
             output_max_chars=int(cfg.get("state_probe_output_max_chars", 4000)),
         )
         if {hooks.determinism_on_error, hooks.probe_on_error} - ON_ERROR:
-            raise ValueError(f"{path}: *_on_error 只能是 {sorted(ON_ERROR)}")
+            raise ValueError(f"{path}: *_on_error must be one of {sorted(ON_ERROR)}")
         if hooks.probe_enabled and not hooks.probe_commands:
-            raise ValueError(f"{path}: state_probe_enabled=true 但没有 state_probes")
+            raise ValueError(f"{path}: state_probe_enabled=true but no state_probes")
         return hooks
 
 

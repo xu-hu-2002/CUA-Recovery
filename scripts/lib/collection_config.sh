@@ -31,7 +31,7 @@ config_scalar_required() {
   local path="$1" key="$2" value
   value="$(config_scalar "$path" "$key" || true)"
   if [[ -z "$value" ]]; then
-    printf '错误：%s 缺少 %s\n' "$path" "$key" >&2
+    printf 'error: %s is missing %s\n' "$path" "$key" >&2
     return 1
   fi
   printf '%s\n' "$value"
@@ -79,7 +79,7 @@ agent_tensor_parallel_size() {
 agent_vm_count() {
   local repo_root="$1" agent_id="$2" path tp gpus count
   path="$(agent_config_path "$repo_root" "$agent_id")"
-  [[ -f "$path" ]] || { printf '错误：找不到 %s\n' "$path" >&2; return 1; }
+  [[ -f "$path" ]] || { printf 'error: %s not found\n' "$path" >&2; return 1; }
 
   tp="$(config_scalar "$path" tensor_parallel_size || true)"
   if [[ -z "$tp" ]]; then
@@ -87,15 +87,15 @@ agent_vm_count() {
     return
   fi
   [[ "$tp" =~ ^[1-9][0-9]*$ ]] || {
-    printf '错误：%s 的 tensor_parallel_size=%s 不是正整数\n' "$path" "$tp" >&2
+    printf 'error: %s: tensor_parallel_size=%s is not a positive integer\n' "$path" "$tp" >&2
     return 1
   }
 
   gpus="$(usable_gpu_count)"
   if (( gpus < tp )); then
-    printf '错误：%s 需要每个 endpoint %s 张卡，本机只有 %s 张可用。\n' \
+    printf 'error: %s needs %s GPUs per endpoint, but only %s are usable here.\n' \
       "$agent_id" "$tp" "$gpus" >&2
-    printf '       容器里看不到 nvidia-smi 时用 RECOVERY_GPU_COUNT 显式声明。\n' >&2
+    printf '       If nvidia-smi is not visible in a container, set RECOVERY_GPU_COUNT explicitly.\n' >&2
     return 1
   fi
   count=$((gpus / tp))

@@ -6,6 +6,8 @@ from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
+TAXONOMY_PATH = Path("configs") / "taxonomy.yaml"
+
 
 class TaxonomyError(ValueError):
     """The taxonomy file is malformed or a label is outside the frozen vocabulary."""

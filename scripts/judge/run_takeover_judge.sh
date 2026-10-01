@@ -265,12 +265,12 @@ if [[ "$ERROR_AWARENESS" == "1" ]]; then
     set -a; . "$RECOVERY_CRED_ENV"; set +a
   fi
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-    [[ -f "$REPO_ROOT/.env" ]] || fail "$REPO_ROOT/.env 不存在，且环境里没有 OPENAI_API_KEY"
+    [[ -f "$REPO_ROOT/.env" ]] || fail "$REPO_ROOT/.env not found and OPENAI_API_KEY is not in the environment"
     OPENAI_API_KEY="$(sed -n 's/^OPENAI_API_KEY[=:][[:space:]]*//p' "$REPO_ROOT/.env" \
       | tr -d '"'"'"' ' | head -1)"
     export OPENAI_API_KEY
   fi
-  [[ -n "${OPENAI_API_KEY:-}" ]] || fail "OPENAI_API_KEY 为空（.env 里没读到）"
+  [[ -n "${OPENAI_API_KEY:-}" ]] || fail "OPENAI_API_KEY is empty (not found in .env)"
   if [[ -z "${OPENAI_BASE_URL:-}" ]]; then unset OPENAI_BASE_URL; fi
   export MYPCBENCH_OSWORLD_JUDGE_REASONING_EFFORT="$REASONING_EFFORT"
   export MYPCBENCH_OSWORLD_JUDGE_MAX_COMPLETION_TOKENS="$MAX_COMPLETION_TOKENS"

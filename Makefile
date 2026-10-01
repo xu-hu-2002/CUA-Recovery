@@ -10,4 +10,4 @@ check:
 	PYTHONPATH=src python3 -m recovery.cli check-repository
 
 inspect-tree:
-	find configs schemas prompts src analysis infra patches scripts -maxdepth 3 -type f | sort
+	find configs schemas prompts src examples infra patches scripts -maxdepth 3 -type f | sort

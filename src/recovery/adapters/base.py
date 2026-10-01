@@ -24,7 +24,7 @@ class AgentCapabilities:
         kind = getattr(action, "kind")
         if kind not in self.action_kinds:
             raise ActionNotSupportedError(
-                "%s 不支持 canonical action %s；主 benchmark 禁止静默降级"
+                "%s does not support canonical action %s; silent downgrade is not allowed in the main benchmark"
                 % (self.agent_id, kind)
             )
 

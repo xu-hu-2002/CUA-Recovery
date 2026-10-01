@@ -32,14 +32,14 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def _mypcbench_shared_block() -> str:
     path = REPO_ROOT / "prompts" / "agents" / MYPCBENCH_SHARED_BLOCK_FILE
     if not path.is_file():
-        raise RuntimeError(f"找不到 MyPCBench 共享块：{path}")
+        raise RuntimeError(f"MyPCBench shared block not found: {path}")
     return path.read_text(encoding="utf-8").strip()
 
 
 def _positive_int(name: str, default: int) -> int:
     value = int(os.environ.get(name, default))
     if value <= 0:
-        raise ValueError(f"{name} 必须是正整数")
+        raise ValueError(f"{name} must be a positive integer")
     return value
 
 
@@ -61,8 +61,8 @@ def _external_root(env_name: str, default_relative: str, required_file: str) -> 
     root = Path(os.environ.get(env_name, REPO_ROOT / default_relative)).expanduser().resolve()
     if not (root / required_file).is_file():
         raise RuntimeError(
-            f"找不到官方 adapter source：{root / required_file}；"
-            "请先运行 collection 脚本自动 clone 冻结版本"
+            f"official adapter source not found: {root / required_file}; "
+            "run the collection script first to clone the frozen version"
         )
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
@@ -349,10 +349,10 @@ def _create_opencua(
         try:
             from openai import OpenAI
         except ImportError as exc:  # pragma: no cover
-            raise RuntimeError("缺少 openai；请安装 `pip install -e '.[collection]'`") from exc
+            raise RuntimeError("openai missing; install with `pip install -e '.[collection]'`") from exc
         base_url = os.environ.get("OPENAI_BASE_URL")
         if not base_url:
-            raise RuntimeError("OpenCUA 缺少 OPENAI_BASE_URL")
+            raise RuntimeError("OpenCUA is missing OPENAI_BASE_URL")
         client = OpenAI(
             base_url=base_url,
             api_key=os.environ.get("OPENCUA_API_KEY")
@@ -404,4 +404,4 @@ def create_mypcbench_agent(
         return _create_evocua(configured(), model, screen_size, client_password)
     if agent_type == "recovery_opencua":
         return _create_opencua(configured(), model, screen_size, client_password)
-    raise ValueError(f"agent_type {agent_type!r} 已注册 agent_id 但没有构造分支")
+    raise ValueError(f"agent_type {agent_type!r} has a registered agent_id but no constructor branch")

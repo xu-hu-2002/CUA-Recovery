@@ -23,6 +23,11 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 HARNESS = REPOSITORY / "third_party" / "MyPCBench" / "agent-harness"
 if str(HARNESS) not in sys.path:
     sys.path.insert(0, str(HARNESS))
+if str(REPOSITORY / "src") not in sys.path:
+    sys.path.insert(0, str(REPOSITORY / "src"))
+from recovery.longhorizon.taxonomy import TAXONOMY_PATH, FailureTaxonomy  # noqa: E402
+
+TAXONOMY = FailureTaxonomy.from_yaml(REPOSITORY / TAXONOMY_PATH)
 
 VERDICT_NAME = "error_awareness_judge.json"
 CONDITIONS = ("unaware", "notified", "diagnosed")
@@ -166,7 +171,7 @@ def eligible_failures(run_dir: Path, depths: list[int], condition: str) -> dict[
         for item in eligible_items(run_dir, depth, condition):
             annotation_path = resolve_annotation(item["annotation_uri"], item.get("annotation_sha256", ""))
             label = json.loads(annotation_path.read_text(encoding="utf-8"))
-            error_types = [str(value) for value in label.get("error_types") or []]
+            error_types = list(TAXONOMY.normalize(str(v) for v in label.get("error_types") or [])[0])
             if not error_types:
                 raise RuntimeError(f"{item['trajectory_id']}: human label has no error_types")
             out[depth][task_id_of(item)] = error_types
@@ -180,7 +185,7 @@ def load_task(task_dir: Path, max_segments: int | None = None) -> dict:
         annotation["annotation_uri"], annotation.get("annotation_sha256", "")
     )
     label = json.loads(annotation_path.read_text(encoding="utf-8"))
-    error_types = [str(value) for value in label.get("error_types") or []]
+    error_types = list(TAXONOMY.normalize(str(v) for v in label.get("error_types") or [])[0])
     if not error_types:
         raise RuntimeError(f"{task_dir.name}: human label has no error_types")
     bundle = json.loads((task_dir / "rubric_bundle.json").read_text(encoding="utf-8"))
@@ -261,7 +266,7 @@ def max_completion_tokens() -> int:
 
 
 async def judge_one(client, model: str, task: dict, semaphore: asyncio.Semaphore) -> dict:
-    from utils.osworld_full_traj_judge import _is_transient_error, _retry_delay
+    from utils.osworld_full_traj_judge import _is_transient
 
     kwargs: dict = {
         "model": model,
@@ -287,9 +292,9 @@ async def judge_one(client, model: str, task: dict, semaphore: asyncio.Semaphore
                 return parse_verdict(text) | {"judge_raw": text}
             except Exception as exc:  # noqa: BLE001
                 last = attempt == attempts - 1
-                if last or not (_is_transient_error(exc) or isinstance(exc, (ValueError, RuntimeError))):
+                if last or not (_is_transient(exc) or isinstance(exc, (ValueError, RuntimeError))):
                     raise
-                delay = _retry_delay(exc, attempt)
+                delay = min(60.0, 5.0 * 2 ** attempt)
                 print(f"warning: {task['task_id']} d{task['depth']}: {exc}; retry in {delay:.0f}s",
                       file=sys.stderr)
                 await asyncio.sleep(delay)

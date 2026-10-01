@@ -3,7 +3,7 @@ family: anthropic_computer_use
 scaffold: upstream_runner
 agent_type: claude_cuabash
 model: claude-opus-4-8
-api_snapshot: gateway/protocol/anthropic/v1 (2026-08-06, AWS Bedrock 后端)
+api_snapshot: gateway/protocol/anthropic/v1 (2026-08-06, AWS Bedrock backend)
 output_format: native_tool_use
 history_renderer: anthropic_messages_full_history
 live_adapter: MyPCBench.agent-harness.agents.claude_cua
@@ -20,16 +20,16 @@ tool_turn_ratio_observed: 0.146
 
 num_vms: 4
 eta_step_seconds: 60.0
-eta_step_seconds_source: v1 全量采集步间间隔中位
+eta_step_seconds_source: median inter-step interval of the full v1 collection
 status: collected_f2_complete
 
 notes: >-
-  Anthropic 协议本身无状态（每轮回传全历史），不受网关的 Zero Data
-  Retention 影响。必须设 CLAUDE_PROMPT_CACHING_BETA=0：Bedrock 拒绝
-  computer-use 与 prompt-caching 组合的 anthropic-beta 头
-  （ValidationException: invalid beta flag），单独任一可用。
-  经 Bedrock 托管，与 Anthropic 一方 API 的版本
-  口径可能存在细微差异，须记入 collection manifest。
-  2026-08-10 拍板：采集维持裸名不改 aws. 前缀——F2 已全量收官且裸名有实证，
-  换前缀不改变模型固有推理延迟（采集步长 ~60s 中位为模型固有），且 aws. 前缀
-  无全量采集实证。
+  The Anthropic protocol is stateless (full history is resent every turn), so the
+  gateway's Zero Data Retention does not affect it. CLAUDE_PROMPT_CACHING_BETA=0 is
+  required: Bedrock rejects the anthropic-beta header combining computer-use and
+  prompt-caching (ValidationException: invalid beta flag); either alone works.
+  Served via Bedrock, so versions may differ slightly from Anthropic's first-party
+  API; record this in the collection manifest.
+  2026-08-10 decision: collection keeps the bare model name without the aws. prefix.
+  F2 completed with the bare name, the prefix does not change the model's inherent
+  latency (~60s median per step), and the aws. prefix has no full-collection evidence.

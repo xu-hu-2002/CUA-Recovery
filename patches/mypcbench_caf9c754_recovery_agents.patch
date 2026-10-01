@@ -120,8 +120,8 @@ index f311e70..0c29746 100644
          # warning rather than breaking the run.
          self.effort = effort
          self._output_config_supported = True
-+        # RECOVERY: 运行时粘滞位。服务端报 "use thinking.adaptive" 后置 1，
-+        # 后续每次请求都走 adaptive 路径，不再靠模型名单猜。
++        # RECOVERY: runtime sticky flag. Set once the server says "use thinking.adaptive";
++        # every later request then takes the adaptive path instead of guessing by model name.
 +        self._force_adaptive_thinking = False
  
          # Sampling params — the canonical OSWorld agent passes these via
@@ -146,9 +146,9 @@ index f311e70..0c29746 100644
              max_retries=4,
 -        ).with_options(
 -            default_headers={"anthropic-beta": PROMPT_CACHING_BETA_FLAG},
-+            # RECOVERY: 显式超时。SDK 默认 600s × max_retries=4 意味着单次挂死
-+            # 最多吃掉 50 分钟，而一个分片有 46 个任务、每任务数十步，
-+            # 卡一次就把整片拖崩（CLAUDE_HTTP_TIMEOUT 可调）。
++            # RECOVERY: explicit timeout. The SDK default of 600s x max_retries=4 means one hang
++            # can eat up to 50 minutes, while a shard has 46 tasks with dozens of steps each;
++            # one stall sinks the whole shard (tunable via CLAUDE_HTTP_TIMEOUT).
 +            timeout=float(os.environ.get("CLAUDE_HTTP_TIMEOUT", "180")),
          )
 +        if self._prompt_caching:
@@ -261,10 +261,10 @@ index f311e70..0c29746 100644
              except _CLAUDE_RETRYABLE as e:
                  last_error = e
                  err_msg = str(e)
-+                # RECOVERY: 服务端明确要求用 thinking.adaptive（新模型家族拒绝
-+                # enabled+budget_tokens）。错误文案已经告诉了正确形式，直接置
-+                # 粘滞位重试，不要把它当一般错误磨完重试预算——后者会让整个
-+                # 任务卡十几分钟后以“模型无输出”告终。
++                # RECOVERY: the server explicitly requires thinking.adaptive (newer model families reject
++                # enabled+budget_tokens). The error text already names the right form, so set the
++                # sticky flag and retry instead of burning the retry budget as a generic error, which
++                # stalls the task for 10+ minutes and ends with "no model output".
 +                if (
 +                    not self._force_adaptive_thinking
 +                    and "adaptive" in err_msg
@@ -298,7 +298,7 @@ index f311e70..0c29746 100644
 +            # crashing predict() and truncating the whole trajectory as
 +            # PREDICT_CRASH (F2 opus collection hit this on 11/184 tasks).
 +            if isinstance(value, bool) or not isinstance(value, (int, float, str)):
-+                raise ValueError(f"非法坐标分量：{value!r}")
++                raise ValueError(f"invalid coordinate component: {value!r}")
 +            return float(value)
 +
          action = input_dict.get("action", "")
@@ -331,15 +331,15 @@ index 3100163..9598481 100644
  
  def _build_clipboard_paste_command(text: str) -> str:
 -    """Build pyautogui code that pastes `text` via clipboard (handles non-ASCII)."""
-+    """RECOVERY: 直接逐字符输入，不走剪贴板。
++    """RECOVERY: type characters directly instead of using the clipboard.
 +
-+    与 agents/vendored_paper_results/qwen35vl_agent.py 的同名函数同批改动，
-+    原因见那里的详细说明：MyPCBench 的 Ubuntu 24.04 镜像里 pyperclip.copy()
-+    会阻塞而不是抛异常，命令一直挂到 env.py 的 120s 读超时，Ctrl+V 从不执行，
-+    文字一个都进不去。这里比 qwen35vl 那处更糟 —— 它连 except 后备都没有。
++    Changed together with the same-named function in agents/vendored_paper_results/qwen35vl_agent.py;
++    see the details there: in the MyPCBench Ubuntu 24.04 image pyperclip.copy()
++    blocks instead of raising, the command hangs until the 120s read timeout in env.py, Ctrl+V never runs,
++    and no text gets in. This one is worse than qwen35vl: it has no except fallback at all.
 +
-+    本 agent（openai_cuabash）当前不在 RECOVERY 的五模型队列里，改动是为了
-+    保持两处行为一致，避免以后启用 gpt_5_5 baseline 时再踩一遍。
++    This agent (openai_cuabash) is not in the RECOVERY five-model queue; the change
++    keeps both places consistent so a future gpt_5_5 baseline does not hit this again.
 +    """
      encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
      return (
@@ -565,7 +565,7 @@ index b4831ba..0687d5f 100644
          step_summary_parts: List[str] = []
          message_text_parts: List[str] = []
          reasoning_text_parts: List[str] = []
-+        # RECOVERY: 本轮执行过的 shell 命令 + 输出，供纯工具轮回填 response_text。
++        # RECOVERY: shell commands + outputs run this turn, used to fill response_text on tool-only turns.
 +        _tool_transcript: List[str] = []
  
          for item in response.output:
@@ -574,19 +574,19 @@ index b4831ba..0687d5f 100644
                      )
                      logger.info("  shell: %s -> %s", cmd[:120], outcome_repr)
                      step_summary_parts.append(f"shell: {cmd[:60]}")
-+                    # RECOVERY: 把命令和它的真实输出留一份给轨迹。
++                    # RECOVERY: keep a copy of each command and its real output for the trajectory.
 +                    #
-+                    # 在此之前，命令与 stdout 只去了两个地方：pending_items（发回给
-+                    # 模型自己）和上面那行 logger（且只记 exit code）。predict() 返回的
-+                    # response_text 在纯工具轮里是空串，于是 run_mypcbench.py 写下的
-+                    # TOOL_CALL 轨迹行 response="" ，rubric_bundle 的 raw_response_text
-+                    # 也为空 —— 判官最终只看到一行 "Action: TOOL_CALL"。上游在
-+                    # run_mypcbench.py:400 处的注释写明这行轨迹的目的正是「让判官看到
-+                    # 中间的工具工作」，意图被空载荷架空。gpt-5.5 有 50.5% 的步数是
-+                    # 这种纯工具轮，33.9% 的失败 rubric 判词是「截图里看不到」。
++                    # Before this, commands and stdout only went to two places: pending_items (sent back to
++                    # the model) and the logger line above (exit code only). The response_text returned by
++                    # predict() is empty on tool-only turns, so run_mypcbench.py writes a
++                    # TOOL_CALL trajectory row with response="", and raw_response_text in rubric_bundle
++                    # is empty too; the judge only sees one line "Action: TOOL_CALL". The upstream comment at
++                    # run_mypcbench.py:400 says this row exists precisely "so the judge sees
++                    # the intermediate tool work", which an empty payload defeats. 50.5% of gpt-5.5 steps are
++                    # tool-only turns, and 33.9% of failed rubric verdicts say "not visible in the screenshot".
 +                    #
-+                    # 判官侧 _build_history_and_images() 会把每步 raw_response_text
-+                    # 截到 600 字符，所以这里就按能装下的预算裁剪，别指望下游放宽。
++                    # On the judge side, _build_history_and_images() truncates each step's raw_response_text
++                    # to 600 characters, so trim to a budget that fits; do not expect downstream to relax it.
 +                    _out = (stdout or "").strip() or (stderr or "").strip()
 +                    _tool_transcript.append(
 +                        f"$ {cmd[:200]}\n{_out[:300]}"
@@ -600,12 +600,12 @@ index b4831ba..0687d5f 100644
          else:
              response_text = message_text
  
-+        # RECOVERY: 纯工具轮（模型只发了工具调用、没发消息文本）时，用本轮的命令+输出
-+        # 充当 response_text，让这一步在轨迹里留下实际内容而不是空串。
++        # RECOVERY: on tool-only turns (tool calls but no message text), use this turn's commands + outputs
++        # as response_text so the step leaves real content in the trajectory instead of an empty string.
 +        #
-+        # 只在 response_text 为空时回填，不覆盖模型真正说过的话；也不参与下面的
-+        # DONE/FAIL 哨兵扫描（scan_terminal 仍只看 message_text），所以不会因为某条
-+        # 命令的输出里恰好有 "DONE" 就误判结束。
++        # Only fill when response_text is empty, never overwrite what the model said; this also stays out of the
++        # DONE/FAIL sentinel scan below (scan_terminal still only reads message_text), so a command
++        # output that happens to contain "DONE" cannot end the episode by mistake.
 +        if not response_text.strip() and _tool_transcript:
 +            response_text = "[tool] " + "\n[tool] ".join(_tool_transcript)
 +
@@ -963,28 +963,28 @@ index 9816b45..5c2f1f2 100644
  
      @staticmethod
      def _build_clipboard_paste_command(text: str) -> str:
-+        """RECOVERY: 直接逐字符输入，不走剪贴板。
++        """RECOVERY: type characters directly instead of using the clipboard.
 +
-+        原实现先 pyperclip.copy(_text) 再 Ctrl+V，把逐字符输入放在
-+        `except Exception` 的后备分支里。但在 MyPCBench 的 Ubuntu 24.04 镜像里
-+        pyperclip 会**阻塞**而不是抛异常（Linux 下它要 fork xclip/xsel 去持有 X
-+        selection，没有剪贴板管理器接管时就一直挂着），于是：
++        The original did pyperclip.copy(_text) then Ctrl+V, with per-character typing only in
++        the `except Exception` fallback. But in the MyPCBench Ubuntu 24.04 image
++        pyperclip **blocks** instead of raising (on Linux it forks xclip/xsel to hold the X
++        selection and hangs when no clipboard manager takes over), so:
 +
-+          * 后备分支永远不触发 —— 挂起不是异常；
-+          * 命令一直挂到 env.py 的 120s 读超时被放弃，Ctrl+V 从没执行；
-+          * 一个字都没输进去，模型看截图发现没变化，再打一遍，无限循环。
++          * the fallback never fires, since a hang is not an exception;
++          * the command hangs until the 120s read timeout in env.py gives up, Ctrl+V never runs;
++          * no text gets in, the model sees no change in the screenshot and retypes, looping forever.
 +
-+        2026-08-04 实测（Qwen3.5，1990 步）：click/press/hotkey/scroll 四类动作
-+        0 次超时，而这条打字路径 342 次里有 338 次（99%）卡满 120 秒，中位间隔
-+        129.1s，吃掉 65% 的墙钟时间。任务因此反复重试同一段文字（有个任务把
-+        `ls -la ~/Documents/Tax_2025/` 打了 23 遍）直到撞上 100 步上限。
-+        凡是需要输入文字的任务都无法完成，且失败原因是 harness 不是模型能力。
++        Measured 2026-08-04 (Qwen3.5, 1990 steps): click/press/hotkey/scroll actions had
++        0 timeouts, while 338 of 342 (99%) calls on this typing path hit the full 120s, median interval
++        129.1s, eating 65% of wall-clock time. Tasks kept retyping the same text (one task typed
++        `ls -la ~/Documents/Tax_2025/` 23 times) until hitting the 100-step limit.
++        No task that needs typing could finish, and the cause was the harness, not the model.
 +
-+        键盘事件本身是好的（press 中位 1.3s、hotkey 11.0s，零超时），所以直接
-+        把原来的后备路径提为唯一路径。interval=0.01 与 RECOVERY 自己的
-+        src/recovery/mypcbench/tool_agent.py 保持一致；实测 864 字符约 8.6 秒。
-+        代价：无法输入键盘布局打不出的字符（如 emoji、中文），这类内容原本也
-+        只有剪贴板路径能处理。
++        Keyboard events themselves work (press median 1.3s, hotkey 11.0s, zero timeouts), so the
++        old fallback becomes the only path. interval=0.01 matches RECOVERY's own
++        src/recovery/mypcbench/tool_agent.py; 864 characters take about 8.6s.
++        Cost: characters the keyboard layout cannot produce (e.g. emoji, CJK) cannot be typed;
++        only the clipboard path could handle those anyway.
 +        """
          encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
          return (
@@ -1403,7 +1403,7 @@ index e42eb4b..7fc1944 100755
 +    # RECOVERY (2026-08-11): ALWAYS pass an explicit --timeout. The conditional
 +    # pass-through let some runs fall back to run_mypcbench's implicit
 +    # default, and F2 produced trajectories that escaped any budget entirely
-+    # (see COLLECTION_LOG 08-11 截断专项). Fallback order: caller arg >
++    # (see COLLECTION_LOG 08-11 truncation notes). Fallback order: caller arg >
 +    # TASK_TIMEOUT env > 7200s.
 +    _task_timeout = args_dict.get("task_timeout")
 +    if _task_timeout is None:

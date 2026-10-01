@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 die() {
-  printf '错误：%s\n' "$*" >&2
+  printf 'error: %s\n' "$*" >&2
   exit 1
 }
 
@@ -27,12 +27,12 @@ for arg in "$@"; do
       sed -n '2,20p' "${BASH_SOURCE[0]}"
       exit 0
       ;;
-    *) die "未知参数：${arg}（可用：mypcbench / evocua / opencua / --all）" ;;
+    *) die "Unknown argument: ${arg} (valid: mypcbench / evocua / opencua / --all)" ;;
   esac
 done
 (( ${#TARGETS[@]} )) || TARGETS=(mypcbench)
 
-command -v git >/dev/null 2>&1 || die "找不到 git"
+command -v git >/dev/null 2>&1 || die "git not found"
 
 for target in "${TARGETS[@]}"; do
   case "$target" in
@@ -45,16 +45,16 @@ for target in "${TARGETS[@]}"; do
   esac
 done
 
-info "third_party 就绪：$(printf '%s ' "${TARGETS[@]}")"
+info "third_party ready: $(printf '%s ' "${TARGETS[@]}")"
 
 if [[ " ${TARGETS[*]} " == *" mypcbench "* && ! -f "${MYPCBENCH_ROOT}/mypcbench-vm/mypcbench.qcow2" ]]; then
   cat <<EOF
 
-还差 VM 镜像（约 16.5G，只有要跑 rollout 才需要）：
+VM image still missing (about 16.5G, only needed for rollouts):
   bash ${MYPCBENCH_ROOT}/scripts/get-eval-image.sh --out ${MYPCBENCH_ROOT}/mypcbench-vm
 
-镜像跑起来需要 KVM。宿主机能不能直跑，实测别猜：
-  [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "qemu backend 可用" || echo "改用 docker backend"
-不可用时把 configs/collection/mypcbench_runtime.yaml 的 backend 设为 docker。
+The image needs KVM. Check whether this host supports it:
+  [ -r /dev/kvm ] && [ -w /dev/kvm ] && echo "qemu backend available" || echo "use the docker backend"
+If unavailable, set backend to docker in configs/collection/mypcbench_runtime.yaml.
 EOF
 fi

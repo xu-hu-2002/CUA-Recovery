@@ -46,12 +46,12 @@ class StateFingerprint:
 
     def __post_init__(self) -> None:
         if not self.components:
-            raise ReplayVerificationError("state fingerprint 不能只依赖截图或为空")
+            raise ReplayVerificationError("state fingerprint must not be empty or rely only on screenshots")
         if any(
             not str(key).strip() or not str(value).strip()
             for key, value in self.components.items()
         ):
-            raise ReplayVerificationError("state fingerprint components 不能为空")
+            raise ReplayVerificationError("state fingerprint components must not be empty")
         try:
             for name, value in self.components.items():
                 require_sha256(value, "state_fingerprint.components.%s" % name)
@@ -78,14 +78,14 @@ class StateFingerprint:
     def from_dict(cls, raw: Mapping[str, Any]) -> "StateFingerprint":
         components = raw.get("components")
         if not isinstance(components, Mapping):
-            raise ReplayVerificationError("state_fingerprint.components 必须是 object")
+            raise ReplayVerificationError("state_fingerprint.components must be an object")
         result = cls(
             components={str(key): str(value) for key, value in components.items()},
             screenshot_sha256=str(raw.get("screenshot_sha256", "")),
         )
         supplied = raw.get("sha256")
         if supplied is not None and str(supplied) != result.sha256:
-            raise ReplayVerificationError("state_fingerprint.sha256 与 components 不一致")
+            raise ReplayVerificationError("state_fingerprint.sha256 does not match components")
         return result
 
 
@@ -158,9 +158,9 @@ class ReplayPlan:
             self.state_probe_config_sha256,
         )
         if any(not value.strip() for value in required):
-            raise ReplayVerificationError("replay plan provenance 字段不能为空")
+            raise ReplayVerificationError("replay plan provenance fields must not be empty")
         if self.instance.case_id != self.case_id:
-            raise ReplayVerificationError("replay instance/case 不一致")
+            raise ReplayVerificationError("replay instance/case mismatch")
         try:
             require_sha256(self.snapshot_sha256, "snapshot_sha256")
             require_sha256(self.canonical_trajectory_sha256, "canonical_trajectory_sha256")
@@ -257,34 +257,34 @@ class ReplayVerification:
 
     def __post_init__(self) -> None:
         if self.execution_mode not in EXECUTION_MODES:
-            raise ReplayVerificationError("未知 replay execution_mode")
+            raise ReplayVerificationError("unknown replay execution_mode")
         if any(
             not value.strip()
             for value in (self.attempt_id, self.build_id, self.case_id, self.instance_id)
         ):
-            raise ReplayVerificationError("replay verification identity 不能为空")
+            raise ReplayVerificationError("replay verification identity must not be empty")
         if self.depth not in DEPTH_GRID:
-            raise ReplayVerificationError("replay depth 不在冻结 grid")
+            raise ReplayVerificationError("replay depth is not in the frozen grid")
         if self.replay_end_action_index != self.root_cause_action_index + self.depth:
-            raise ReplayVerificationError("replay_end 必须等于 root + depth")
+            raise ReplayVerificationError("replay_end must equal root + depth")
         if not self.executed_action_indices:
-            raise ReplayVerificationError("cleaned replay actions 不能为空")
+            raise ReplayVerificationError("cleaned replay actions must not be empty")
         if self.executed_action_indices != tuple(sorted(set(self.executed_action_indices))):
-            raise ReplayVerificationError("cleaned replay action indices 必须严格递增且唯一")
+            raise ReplayVerificationError("cleaned replay action indices must be strictly increasing and unique")
         if any(
             index < 0 or index > self.replay_end_action_index
             for index in self.executed_action_indices
         ):
-            raise ReplayVerificationError("cleaned replay action 超出 source depth 边界")
+            raise ReplayVerificationError("cleaned replay action is beyond the source depth boundary")
         if self.root_cause_action_index not in self.executed_action_indices:
-            raise ReplayVerificationError("cleaned replay 不能缺少 root-cause action")
+            raise ReplayVerificationError("cleaned replay must not miss the root-cause action")
         if len(self.per_action_log) != len(self.executed_action_indices):
-            raise ReplayVerificationError("per_action_log 长度与 executed actions 不一致")
+            raise ReplayVerificationError("per_action_log length does not match executed actions")
         log_indices = tuple(
             int(item.get("action_index_global", -1)) for item in self.per_action_log
         )
         if log_indices != self.executed_action_indices:
-            raise ReplayVerificationError("per_action_log action indices 不一致")
+            raise ReplayVerificationError("per_action_log action indices mismatch")
         try:
             for field, value in (
                 ("canonical_actions_sha256", self.canonical_actions_sha256),
@@ -302,19 +302,19 @@ class ReplayVerification:
             raise ReplayVerificationError(str(exc)) from exc
         if self.accepted_for_release:
             if self.execution_mode != "vm":
-                raise ReplayVerificationError("只有 real VM replay 可 accepted_for_release")
+                raise ReplayVerificationError("only a real VM replay can be accepted_for_release")
             if not REQUIRED_RELEASE_CHECKS.issubset(self.automated_checks):
-                raise ReplayVerificationError("accepted replay 缺少固定 automated checks")
+                raise ReplayVerificationError("accepted replay is missing the fixed automated checks")
             if not self.snapshot_restored or not all(self.automated_checks.values()):
-                raise ReplayVerificationError("accepted replay 的 automated checks 必须全部通过")
+                raise ReplayVerificationError("all automated checks of an accepted replay must pass")
             if not self.reviewer_ids or self.rejection_reasons:
-                raise ReplayVerificationError("accepted replay 必须有人审且不能有 rejection reason")
+                raise ReplayVerificationError("an accepted replay must be human-reviewed with no rejection reason")
             if not self.expected_state_sha256 or (
                 self.expected_state_sha256 != self.state_fingerprint.sha256
             ):
-                raise ReplayVerificationError("accepted replay 的 expected/fingerprint hash 不一致")
+                raise ReplayVerificationError("accepted replay expected/fingerprint hash mismatch")
             if not self.vm_session_id.strip():
-                raise ReplayVerificationError("accepted replay 必须绑定 VM session")
+                raise ReplayVerificationError("an accepted replay must be bound to a VM session")
             for field, value in (
                 ("instruction_sha256", self.instruction_sha256),
                 ("task_config_sha256", self.task_config_sha256),
@@ -358,7 +358,7 @@ class ReplayVerification:
     def from_dict(cls, raw: Mapping[str, Any]) -> "ReplayVerification":
         checks = raw.get("automated_checks")
         if not isinstance(checks, Mapping):
-            raise ReplayVerificationError("automated_checks 必须是 object")
+            raise ReplayVerificationError("automated_checks must be an object")
         return cls(
             attempt_id=str(raw["attempt_id"]),
             build_id=str(raw["build_id"]),
@@ -401,28 +401,28 @@ def execute_replay_plan(
     reviewer_ids: Sequence[str] = (),
 ) -> ReplayVerification:
     if backend.execution_mode not in EXECUTION_MODES:
-        raise ReplayVerificationError("未知 execution_mode: %s" % backend.execution_mode)
+        raise ReplayVerificationError("unknown execution_mode: %s" % backend.execution_mode)
     trajectory_path = Path(plan.canonical_trajectory_uri).resolve()
     if not trajectory_path.is_file():
-        raise ReplayVerificationError("replay 缺少 canonical trajectory artifact")
+        raise ReplayVerificationError("replay is missing the canonical trajectory artifact")
     if sha256_file(trajectory_path) != plan.canonical_trajectory_sha256:
-        raise ReplayVerificationError("canonical trajectory artifact SHA-256 不匹配")
+        raise ReplayVerificationError("canonical trajectory artifact SHA-256 mismatch")
     task_provenance_verified = plan.verify_task_provenance()
     assert_plan_provenance = getattr(backend, "assert_plan_provenance", None)
     if backend.execution_mode == "vm":
         if not callable(assert_plan_provenance):
-            raise ReplayVerificationError("real VM backend 缺少 plan provenance binding")
+            raise ReplayVerificationError("real VM backend is missing plan provenance binding")
         assert_plan_provenance(plan)
     required_indices = plan.instance.executed_action_indices
     steps_by_id = {step.action_index_global: step for step in steps}
     missing = tuple(index for index in required_indices if index not in steps_by_id)
     if missing:
-        raise ReplayVerificationError("replay plan 引用了 cleaned trajectory 中不存在的 action: %s" % (missing,))
+        raise ReplayVerificationError("replay plan references actions missing from the cleaned trajectory: %s" % (missing,))
     selected = [steps_by_id[index] for index in required_indices]
     if _digest([action_to_dict(step.action) for step in selected]) != (
         plan.instance.canonical_actions_sha256
     ):
-        raise ReplayVerificationError("replay actions 与 depth instance hash 不一致")
+        raise ReplayVerificationError("replay actions do not match the depth instance hash")
 
     backend.restore_snapshot(plan.snapshot_uri, plan.snapshot_sha256)
     logs = []
@@ -508,17 +508,17 @@ class DeterministicSyntheticBackend:
 
     def restore_snapshot(self, snapshot_uri: str, snapshot_sha256: str) -> None:
         if not snapshot_uri or not snapshot_sha256:
-            raise ReplayVerificationError("synthetic snapshot provenance 不能为空")
+            raise ReplayVerificationError("synthetic snapshot provenance must not be empty")
         self.restored = True
         self.actions = []
 
     def execute(self, action: Action) -> Mapping[str, Any]:
         if not self.restored:
-            raise ReplayVerificationError("必须先 restore snapshot")
+            raise ReplayVerificationError("restore the snapshot first")
         self.actions.append(action_to_dict(action))
         return {"result": "ok"}
 
     def fingerprint(self) -> StateFingerprint:
         if not self.restored:
-            raise ReplayVerificationError("必须先 restore snapshot")
+            raise ReplayVerificationError("restore the snapshot first")
         return StateFingerprint(components={"synthetic_action_state": _digest(self.actions)})

@@ -27,5 +27,5 @@ enable_bash: false
 scroll_unit_understanding: pixels_mistaken_for_notches_requires_clamp
 
 eta_step_seconds: 24.0
-eta_step_seconds_source: 估算（按网关 60 rpm 配额与 4 VM 反推），未做全量实测
+eta_step_seconds_source: estimate (derived from the 60 rpm gateway quota and 4 VMs), not measured on a full run
 status: gui_only_ablation_not_paper_config

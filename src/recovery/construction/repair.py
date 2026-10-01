@@ -35,42 +35,42 @@ class PrefixAudit:
 
     def __post_init__(self) -> None:
         if not self.audit_id or not self.case_id or not self.source_trajectory_sha256:
-            raise PrefixRepairError("prefix audit provenance 字段不能为空")
+            raise PrefixRepairError("prefix audit provenance fields must not be empty")
         if self.root_cause_action_index < 0:
-            raise PrefixRepairError("prefix audit root 不能为负数")
+            raise PrefixRepairError("prefix audit root must not be negative")
         if self.audit_end_action_index < self.root_cause_action_index:
-            raise PrefixRepairError("prefix audit end 不能早于 root cause")
+            raise PrefixRepairError("prefix audit end must not precede the root cause")
         expected = tuple(range(self.audit_end_action_index + 1))
         if self.audited_prefix_action_indices != expected:
-            raise PrefixRepairError("prefix audit 必须逐一覆盖 clean-prefix 最大 depth 边界内的 actions")
+            raise PrefixRepairError("prefix audit must cover every action within the maximum clean-prefix depth boundary")
         if any(index >= self.root_cause_action_index for index in self.unrelated_error_action_indices):
-            raise PrefixRepairError("prefix repair 只能修改 root cause 之前的 actions")
+            raise PrefixRepairError("prefix repair may only modify actions before the root cause")
         if len(set(self.unrelated_error_action_indices)) != len(
             self.unrelated_error_action_indices
         ):
-            raise PrefixRepairError("unrelated_error_action_indices 不允许重复")
+            raise PrefixRepairError("unrelated_error_action_indices must not contain duplicates")
         if len(set(self.reviewer_ids)) < max(1, self.min_reviewers):
             raise PrefixRepairError(
-                "prefix error-free audit 至少需要 %d 名 human reviewers" % max(1, self.min_reviewers)
+                "prefix error-free audit needs at least %d human reviewers" % max(1, self.min_reviewers)
             )
         if not self.evidence_refs or not self.rationale.strip():
-            raise PrefixRepairError("prefix audit 必须包含 evidence 和 rationale")
+            raise PrefixRepairError("prefix audit must include evidence and rationale")
         if len(set(self.repair_patch_ids)) != len(self.repair_patch_ids):
-            raise PrefixRepairError("repair_patch_ids 不允许重复")
+            raise PrefixRepairError("repair_patch_ids must not contain duplicates")
         if not self.approved:
-            raise PrefixRepairError("未获 human approval 的 prefix 不能构建 case")
+            raise PrefixRepairError("a prefix without human approval cannot build a case")
 
     def validate_patches(self, patches: Sequence["RepairPatch"]) -> None:
         patch_indices = tuple(sorted(patch.step_id for patch in patches))
         error_indices = tuple(sorted(self.unrelated_error_action_indices))
         if patch_indices != error_indices:
-            raise PrefixRepairError("每个 unrelated prefix error 必须恰好有一个 repair patch")
+            raise PrefixRepairError("each unrelated prefix error must have exactly one repair patch")
         if set(self.repair_patch_ids) != {patch.patch_id for patch in patches}:
-            raise PrefixRepairError("prefix audit repair_patch_ids 与实际 patches 不一致")
+            raise PrefixRepairError("prefix audit repair_patch_ids do not match the actual patches")
         if any(patch.root_cause_step != self.root_cause_action_index for patch in patches):
-            raise PrefixRepairError("prefix audit 与 repair patch 的 root cause 不一致")
+            raise PrefixRepairError("prefix audit and repair patch disagree on the root cause")
         if any(patch.step_id > self.audit_end_action_index for patch in patches):
-            raise PrefixRepairError("repair patch 超出 prefix audit 边界")
+            raise PrefixRepairError("repair patch is beyond the prefix audit boundary")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -131,31 +131,31 @@ class RepairPatch:
 
     def __post_init__(self) -> None:
         if not self.patch_id or not self.case_id:
-            raise PrefixRepairError("patch_id 和 case_id 不能为空")
+            raise PrefixRepairError("patch_id and case_id must not be empty")
         if self.step_id < 0 or self.root_cause_step < 0:
-            raise PrefixRepairError("step_id 和 root_cause_step 不能为负数")
+            raise PrefixRepairError("step_id and root_cause_step must not be negative")
         if self.operation not in {"replace", "drop"}:
-            raise PrefixRepairError("repair operation 只能是 replace 或 drop")
+            raise PrefixRepairError("repair operation must be replace or drop")
         if not self.reason.strip():
-            raise PrefixRepairError("repair 必须包含人工可审计的 reason")
+            raise PrefixRepairError("repair must include a human-auditable reason")
         if not self.annotator_id.strip():
-            raise PrefixRepairError("repair 必须记录 annotator_id")
+            raise PrefixRepairError("repair must record annotator_id")
         if self.operation == "replace":
             if self.step_id >= self.root_cause_step:
-                raise PrefixRepairError("replace 只能修改 root cause 之前的动作")
+                raise PrefixRepairError("replace may only modify actions before the root cause")
             if self.new_action is None or self.old_action == self.new_action:
-                raise PrefixRepairError("replace 必须提供与 old_action 不同的 new_action")
+                raise PrefixRepairError("replace must provide a new_action different from old_action")
         else:
             if self.step_id >= self.root_cause_step:
-                raise PrefixRepairError("不能删除 root-cause action 及其之后的 actions")
+                raise PrefixRepairError("cannot drop the root-cause action or any action after it")
             if self.new_action is not None:
-                raise PrefixRepairError("drop operation 不能包含 new_action")
+                raise PrefixRepairError("drop operation must not include new_action")
             if not self.self_recovered:
-                raise PrefixRepairError("只能删除已被 agent 自恢复的 action")
+                raise PrefixRepairError("only actions the agent already recovered from can be dropped")
             if self.persistent_state_effect:
-                raise PrefixRepairError("不能删除具有持续状态影响的 action")
+                raise PrefixRepairError("cannot drop an action with lasting state effects")
             if self.causal_to_root_or_task:
-                raise PrefixRepairError("不能删除对 root cause 或任务结果具有因果作用的 action")
+                raise PrefixRepairError("cannot drop an action causally linked to the root cause or task outcome")
 
     def to_dict(self) -> Dict[str, Any]:
         record = {
@@ -192,9 +192,9 @@ class RepairPatch:
             raw.get("root_cause_action_index", raw.get("root_cause_step", -1))
         )
         if raw.get("step_id") is not None and int(raw["step_id"]) != action_index:
-            raise PrefixRepairError("step_id 与 action_index_global 不一致")
+            raise PrefixRepairError("step_id does not match action_index_global")
         if raw.get("root_cause_step") is not None and int(raw["root_cause_step"]) != root_index:
-            raise PrefixRepairError("root_cause_step 与 root_cause_action_index 不一致")
+            raise PrefixRepairError("root_cause_step does not match root_cause_action_index")
         return cls(
             patch_id=str(raw["patch_id"]),
             case_id=str(raw["case_id"]),
@@ -226,13 +226,13 @@ def apply_repair_patches(
     patch_by_step: Dict[int, RepairPatch] = {}
     for patch in patches:
         if patch.step_id in patch_by_step:
-            raise PrefixRepairError("同一步存在多个 repair patch: %d" % patch.step_id)
+            raise PrefixRepairError("multiple repair patches for the same step: %d" % patch.step_id)
         patch_by_step[patch.step_id] = patch
 
     known_step_ids = {step.step_id for step in steps}
     missing = sorted(set(patch_by_step) - known_step_ids)
     if missing:
-        raise PrefixRepairError("repair 指向不存在的 step: %s" % missing)
+        raise PrefixRepairError("repair points to a nonexistent step: %s" % missing)
 
     repaired_steps = []
     earliest_patch = min(patch_by_step) if patch_by_step else None
@@ -264,7 +264,7 @@ def apply_repair_patches(
             continue
         if step.action != patch.old_action:
             raise PrefixRepairError(
-                "step %d 的 old_action 与轨迹不匹配，拒绝应用过期 patch" % step.step_id
+                "old_action of step %d does not match the trajectory; refusing to apply a stale patch" % step.step_id
             )
         if patch.operation == "drop":
             continue
@@ -303,5 +303,5 @@ def load_repaired_prefix(path: Path) -> Tuple[CanonicalStep, ...]:
                 steps.append(CanonicalStep.from_dict(json.loads(line)))
     indices = [step.action_index_global for step in steps]
     if not steps or indices != sorted(set(indices)):
-        raise PrefixRepairError("repaired prefix action indices 必须严格递增: %s" % path)
+        raise PrefixRepairError("repaired prefix action indices must be strictly increasing: %s" % path)
     return tuple(steps)

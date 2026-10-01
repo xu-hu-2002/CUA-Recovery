@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://recovery-benchmark.org/schemas/canonical_trajectory.schema.json",
   "title": "RECOVERY Canonical Executed Action Record v0.2",
-  "$comment": "JSONL 每行是一个 executed action。科学定义只引用 action_index_global；turn_index 可重复。",
+  "$comment": "Each JSONL line is one executed action. Scientific definitions reference only action_index_global; turn_index may repeat.",
   "type": "object",
   "properties": {
     "step_id": {"type": "integer", "minimum": 0, "deprecated": true},

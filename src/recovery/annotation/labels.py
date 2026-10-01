@@ -21,8 +21,8 @@ class FailureAnnotation:
 
     def __post_init__(self) -> None:
         if self.root_cause_step < 0:
-            raise ValueError("root_cause_step 不能为负数")
+            raise ValueError("root_cause_step must not be negative")
         if self.error_horizon < 0:
-            raise ValueError("error_horizon 不能为负数")
+            raise ValueError("error_horizon must not be negative")
         if not self.error_type or not self.annotator_id:
-            raise ValueError("error_type 和 annotator_id 不能为空")
+            raise ValueError("error_type and annotator_id must not be empty")

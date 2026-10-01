@@ -35,7 +35,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.conformance_passed:
-        raise RuntimeError("只有显式 --conformance-passed 的 live probe 可生成 release history")
+        raise RuntimeError("only a live probe with explicit --conformance-passed can produce release history")
     repository = Path(__file__).resolve().parents[2]
     build_dir = args.build_dir.resolve()
     case_path = build_dir / "cases" / args.case_id / "case.json"
@@ -48,10 +48,10 @@ def main() -> int:
     validate_schema(replay_raw, "replay_verification.schema.json", repository)
     replay = ReplayVerification.from_dict(replay_raw)
     if not replay.accepted_for_release:
-        raise RuntimeError("native history 需要 accepted real-VM replay")
+        raise RuntimeError("native history needs an accepted real-VM replay")
     probe_path = args.conformance_probe.resolve()
     if not probe_path.is_file():
-        raise RuntimeError("conformance probe evidence 不存在")
+        raise RuntimeError("conformance probe evidence does not exist")
     adapter = create_native_history_adapter(args.agent_id, case["instruction"])
     steps = load_canonical_jsonl(Path(case["canonical_repaired_uri"]))
     artifact = build_native_history_from_replay(
@@ -71,7 +71,7 @@ def main() -> int:
         / (instance["instance_id"] + ".json")
     )
     if output.exists():
-        raise RuntimeError("native history artifact 已存在，拒绝覆盖")
+        raise RuntimeError("native history artifact already exists, refusing to overwrite")
     validate_schema(artifact.to_dict(), "native_history.schema.json", repository)
     atomic_write_json(output, artifact.to_dict())
     print(json.dumps({"written": str(output), "release_eligible": True}, indent=2))

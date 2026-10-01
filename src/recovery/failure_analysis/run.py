@@ -12,7 +12,7 @@ from recovery.failure_analysis.detectors import (
 )
 from recovery.failure_analysis.horizon import earliest_identifiable, semantic_horizon
 from recovery.failure_analysis.typing_rules import TypingRules
-from recovery.longhorizon.taxonomy import FailureTaxonomy
+from recovery.longhorizon.taxonomy import TAXONOMY_PATH, FailureTaxonomy
 from recovery.world.volatile import VolatileColumns
 
 ANALYSIS_VERSION = "failure-analysis-v1/1.0"
@@ -31,7 +31,7 @@ class AnalysisConfig:
         cls,
         repo_root: Union[str, Path],
         typing_rules: str = "configs/synthesis/typing_rules_v1.yaml",
-        taxonomy: str = "configs/synthesis/failure_taxonomy_v0.1.yaml",
+        taxonomy: Union[str, Path] = TAXONOMY_PATH,
         volatile: str = "configs/synthesis/volatile_columns_v1.yaml",
     ) -> "AnalysisConfig":
         root = Path(repo_root)

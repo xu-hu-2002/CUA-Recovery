@@ -41,11 +41,11 @@ def check_repository() -> int:
     root = repository_root()
     missing = [path for path in REQUIRED_PATHS if not (root / path).exists()]
     if missing:
-        print("仓库结构不完整，缺少：")
+        print("Repository is incomplete; missing:")
         for path in missing:
             print("- %s" % path)
         return 1
-    print("RECOVERY repository skeleton 检查通过（%d 个关键路径）。" % len(REQUIRED_PATHS))
+    print("RECOVERY repository skeleton check passed (%d key paths)." % len(REQUIRED_PATHS))
     return 0
 
 
@@ -54,7 +54,6 @@ def inspect_action(raw_json: str) -> int:
     output = {
         "canonical": action_to_dict(action),
         "summary_en": summarize_action(action, "en"),
-        "summary_zh": summarize_action(action, "zh"),
         "pyautogui_audit": compile_pyautogui(action),
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
@@ -64,9 +63,9 @@ def inspect_action(raw_json: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="RECOVERY benchmark toolkit")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("check-repository", help="检查首版仓库关键文件")
-    inspect_parser = subparsers.add_parser("inspect-action", help="审计 canonical action")
-    inspect_parser.add_argument("action_json", help="单个 canonical action JSON")
+    subparsers.add_parser("check-repository", help="check key repository files")
+    inspect_parser = subparsers.add_parser("inspect-action", help="audit a canonical action")
+    inspect_parser.add_argument("action_json", help="a single canonical action JSON")
     return parser
 
 
@@ -77,7 +76,7 @@ def main(argv: Sequence[str] = ()) -> int:
         return check_repository()
     if args.command == "inspect-action":
         return inspect_action(args.action_json)
-    parser.error("未知命令")
+    parser.error("unknown command")
     return 2
 
 

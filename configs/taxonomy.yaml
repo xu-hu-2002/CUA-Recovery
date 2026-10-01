@@ -1,25 +1,22 @@
-schema_version: failure-taxonomy/0.1
-taxonomy_version: frozen-2026-08-31
+schema_version: failure-taxonomy/0.2
+taxonomy_version: paper-12
 paper_categories:
   planning:
     - fabricate_data
-    - misunderstand_task_objective
-    - lack_of_knowledge
     - scope_error
+    - misunderstand_task_objective
   perception:
-    - progress_misperception
-    - detail_misperception
-    - state_misinterpretation
     - ineffective_action
+    - progress_misperception
+    - state_misinterpretation
+    - detail_misperception
   execution:
+    - typing_or_parameter_error
     - grounding_failure
     - incorrect_ui_element
-    - typing_or_parameter_error
-    - wrong_target
   termination:
-    - fail_to_terminate
     - premature_completion
-    - hit_budget_limit
+    - budget_exhaustion
 
 category_to_group:
   planning: long_horizon
@@ -29,20 +26,17 @@ category_to_group:
 
 paper_type_to_subgroup:
   fabricate_data: lost_or_corrupted_constraint
-  misunderstand_task_objective: wrong_distant_conditional_branch
-  lack_of_knowledge: dependency_propagation
   scope_error: lost_or_corrupted_constraint
+  misunderstand_task_objective: wrong_distant_conditional_branch
+  ineffective_action: progress_or_state_tracking
   progress_misperception: progress_or_state_tracking
-  detail_misperception: multi_source_aggregation
   state_misinterpretation: progress_or_state_tracking
+  detail_misperception: multi_source_aggregation
+  typing_or_parameter_error: input_or_format
   grounding_failure: grounding
   incorrect_ui_element: local_navigation
-  ineffective_action: progress_or_state_tracking
-  typing_or_parameter_error: input_or_format
-  wrong_target: input_or_format
-  fail_to_terminate: termination
   premature_completion: termination
-  hit_budget_limit: termination
+  budget_exhaustion: termination
 
 retired_labels:
   - gui_workflow_bypass
@@ -52,7 +46,11 @@ renamed_labels:
   wrong_subgoal: misunderstand_task_objective
   hallucinated_data: fabricate_data
   constraint_loss: scope_error
-  section_content_misplacement: wrong_target
+  section_content_misplacement: incorrect_ui_element
+  wrong_target: incorrect_ui_element
+  lack_of_knowledge: misunderstand_task_objective
+  fail_to_terminate: budget_exhaustion
+  hit_budget_limit: budget_exhaustion
 
 primary_selection:
   category_priority: [planning, perception, execution, termination]

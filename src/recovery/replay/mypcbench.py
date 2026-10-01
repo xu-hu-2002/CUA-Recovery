@@ -71,7 +71,7 @@ def build_state_probe_commands(
         else:
             raise ReplayVerificationError("unknown state probe kind for %s: %r" % (name, kind))
     if not commands:
-        raise ReplayVerificationError("real VM replay 至少需要一个非截图 state probe")
+        raise ReplayVerificationError("real VM replay needs at least one non-screenshot state probe")
     return commands
 
 
@@ -120,7 +120,7 @@ class MyPCBenchVMReplayBackend:
         sleep_after_s: float = 1.0,
     ) -> None:
         if not state_probe_commands:
-            raise ReplayVerificationError("real VM replay 至少需要一个非截图 state probe")
+            raise ReplayVerificationError("real VM replay needs at least one non-screenshot state probe")
         self._env_factory = env_factory
         self._task_config = dict(task_config)
         self._state_probe_commands = dict(state_probe_commands)
@@ -204,24 +204,24 @@ class MyPCBenchVMReplayBackend:
     def restore_snapshot(self, snapshot_uri: str, snapshot_sha256: str) -> None:
         path = Path(snapshot_uri).resolve()
         if not path.is_file():
-            raise ReplayVerificationError("qcow2 snapshot 不存在: %s" % path)
+            raise ReplayVerificationError("qcow2 snapshot does not exist: %s" % path)
         if sha256_file(path) != snapshot_sha256:
-            raise ReplayVerificationError("qcow2 snapshot SHA-256 不匹配")
+            raise ReplayVerificationError("qcow2 snapshot SHA-256 mismatch")
         env = self._env_factory()
         configured = getattr(env, "qcow2_path", None)
         if configured is not None and Path(configured).resolve() != path:
-            raise ReplayVerificationError("env_factory 使用的 qcow2 与 replay plan 不一致")
+            raise ReplayVerificationError("qcow2 used by env_factory does not match the replay plan")
         reset_config = dict(self._task_config)
         pre_command = reset_config.pop("pre_command", "")
         observation = env.reset(task_config=reset_config)
         if pre_command:
             execute_shell = getattr(env, "_execute_shell", None)
             if not callable(execute_shell):
-                raise ReplayVerificationError("task pre_command 需要 in-VM shell 接口")
+                raise ReplayVerificationError("task pre_command needs an in-VM shell interface")
             self._checked_shell(execute_shell, pre_command, "task_pre_command")
             get_obs = getattr(env, "_get_obs", None)
             if not callable(get_obs):
-                raise ReplayVerificationError("pre_command 后无法重新获取 VM observation")
+                raise ReplayVerificationError("cannot get a VM observation after pre_command")
             observation = get_obs()
         if hasattr(env, "config"):
             env.config = dict(self._task_config)
@@ -244,9 +244,9 @@ class MyPCBenchVMReplayBackend:
 
         path = Path(snapshot_uri).resolve()
         if not path.is_file():
-            raise ReplayVerificationError("qcow2 snapshot 不存在: %s" % path)
+            raise ReplayVerificationError("qcow2 snapshot does not exist: %s" % path)
         if not hash_preverified and sha256_file(path) != snapshot_sha256:
-            raise ReplayVerificationError("qcow2 snapshot SHA-256 不匹配")
+            raise ReplayVerificationError("qcow2 snapshot SHA-256 mismatch")
         env = self._env_factory()
         configured = getattr(env, "qcow2_path", None)
         if configured is None or Path(configured).resolve() != path:
@@ -270,16 +270,16 @@ class MyPCBenchVMReplayBackend:
                 Path(plan.state_probe_config_uri).read_text(encoding="utf-8")
             )
         except (OSError, json.JSONDecodeError) as exc:
-            raise ReplayVerificationError("replay plan provenance JSON 无法读取") from exc
+            raise ReplayVerificationError("cannot read replay plan provenance JSON") from exc
         if task_config != self._task_config:
-            raise ReplayVerificationError("backend task_config 与 replay plan 不一致")
+            raise ReplayVerificationError("backend task_config does not match the replay plan")
         if state_probes != self._state_probe_commands:
-            raise ReplayVerificationError("backend state probes 与 replay plan 不一致")
+            raise ReplayVerificationError("backend state probes do not match the replay plan")
 
     def _capture_screenshot(self, observation: Mapping[str, Any], filename: str) -> None:
         screenshot = observation.get("screenshot")
         if not isinstance(screenshot, bytes) or not screenshot.startswith(b"\x89PNG"):
-            raise ReplayVerificationError("VM replay 未返回有效 PNG observation")
+            raise ReplayVerificationError("VM replay returned no valid PNG observation")
         self._evidence_dir.mkdir(parents=True, exist_ok=True)
         target = self._evidence_dir / filename
         fd, temporary = tempfile.mkstemp(prefix=".%s." % filename, dir=str(self._evidence_dir))
@@ -300,7 +300,7 @@ class MyPCBenchVMReplayBackend:
 
     def execute(self, action: Action) -> Mapping[str, Any]:
         if self._env is None:
-            raise ReplayVerificationError("必须先 restore MyPCBench VM")
+            raise ReplayVerificationError("restore the MyPCBench VM first")
         source_action = action
         action = reframe_action(
             action,
@@ -352,7 +352,7 @@ class MyPCBenchVMReplayBackend:
                 source, self._sleep_after_s
             )
             if done:
-                raise ReplayVerificationError("VM 在 prefix replay 中意外终止: %s" % info)
+                raise ReplayVerificationError("VM terminated unexpectedly during prefix replay: %s" % info)
 
         observation = self._env._get_obs()
         self._capture_screenshot(
@@ -383,10 +383,10 @@ class MyPCBenchVMReplayBackend:
 
     def fingerprint(self) -> StateFingerprint:
         if self._env is None:
-            raise ReplayVerificationError("必须先 restore MyPCBench VM")
+            raise ReplayVerificationError("restore the MyPCBench VM first")
         execute_shell = getattr(self._env, "_execute_shell", None)
         if not callable(execute_shell):
-            raise ReplayVerificationError("MyPCBench env 缺少 in-VM state probe 接口")
+            raise ReplayVerificationError("MyPCBench env has no in-VM state probe interface")
         return probe_state_fingerprint(
             execute_shell, self._state_probe_commands, self._last_screenshot_sha256
         )
@@ -395,13 +395,13 @@ class MyPCBenchVMReplayBackend:
     def _checked_shell(execute_shell: Callable[[str], Any], command: str, label: str) -> Any:
         response = execute_shell(command)
         if not isinstance(response, Mapping):
-            raise ReplayVerificationError("%s 返回格式无效" % label)
+            raise ReplayVerificationError("%s returned an invalid format" % label)
         returncode = response.get("returncode")
         if isinstance(returncode, bool) or not isinstance(returncode, int):
-            raise ReplayVerificationError("%s 缺少整数 returncode" % label)
+            raise ReplayVerificationError("%s is missing an integer returncode" % label)
         if returncode != 0:
             raise ReplayVerificationError(
-                "%s 失败(returncode=%d): %s"
+                "%s failed (returncode=%d): %s"
                 % (label, returncode, response.get("error", ""))
             )
         return response.get("output", "")
@@ -412,15 +412,15 @@ class MyPCBenchVMReplayBackend:
 
     def assert_replay_binding(self, verification: Any) -> None:
         if verification.attempt_id != self._bound_attempt_id:
-            raise ReplayVerificationError("takeover environment 未绑定该 replay attempt")
+            raise ReplayVerificationError("takeover environment is not bound to this replay attempt")
         if verification.vm_session_id != self._session_id:
-            raise ReplayVerificationError("takeover environment/replay VM session 不一致")
+            raise ReplayVerificationError("takeover environment/replay VM session mismatch")
         if self.fingerprint().sha256 != self._bound_state_sha256:
-            raise ReplayVerificationError("takeover 前 VM state 已偏离 verified replay state")
+            raise ReplayVerificationError("VM state drifted from the verified replay state before takeover")
 
     def observe(self) -> Mapping[str, Any]:
         if self._env is None:
-            raise ReplayVerificationError("VM 尚未 restore")
+            raise ReplayVerificationError("VM has not been restored")
         observation = self._env._get_obs()
         self._capture_screenshot(observation, "takeover_observation.png")
         return observation

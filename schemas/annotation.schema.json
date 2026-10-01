@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://recovery-benchmark.org/schemas/annotation.schema.json",
   "title": "RECOVERY Human Failure Annotation v0.2",
-  "$comment": "每名 annotator 的原始标签不可覆盖；VLM proposal 与 adjudication 使用独立文件。",
+  "$comment": "Each annotator's raw labels must never be overwritten; VLM proposals and adjudication use separate files.",
   "type": "object",
   "properties": {
     "annotation_id": {"type": "string", "minLength": 1},

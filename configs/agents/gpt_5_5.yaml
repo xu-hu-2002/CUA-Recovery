@@ -9,5 +9,5 @@ history_renderer: zdr_stateless_replay
 live_adapter: MyPCBench.agent-harness.agents.openai_cua
 num_vms: 4
 eta_step_seconds: 9.0
-eta_step_seconds_source: v1 全量采集步间间隔中位
+eta_step_seconds_source: median inter-step interval of the full v1 collection
 status: collected_v1_pending_rejudge_with_opus_4_8

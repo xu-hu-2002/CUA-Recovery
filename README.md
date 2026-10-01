@@ -118,6 +118,14 @@ python main.py train build_training_v1 --traces <traces> --analyses <analyses> -
     --ir-dir <ir_dir> --out <sft_dir>
 ```
 
+### Example: error-type distribution
+
+Maps human failure annotations to the 12 error types in `configs/taxonomy.yaml` and counts each failure once under its primary type (planning > perception > execution > termination):
+
+```bash
+python examples/error_type_distribution.py <labels_dir>
+```
+
 ## Benchmark
 
 | Suite | Tasks | Examples | Labels |
@@ -172,7 +180,7 @@ CUA-Recovery/
 ├── configs/                # All configuration
 ├── prompts/                # Agent, annotation and synthesis prompts
 ├── schemas/                # JSON Schemas for data formats
-├── analysis/               # Annotation and error-taxonomy statistics
+├── examples/               # Minimal analysis examples
 ├── infra/                  # In-VM change-log triggers, tracer and control-API extension
 ├── serving/                # vLLM serving image for EvoCUA
 └── patches/                # Patches applied to MyPCBench

@@ -16,20 +16,20 @@ class CanonicalActionError(ValueError):
 
 def _validate_frame(width: int, height: int) -> None:
     if width <= 0 or height <= 0:
-        raise CanonicalActionError("frame_width 和 frame_height 必须为正整数")
+        raise CanonicalActionError("frame_width and frame_height must be positive integers")
 
 
 def _validate_point(x_px: int, y_px: int, width: int, height: int, name: str) -> None:
     _validate_frame(width, height)
     if not (0 <= x_px < width and 0 <= y_px < height):
         raise CanonicalActionError(
-            "%s=(%d, %d) 超出 %dx%d 截图边界" % (name, x_px, y_px, width, height)
+            "%s=(%d, %d) is outside the %dx%d screenshot" % (name, x_px, y_px, width, height)
         )
 
 
 def _validate_button(button: str) -> None:
     if button not in VALID_MOUSE_BUTTONS:
-        raise CanonicalActionError("不支持的鼠标按键: %s" % button)
+        raise CanonicalActionError("unsupported mouse button: %s" % button)
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ class ClickAction:
 
     def __post_init__(self) -> None:
         if self.kind not in {"click", "double_click"}:
-            raise CanonicalActionError("ClickAction.kind 必须是 click 或 double_click")
+            raise CanonicalActionError("ClickAction.kind must be click or double_click")
         _validate_point(self.x_px, self.y_px, self.frame_width, self.frame_height, "click")
         _validate_button(self.button)
 
@@ -59,13 +59,13 @@ class TypeAction:
 
     def __post_init__(self) -> None:
         if self.kind != "type":
-            raise CanonicalActionError("TypeAction.kind 必须是 type")
+            raise CanonicalActionError("TypeAction.kind must be type")
         if not isinstance(self.text, str):
-            raise CanonicalActionError("TypeAction.text 必须是字符串")
+            raise CanonicalActionError("TypeAction.text must be a string")
         if isinstance(self.interval_s, bool) or not isinstance(self.interval_s, (int, float)):
-            raise CanonicalActionError("TypeAction.interval_s 必须是数字")
+            raise CanonicalActionError("TypeAction.interval_s must be a number")
         if self.interval_s < 0:
-            raise CanonicalActionError("TypeAction.interval_s 不能为负数")
+            raise CanonicalActionError("TypeAction.interval_s must not be negative")
 
 
 @dataclass(frozen=True)
@@ -75,11 +75,11 @@ class HotkeyAction:
 
     def __post_init__(self) -> None:
         if self.kind != "hotkey":
-            raise CanonicalActionError("HotkeyAction.kind 必须是 hotkey")
+            raise CanonicalActionError("HotkeyAction.kind must be hotkey")
         if not 1 <= len(self.keys) <= 32:
-            raise CanonicalActionError("hotkey 必须包含 1 到 32 个按键")
+            raise CanonicalActionError("hotkey must contain 1 to 32 keys")
         if any(not key.strip() for key in self.keys):
-            raise CanonicalActionError("hotkey 中不能包含空按键")
+            raise CanonicalActionError("hotkey must not contain empty keys")
 
 
 @dataclass(frozen=True)
@@ -89,9 +89,9 @@ class KeyTransitionAction:
 
     def __post_init__(self) -> None:
         if self.kind not in {"key_down", "key_up"}:
-            raise CanonicalActionError("KeyTransitionAction.kind 必须是 key_down 或 key_up")
+            raise CanonicalActionError("KeyTransitionAction.kind must be key_down or key_up")
         if not isinstance(self.key, str) or not self.key.strip():
-            raise CanonicalActionError("key transition 必须包含非空按键")
+            raise CanonicalActionError("key transition must contain a non-empty key")
 
 
 @dataclass(frozen=True)
@@ -102,7 +102,7 @@ class MouseButtonTransitionAction:
     def __post_init__(self) -> None:
         if self.kind not in {"mouse_down", "mouse_up"}:
             raise CanonicalActionError(
-                "MouseButtonTransitionAction.kind 必须是 mouse_down 或 mouse_up"
+                "MouseButtonTransitionAction.kind must be mouse_down or mouse_up"
             )
         _validate_button(self.button)
 
@@ -114,9 +114,9 @@ class NoOpAction:
 
     def __post_init__(self) -> None:
         if self.kind != "no_op":
-            raise CanonicalActionError("NoOpAction.kind 必须是 no_op")
+            raise CanonicalActionError("NoOpAction.kind must be no_op")
         if not isinstance(self.reason, str) or not self.reason.strip():
-            raise CanonicalActionError("no_op.reason 不能为空")
+            raise CanonicalActionError("no_op.reason must not be empty")
 
 
 @dataclass(frozen=True)
@@ -130,10 +130,10 @@ class ScrollAction:
 
     def __post_init__(self) -> None:
         if self.kind != "scroll":
-            raise CanonicalActionError("ScrollAction.kind 必须是 scroll")
+            raise CanonicalActionError("ScrollAction.kind must be scroll")
         _validate_point(self.x_px, self.y_px, self.frame_width, self.frame_height, "scroll")
         if self.delta_y == 0:
-            raise CanonicalActionError("scroll.delta_y 不能为 0")
+            raise CanonicalActionError("scroll.delta_y must not be 0")
 
 
 @dataclass(frozen=True)
@@ -147,10 +147,10 @@ class HorizontalScrollAction:
 
     def __post_init__(self) -> None:
         if self.kind != "horizontal_scroll":
-            raise CanonicalActionError("HorizontalScrollAction.kind 必须是 horizontal_scroll")
+            raise CanonicalActionError("HorizontalScrollAction.kind must be horizontal_scroll")
         _validate_point(self.x_px, self.y_px, self.frame_width, self.frame_height, "horizontal_scroll")
         if self.delta_x == 0:
-            raise CanonicalActionError("horizontal_scroll.delta_x 不能为 0")
+            raise CanonicalActionError("horizontal_scroll.delta_x must not be 0")
 
 
 @dataclass(frozen=True)
@@ -163,7 +163,7 @@ class MoveAction:
 
     def __post_init__(self) -> None:
         if self.kind != "move":
-            raise CanonicalActionError("MoveAction.kind 必须是 move")
+            raise CanonicalActionError("MoveAction.kind must be move")
         _validate_point(self.x_px, self.y_px, self.frame_width, self.frame_height, "move")
 
 
@@ -181,7 +181,7 @@ class DragAction:
 
     def __post_init__(self) -> None:
         if self.kind != "drag":
-            raise CanonicalActionError("DragAction.kind 必须是 drag")
+            raise CanonicalActionError("DragAction.kind must be drag")
         _validate_point(
             self.start_x_px,
             self.start_y_px,
@@ -198,7 +198,7 @@ class DragAction:
         )
         _validate_button(self.button)
         if self.duration_s < 0:
-            raise CanonicalActionError("drag.duration_s 不能为负数")
+            raise CanonicalActionError("drag.duration_s must not be negative")
 
 
 @dataclass(frozen=True)
@@ -208,9 +208,9 @@ class WaitAction:
 
     def __post_init__(self) -> None:
         if self.kind != "wait":
-            raise CanonicalActionError("WaitAction.kind 必须是 wait")
+            raise CanonicalActionError("WaitAction.kind must be wait")
         if self.seconds < 0:
-            raise CanonicalActionError("wait.seconds 不能为负数")
+            raise CanonicalActionError("wait.seconds must not be negative")
 
 
 @dataclass(frozen=True)
@@ -252,9 +252,9 @@ class TerminateAction:
 
     def __post_init__(self) -> None:
         if self.kind != "terminate":
-            raise CanonicalActionError("TerminateAction.kind 必须是 terminate")
+            raise CanonicalActionError("TerminateAction.kind must be terminate")
         if self.status not in {"success", "failure"}:
-            raise CanonicalActionError("terminate.status 必须是 success 或 failure")
+            raise CanonicalActionError("terminate.status must be success or failure")
 
 
 @dataclass(frozen=True)
@@ -266,9 +266,9 @@ class SequenceAction:
 
     def __post_init__(self) -> None:
         if self.kind != "sequence":
-            raise CanonicalActionError("SequenceAction.kind 必须是 sequence")
+            raise CanonicalActionError("SequenceAction.kind must be sequence")
         if not self.actions:
-            raise CanonicalActionError("sequence 至少包含一个 primitive")
+            raise CanonicalActionError("sequence must contain at least one primitive")
         primitive_types = (
             ClickAction,
             TypeAction,
@@ -285,9 +285,9 @@ class SequenceAction:
             TerminateAction,
         )
         if any(not isinstance(action, primitive_types) for action in self.actions):
-            raise CanonicalActionError("sequence.actions 只能包含 typed canonical primitives")
+            raise CanonicalActionError("sequence.actions may only contain typed canonical primitives")
         if any(isinstance(action, SequenceAction) for action in self.actions):
-            raise CanonicalActionError("sequence 不允许递归嵌套")
+            raise CanonicalActionError("sequence must not be nested")
 
 
 Action = Union[
@@ -389,17 +389,17 @@ def action_from_dict(raw: Mapping[str, Any]) -> Action:
     data = dict(raw)
     kind = data.get("kind")
     if kind not in _ACTION_TYPES:
-        raise CanonicalActionError("未知 canonical action kind: %r" % kind)
+        raise CanonicalActionError("unknown canonical action kind: %r" % kind)
 
     action_type = _ACTION_TYPES[str(kind)]
     allowed = {field.name for field in fields(action_type)}
     unknown = sorted(set(data) - allowed)
     if unknown:
-        raise CanonicalActionError("action 包含未知字段: %s" % ", ".join(unknown))
+        raise CanonicalActionError("action has unknown fields: %s" % ", ".join(unknown))
 
     if kind == "hotkey" and "keys" in data:
         if not isinstance(data["keys"], (list, tuple)):
-            raise CanonicalActionError("hotkey.keys 必须是数组")
+            raise CanonicalActionError("hotkey.keys must be an array")
         data["keys"] = tuple(str(key) for key in data["keys"])
     if kind == "shell" and "commands" in data:
         if not isinstance(data["commands"], (list, tuple)):
@@ -407,10 +407,10 @@ def action_from_dict(raw: Mapping[str, Any]) -> Action:
         data["commands"] = tuple(str(command) for command in data["commands"])
     if kind == "sequence" and "actions" in data:
         if not isinstance(data["actions"], (list, tuple)):
-            raise CanonicalActionError("sequence.actions 必须是数组")
+            raise CanonicalActionError("sequence.actions must be an array")
         data["actions"] = tuple(action_from_dict(item) for item in data["actions"])
 
     try:
         return action_type(**data)
     except TypeError as exc:
-        raise CanonicalActionError("action 缺失字段或字段类型错误: %s" % exc) from exc
+        raise CanonicalActionError("action has missing or mistyped fields: %s" % exc) from exc

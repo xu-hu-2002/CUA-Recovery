@@ -60,8 +60,8 @@ def main() -> int:
     parser.add_argument("--agent", action="append", default=[], help="RECOVERY agent id(s)")
     parser.add_argument("--task-id", action="append", default=[])
     parser.add_argument("--seed", type=int, action="append", default=[])
-    parser.add_argument("--task-source", help="configs/collection/sources.yaml 的来源名")
-    parser.add_argument("--tasks-file", type=Path, help="该来源格式的任务文件（如分片）")
+    parser.add_argument("--task-source", help="source name in configs/collection/sources.yaml")
+    parser.add_argument("--tasks-file", type=Path, help="task file in that source format (e.g. a shard)")
     args = parser.parse_args()
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     if config.get("schema_version") != "rollout-config/1.0":

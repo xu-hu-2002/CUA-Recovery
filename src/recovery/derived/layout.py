@@ -34,7 +34,7 @@ def sha256_json(value: Any) -> str:
 def tree_fingerprint(root: Path) -> str:
     root = root.resolve()
     if not root.is_dir():
-        raise DerivedBuildError("collection root 不存在或不是目录: %s" % root)
+        raise DerivedBuildError("collection root does not exist or is not a directory: %s" % root)
     records = []
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
@@ -46,7 +46,7 @@ def tree_fingerprint(root: Path) -> str:
 
 def _safe_component(value: str, name: str) -> str:
     if not value or value in {".", ".."} or "/" in value or "\\" in value:
-        raise DerivedBuildError("%s 不是安全的路径组件: %r" % (name, value))
+        raise DerivedBuildError("%s is not a safe path component: %r" % (name, value))
     return value
 
 
@@ -111,16 +111,16 @@ class DerivedBuild:
         taxonomy: Mapping[str, Any],
     ) -> Dict[str, Any]:
         if self.path.exists() and any(self.path.iterdir()):
-            raise DerivedBuildError("derived build 已存在且非空: %s" % self.path)
+            raise DerivedBuildError("derived build already exists and is not empty: %s" % self.path)
         collection_root = self.collection_root.resolve()
         build_path = self.path.resolve()
         if build_path == collection_root or collection_root in build_path.parents:
-            raise DerivedBuildError("derived build 不能位于 raw collection 内")
+            raise DerivedBuildError("derived build must not be inside the raw collection")
         manifest_path = collection_manifest_path.resolve()
         if collection_root not in manifest_path.parents:
-            raise DerivedBuildError("collection manifest 必须位于 collection root 内")
+            raise DerivedBuildError("collection manifest must be inside the collection root")
         if not git_commit.strip():
-            raise DerivedBuildError("git_commit 不能为空")
+            raise DerivedBuildError("git_commit must not be empty")
 
         raw_tree_sha256 = tree_fingerprint(collection_root)
         manifest: Dict[str, Any] = {
@@ -166,7 +166,7 @@ class DerivedBuild:
         with self.manifest_path.open(encoding="utf-8") as handle:
             value = json.load(handle)
         if tuple(value.get("depths", ())) != DEPTH_GRID:
-            raise DerivedBuildError("build depth grid 必须固定为 %s" % (DEPTH_GRID,))
+            raise DerivedBuildError("build depth grid must be %s" % (DEPTH_GRID,))
         return value
 
     def verify_raw_unchanged(self) -> bool:
@@ -177,7 +177,7 @@ class DerivedBuild:
     def artifact_path(self, layer: str, artifact_id: str, filename: str) -> Path:
         allowed = {"canonical", "annotations", "repairs", "replay", "cases", "evaluations"}
         if layer not in allowed:
-            raise DerivedBuildError("未知 derived layer: %s" % layer)
+            raise DerivedBuildError("unknown derived layer: %s" % layer)
         return self.path / layer / _safe_component(artifact_id, "artifact_id") / filename
 
     def update_manifest(self, updates: Mapping[str, Any]) -> Dict[str, Any]:

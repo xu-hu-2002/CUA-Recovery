@@ -27,5 +27,5 @@ enable_bash: true
 scroll_unit_understanding: pixels_mistaken_for_notches_requires_clamp
 
 eta_step_seconds: 24.0
-eta_step_seconds_source: 借用 kimi_k3 预估（网关 60 rpm 与 4 VM 反推），smoke 后更新
+eta_step_seconds_source: borrowed from the kimi_k3 estimate (60 rpm gateway, 4 VMs); update after smoke
 status: smoke10_resubmitted_20260822_queueing_task01a025b717e3ab26b1c960444b278b84

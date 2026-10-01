@@ -15,5 +15,5 @@ context_policy: tokenize_oldest_first_v1
 tokenizer_image_policy: same_dimensions_distinct_hash_v1
 tensor_parallel_size: 2
 eta_step_seconds: 7.8
-eta_step_seconds_source: 未实测；调度估计沿用 qwen3_5_35b_a3b
+eta_step_seconds_source: not measured; scheduling estimate reuses qwen3_5_35b_a3b
 status: registered

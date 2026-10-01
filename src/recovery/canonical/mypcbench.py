@@ -62,28 +62,28 @@ def _literal(node: ast.AST) -> Any:
     try:
         return ast.literal_eval(node)
     except (ValueError, TypeError, SyntaxError) as exc:
-        raise NormalizationError("PyAutoGUI 参数必须是 literal") from exc
+        raise NormalizationError("PyAutoGUI arguments must be literals") from exc
 
 
 def _parse_call(source: str) -> Tuple[str, List[Any], Dict[str, Any]]:
     try:
         expression = ast.parse(source.strip(), mode="eval").body
     except SyntaxError as exc:
-        raise NormalizationError("不是单个合法的 Python expression") from exc
+        raise NormalizationError("not a single valid Python expression") from exc
     if not isinstance(expression, ast.Call):
-        raise NormalizationError("只接受单个 PyAutoGUI call")
+        raise NormalizationError("only a single PyAutoGUI call is accepted")
     function = expression.func
     if not (
         isinstance(function, ast.Attribute)
         and isinstance(function.value, ast.Name)
         and function.value.id == "pyautogui"
     ):
-        raise NormalizationError("只接受 pyautogui.<primitive>(...)；禁止任意代码")
+        raise NormalizationError("only pyautogui.<primitive>(...) is accepted; arbitrary code is not allowed")
     args = [_literal(node) for node in expression.args]
     kwargs: Dict[str, Any] = {}
     for keyword in expression.keywords:
         if keyword.arg is None or keyword.arg in kwargs:
-            raise NormalizationError("不接受 **kwargs 或重复参数")
+            raise NormalizationError("**kwargs and duplicate arguments are not accepted")
         kwargs[keyword.arg] = _literal(keyword.value)
     return function.attr, args, kwargs
 
@@ -110,7 +110,7 @@ def _parse_qwen_base64_typing_macro(source: str) -> Optional[Action]:
     try:
         program = ast.parse(source, mode="exec")
     except SyntaxError as exc:
-        raise NormalizationError("Qwen base64 typing macro 语法无效") from exc
+        raise NormalizationError("Qwen base64 typing macro has invalid syntax") from exc
     calls = [
         node
         for node in ast.walk(program)
@@ -121,18 +121,18 @@ def _parse_qwen_base64_typing_macro(source: str) -> Optional[Action]:
         and node.func.attr == "b64decode"
     ]
     if len(calls) != 1 or len(calls[0].args) != 1 or calls[0].keywords:
-        raise NormalizationError("Qwen base64 typing macro 结构不匹配")
+        raise NormalizationError("Qwen base64 typing macro structure does not match")
     payload_node = calls[0].args[0]
     if not isinstance(payload_node, ast.Constant) or not isinstance(payload_node.value, str):
-        raise NormalizationError("Qwen base64 typing macro payload 必须是字符串 literal")
+        raise NormalizationError("Qwen base64 typing macro payload must be a string literal")
     payload = payload_node.value
     payload_node.value = ""
     if ast.dump(program, include_attributes=False) != _QWEN_BASE64_TYPING_TEMPLATE_AST:
-        raise NormalizationError("Qwen base64 typing macro 与冻结模板不匹配")
+        raise NormalizationError("Qwen base64 typing macro does not match the frozen template")
     try:
         text = base64.b64decode(payload, validate=True).decode("utf-8")
     except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
-        raise NormalizationError("Qwen base64 typing macro payload 无效") from exc
+        raise NormalizationError("Qwen base64 typing macro payload is invalid") from exc
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     primitives: List[Action] = []
     lines = text.split("\n")
@@ -158,9 +158,9 @@ def _parse_time_sleep_program(source: str) -> Optional[WaitAction]:
     try:
         program = ast.parse(source, mode="exec")
     except SyntaxError as exc:
-        raise NormalizationError("time.sleep program 语法无效") from exc
+        raise NormalizationError("time.sleep program has invalid syntax") from exc
     if len(program.body) != 2:
-        raise NormalizationError("time.sleep program 只能包含 import time 和一次 sleep")
+        raise NormalizationError("time.sleep program may only contain import time and one sleep")
     import_node, call_node = program.body
     valid_import = (
         isinstance(import_node, ast.Import)
@@ -179,23 +179,23 @@ def _parse_time_sleep_program(source: str) -> Optional[WaitAction]:
         and not call_node.value.keywords
     )
     if not valid_import or not valid_call:
-        raise NormalizationError("time.sleep program 与允许的固定结构不匹配")
+        raise NormalizationError("time.sleep program does not match the allowed fixed structure")
     seconds = _number(_literal(call_node.value.args[0]), "seconds")
     if seconds < 0:
-        raise NormalizationError("time.sleep seconds 不能为负数")
+        raise NormalizationError("time.sleep seconds must not be negative")
     return WaitAction(kind="wait", seconds=seconds)
 
 
 def _number(value: Any, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise NormalizationError("%s 必须是数字" % name)
+        raise NormalizationError("%s must be a number" % name)
     return float(value)
 
 
 def _integer(value: Any, name: str) -> int:
     number = _number(value, name)
     if not number.is_integer():
-        raise NormalizationError("%s 必须是整数像素" % name)
+        raise NormalizationError("%s must be an integer pixel" % name)
     return int(number)
 
 
@@ -207,13 +207,13 @@ def _bind_positionals(
 ) -> Dict[str, Any]:
     if len(args) > len(positional_names):
         raise NormalizationError(
-            "%s positional 参数过多；拒绝静默丢弃: %d" % (method, len(args))
+            "%s has too many positional arguments; refusing to drop them silently: %d" % (method, len(args))
         )
     bound = dict(kwargs)
     for index, value in enumerate(args):
         name = positional_names[index]
         if name in bound:
-            raise NormalizationError("%s 参数 %s 同时按位置和关键字提供" % (method, name))
+            raise NormalizationError("%s argument %s given both positionally and by keyword" % (method, name))
         bound[name] = value
     return bound
 
@@ -248,7 +248,7 @@ class PyAutoGUINormalizer:
             try:
                 program = ast.parse(source, mode="exec")
             except SyntaxError as exc:
-                raise NormalizationError("PyAutoGUI program 语法无效") from exc
+                raise NormalizationError("PyAutoGUI program has invalid syntax") from exc
             body = list(program.body)
             if body and isinstance(body[0], ast.Import):
                 import_node = body.pop(0)
@@ -257,9 +257,9 @@ class PyAutoGUINormalizer:
                     and import_node.names[0].name == "pyautogui"
                     and import_node.names[0].asname is None
                 ):
-                    raise NormalizationError("PyAutoGUI program 只允许可选的 import pyautogui")
+                    raise NormalizationError("PyAutoGUI program only allows an optional import pyautogui")
             if not body or any(not isinstance(node, ast.Expr) for node in body):
-                raise NormalizationError("PyAutoGUI program 只允许 expression calls")
+                raise NormalizationError("PyAutoGUI program only allows expression calls")
             statements = [ast.unparse(node.value) for node in body]
         if len(statements) > 1:
             primitives = tuple(
@@ -285,7 +285,7 @@ class PyAutoGUINormalizer:
             return TerminateAction(kind="terminate", status="failure")
         if sentinel == "WAIT":
             if wait_seconds is None:
-                raise NormalizationError("WAIT 需要从 runner config 显式提供 wait_seconds")
+                raise NormalizationError("WAIT needs wait_seconds from the runner config")
             return WaitAction(kind="wait", seconds=wait_seconds)
         if sentinel == "NO_ACTIONS":
             return NoOpAction(kind="no_op", reason="NO_ACTIONS")
@@ -315,10 +315,10 @@ class PyAutoGUINormalizer:
             "dragTo": {"x", "y", "duration", "button"},
         }
         if method not in allowed_kwargs:
-            raise NormalizationError("不支持 PyAutoGUI primitive: %s" % method)
+            raise NormalizationError("unsupported PyAutoGUI primitive: %s" % method)
         unknown = set(kwargs) - allowed_kwargs[method]
         if unknown:
-            raise NormalizationError("%s 含未知参数: %s" % (method, sorted(unknown)))
+            raise NormalizationError("%s has unknown arguments: %s" % (method, sorted(unknown)))
 
         if method in {"click", "doubleClick", "tripleClick", "rightClick"}:
             positional = (
@@ -335,14 +335,14 @@ class PyAutoGUINormalizer:
             y_raw = bound.get("y")
             if x_raw is None or y_raw is None:
                 if self.cursor is None:
-                    raise NormalizationError("无坐标 click 需要已知 cursor state")
+                    raise NormalizationError("click without coordinates needs a known cursor state")
                 x, y = self.cursor
             else:
                 x, y = self._clamp_point(_integer(x_raw, "x"), _integer(y_raw, "y"))
             if _number(bound.get("interval", 0), "interval") != 0:
-                raise NormalizationError("带 interval 的 click 暂无无损 canonical 表示")
+                raise NormalizationError("click with interval has no lossless canonical form yet")
             if _number(bound.get("duration", 0), "duration") != 0:
-                raise NormalizationError("带 duration 的 click 暂无无损 canonical 表示")
+                raise NormalizationError("click with duration has no lossless canonical form yet")
             button = "right" if method == "rightClick" else str(bound.get("button", "left"))
             clicks = _integer(bound.get("clicks", 1), "clicks")
             if method == "doubleClick":
@@ -350,7 +350,7 @@ class PyAutoGUINormalizer:
             elif method == "tripleClick":
                 clicks = 3
             if clicks not in {1, 2, 3}:
-                raise NormalizationError("clicks=%d 不能无损映射为 canonical click" % clicks)
+                raise NormalizationError("clicks=%d cannot be mapped losslessly to a canonical click" % clicks)
             self.cursor = (x, y)
             click = ClickAction(
                 kind="double_click" if clicks == 2 else "click",
@@ -369,11 +369,11 @@ class PyAutoGUINormalizer:
         if method == "moveTo":
             bound = _bind_positionals(method, args, kwargs, ("x", "y", "duration"))
             if not {"x", "y"}.issubset(bound):
-                raise NormalizationError("moveTo 缺少 x/y")
+                raise NormalizationError("moveTo is missing x/y")
             x, y = self._clamp_point(_integer(bound["x"], "x"), _integer(bound["y"], "y"))
             duration = _number(bound.get("duration", 0), "duration")
             if duration != 0:
-                raise NormalizationError("带 duration 的 moveTo 不能无损映射为 canonical move")
+                raise NormalizationError("moveTo with duration cannot be mapped losslessly to a canonical move")
             self.cursor = (x, y)
             return MoveAction(
                 kind="move", x_px=x, y_px=y,
@@ -384,18 +384,18 @@ class PyAutoGUINormalizer:
             bound = _bind_positionals(method, args, kwargs, ("clicks", "x", "y"))
             raw_delta = bound.get("clicks")
             if raw_delta is None:
-                raise NormalizationError("%s 缺少 clicks" % method)
+                raise NormalizationError("%s is missing clicks" % method)
             delta = _integer(raw_delta, "clicks")
             if delta == 0 and bound.get("x") is None and bound.get("y") is None:
                 return NoOpAction(kind="no_op", reason="%s(0)" % method)
             if (bound.get("x") is None) != (bound.get("y") is None):
-                raise NormalizationError("%s x/y 必须同时提供" % method)
+                raise NormalizationError("%s x/y must be given together" % method)
             if bound.get("x") is not None:
                 self.cursor = self._clamp_point(
                     _integer(bound["x"], "x"), _integer(bound["y"], "y")
                 )
             if self.cursor is None:
-                raise NormalizationError("%s 需要已知 cursor state 或显式 x/y" % method)
+                raise NormalizationError("%s needs a known cursor state or explicit x/y" % method)
             common = {
                 "x_px": self.cursor[0],
                 "y_px": self.cursor[1],
@@ -414,7 +414,7 @@ class PyAutoGUINormalizer:
             bound = _bind_positionals(method, args, kwargs, ("message", "interval"))
             raw_text = bound.get("message")
             if not isinstance(raw_text, str):
-                raise NormalizationError("%s 缺少字符串 message" % method)
+                raise NormalizationError("%s is missing a string message" % method)
             return TypeAction(
                 kind="type",
                 text=raw_text,
@@ -428,12 +428,12 @@ class PyAutoGUINormalizer:
             if not isinstance(keys, (list, tuple)) or not keys or any(
                 not isinstance(key, str) for key in keys
             ):
-                raise NormalizationError("press keys 必须是字符串或非空字符串数组")
+                raise NormalizationError("press keys must be a string or a non-empty array of strings")
             presses = _integer(bound.get("presses", 1), "presses")
             if presses < 1:
-                raise NormalizationError("presses 必须为正整数")
+                raise NormalizationError("presses must be a positive integer")
             if _number(bound.get("interval", 0), "interval") != 0:
-                raise NormalizationError("带 interval 的 press 暂无无损 canonical 表示")
+                raise NormalizationError("press with interval has no lossless canonical form yet")
             primitives = tuple(
                 HotkeyAction(kind="hotkey", keys=(("space" if key == " " else key),))
                 for _ in range(presses)
@@ -447,16 +447,16 @@ class PyAutoGUINormalizer:
             if len(args) == 1 and isinstance(args[0], (list, tuple)):
                 args = list(args[0])
             if not args or any(not isinstance(key, str) for key in args):
-                raise NormalizationError("hotkey 参数必须是字符串")
+                raise NormalizationError("hotkey arguments must be strings")
             if _number(kwargs.get("interval", 0), "interval") != 0:
-                raise NormalizationError("带 interval 的 hotkey 暂无无损 canonical 表示")
+                raise NormalizationError("hotkey with interval has no lossless canonical form yet")
             return HotkeyAction(kind="hotkey", keys=tuple(args))
 
         if method in {"keyDown", "keyUp"}:
             bound = _bind_positionals(method, args, kwargs, ("key",))
             key = bound.get("key")
             if not isinstance(key, str) or not key.strip():
-                raise NormalizationError("%s 需要非空字符串 key" % method)
+                raise NormalizationError("%s needs a non-empty string key" % method)
             return KeyTransitionAction(
                 kind="key_down" if method == "keyDown" else "key_up",
                 key=key,
@@ -472,18 +472,18 @@ class PyAutoGUINormalizer:
         if method == "sleep":
             bound = _bind_positionals(method, args, kwargs, ("seconds",))
             if "seconds" not in bound:
-                raise NormalizationError("sleep 缺少 seconds")
+                raise NormalizationError("sleep is missing seconds")
             seconds = _number(bound["seconds"], "seconds")
             if seconds < 0:
-                raise NormalizationError("sleep seconds 不能为负数")
+                raise NormalizationError("sleep seconds must not be negative")
             return WaitAction(kind="wait", seconds=seconds)
 
         if method == "dragTo":
             if self.cursor is None:
-                raise NormalizationError("dragTo 需要已知起始 cursor state")
+                raise NormalizationError("dragTo needs a known starting cursor state")
             bound = _bind_positionals(method, args, kwargs, ("x", "y", "duration"))
             if not {"x", "y"}.issubset(bound):
-                raise NormalizationError("dragTo 缺少 x/y")
+                raise NormalizationError("dragTo is missing x/y")
             end_x, end_y = self._clamp_point(
                 _integer(bound["x"], "x"), _integer(bound["y"], "y")
             )
@@ -511,14 +511,14 @@ def _png_dimensions(path: Path) -> Tuple[int, int]:
     with path.open("rb") as handle:
         header = handle.read(24)
     if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
-        raise NormalizationError("不是可识别的 PNG screenshot: %s" % path)
+        raise NormalizationError("not a recognizable PNG screenshot: %s" % path)
     return struct.unpack(">II", header[16:24])
 
 
 def _detect_task_frame(task_dir: Path) -> Tuple[int, int]:
     for path in sorted(task_dir.glob("step_*.png")):
         return _png_dimensions(path)
-    raise NormalizationError("无法自动检测 frame：task 没有 screenshot")
+    raise NormalizationError("cannot auto-detect frame: task has no screenshot")
 
 
 def _public_tool_messages(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -823,30 +823,30 @@ def _task_provenance(
         else task_dir.parent / "_tasks" / "batch.json"
     )
     if not batch_path.is_file():
-        raise NormalizationError("缺少 task batch provenance: %s" % batch_path)
+        raise NormalizationError("missing task batch provenance: %s" % batch_path)
     try:
         batch = json.loads(batch_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
-        raise NormalizationError("task batch JSON 无效") from exc
+        raise NormalizationError("invalid task batch JSON") from exc
     if isinstance(batch, dict):
         batch = [batch]
     if not isinstance(batch, list):
-        raise NormalizationError("task batch 顶层必须是 array 或单个 task object")
+        raise NormalizationError("task batch top level must be an array or a single task object")
     matches = [item for item in batch if isinstance(item, dict) and item.get("id") == task_id]
     if len(matches) != 1:
-        raise NormalizationError("task batch 中必须恰有一个 task id=%s" % task_id)
+        raise NormalizationError("task batch must contain exactly one task id=%s" % task_id)
     task_config = matches[0]
     instruction = task_config.get("instruction")
     if not isinstance(instruction, str) or not instruction.strip():
-        raise NormalizationError("task config 缺少非空 instruction")
+        raise NormalizationError("task config is missing a non-empty instruction")
     task_config_path = output_dir / "task_config.json"
     atomic_write_json(task_config_path, task_config)
     rubric_path = task_dir / "rubric_bundle.json"
     if not rubric_path.is_file():
-        raise NormalizationError("缺少 PESR rubric_bundle.json")
+        raise NormalizationError("missing PESR rubric_bundle.json")
     pre_command = task_config.get("pre_command", "")
     if not isinstance(pre_command, str):
-        raise NormalizationError("task pre_command 必须是字符串")
+        raise NormalizationError("task pre_command must be a string")
     return {
         "task_id": task_id,
         "instruction": instruction,
@@ -876,9 +876,9 @@ def normalize_task_directory(
 
     traj_path = task_dir / "traj.jsonl"
     if not traj_path.is_file():
-        raise NormalizationError("缺少 traj.jsonl: %s" % traj_path)
+        raise NormalizationError("missing traj.jsonl: %s" % traj_path)
     if (frame_width is None) != (frame_height is None):
-        raise NormalizationError("frame_width/frame_height 必须同时提供或同时自动检测")
+        raise NormalizationError("frame_width/frame_height must both be given or both auto-detected")
     if frame_width is None or frame_height is None:
         frame_width, frame_height = _detect_task_frame(task_dir)
     parser = PyAutoGUINormalizer(frame_width, frame_height)
@@ -984,7 +984,7 @@ def normalize_task_directory(
                         turn_index,
                         source_action,
                         "non_desktop_tool_call",
-                        "保留为非桌面工具步骤供人工标注；不可作为可回放 desktop action",
+                        "kept as a non-desktop tool step for human annotation; not a replayable desktop action",
                     )
                 )
 
@@ -995,7 +995,7 @@ def normalize_task_directory(
                         None,
                         source_action,
                         "missing_turn_index",
-                        "step_num 缺失或非整数",
+                        "step_num is missing or not an integer",
                     )
                 )
                 continue
@@ -1042,7 +1042,7 @@ def normalize_task_directory(
                             turn_index,
                             source_action,
                             "missing_screenshot",
-                            "source row 没有可用的 post-action screenshot",
+                            "source row has no usable post-action screenshot",
                         )
                     )
             action_index = source_records - 1
@@ -1119,7 +1119,7 @@ def load_canonical_jsonl(path: Path, *, allow_gaps: bool = False) -> Tuple[Canon
     actual = [record.action_index_global for record in records]
     if allow_gaps:
         if not actual or actual != sorted(set(actual)):
-            raise NormalizationError("repaired canonical action index 必须严格递增且唯一")
+            raise NormalizationError("repaired canonical action indices must be strictly increasing and unique")
     elif actual != list(range(len(records))):
-        raise NormalizationError("canonical action index 必须连续，从 0 开始")
+        raise NormalizationError("canonical action indices must be contiguous starting at 0")
     return tuple(records)

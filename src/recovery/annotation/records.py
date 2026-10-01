@@ -37,33 +37,33 @@ class HumanAnnotation:
             self.taxonomy_version,
         )
         if any(not value.strip() for value in required):
-            raise AnnotationError("annotation provenance/rationale 字段不能为空")
+            raise AnnotationError("annotation provenance and rationale fields must not be empty")
         if self.root_cause_action_index < 0:
-            raise AnnotationError("root_cause_action_index 不能为负数")
+            raise AnnotationError("root_cause_action_index must not be negative")
         if not self.error_types or any(not item.strip() for item in self.error_types):
-            raise AnnotationError("error_types 至少包含一个非空标签")
+            raise AnnotationError("error_types must contain at least one non-empty label")
         if len(set(self.error_types)) != len(self.error_types):
-            raise AnnotationError("error_types 不允许重复")
+            raise AnnotationError("error_types must not contain duplicates")
         if self.error_horizon_actions is None:
             if self.identifiable_at_action_index is not None:
-                raise AnnotationError("无 horizon 时 identifiable_at_action_index 必须为空")
+                raise AnnotationError("identifiable_at_action_index must be null when there is no horizon")
         else:
             if self.error_horizon_actions < 0:
-                raise AnnotationError("error_horizon_actions 不能为负数")
+                raise AnnotationError("error_horizon_actions must not be negative")
             expected = self.root_cause_action_index + self.error_horizon_actions
             if self.identifiable_at_action_index != expected:
                 raise AnnotationError(
-                    "identifiable_at_action_index 必须等于 root + error_horizon_actions"
+                    "identifiable_at_action_index must equal root + error_horizon_actions"
                 )
 
     def validate_against_action_count(self, action_count: int) -> None:
         if self.root_cause_action_index >= action_count:
-            raise AnnotationError("root cause 超出 canonical trajectory")
+            raise AnnotationError("root cause is outside the canonical trajectory")
         if (
             self.identifiable_at_action_index is not None
             and self.identifiable_at_action_index >= action_count
         ):
-            raise AnnotationError("error horizon 超出 canonical trajectory")
+            raise AnnotationError("error horizon is outside the canonical trajectory")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -121,33 +121,33 @@ class Adjudication:
 
     def __post_init__(self) -> None:
         if len(self.input_annotation_ids) < 2:
-            raise AnnotationError("adjudication 至少引用两份独立 human annotations")
+            raise AnnotationError("adjudication must reference at least two independent human annotations")
         if len(set(self.input_annotation_ids)) != len(self.input_annotation_ids):
-            raise AnnotationError("input_annotation_ids 不允许重复")
+            raise AnnotationError("input_annotation_ids must not contain duplicates")
         if self.root_cause_action_index < 0 or not self.error_types:
-            raise AnnotationError("adjudicated root/error_types 无效")
+            raise AnnotationError("adjudicated root or error_types is invalid")
         if not self.resolution_rationale.strip() or not self.evidence_refs:
-            raise AnnotationError("adjudication 必须保留 resolution rationale 和 evidence")
+            raise AnnotationError("adjudication must keep a resolution rationale and evidence")
         if self.error_horizon_actions is None:
             if self.identifiable_at_action_index is not None:
-                raise AnnotationError("无 horizon 时 identifiable index 必须为空")
+                raise AnnotationError("identifiable index must be null when there is no horizon")
         elif self.identifiable_at_action_index != (
             self.root_cause_action_index + self.error_horizon_actions
         ):
-            raise AnnotationError("adjudicated identifiable index 必须等于 root + horizon")
+            raise AnnotationError("adjudicated identifiable index must equal root + horizon")
 
     def validate_inputs(self, annotations: Sequence[HumanAnnotation]) -> None:
         indexed = {item.annotation_id: item for item in annotations}
         missing = set(self.input_annotation_ids) - set(indexed)
         if missing:
-            raise AnnotationError("adjudication 引用不存在的 annotation: %s" % sorted(missing))
+            raise AnnotationError("adjudication references missing annotations: %s" % sorted(missing))
         selected = [indexed[item] for item in self.input_annotation_ids]
         if len({item.annotator_id for item in selected}) < 2:
-            raise AnnotationError("adjudication 输入必须来自至少两名 annotator")
+            raise AnnotationError("adjudication inputs must come from at least two annotators")
         if any(item.trajectory_id != self.trajectory_id for item in selected):
-            raise AnnotationError("adjudication 输入 trajectory_id 不一致")
+            raise AnnotationError("adjudication inputs disagree on trajectory_id")
         if any(item.taxonomy_version != self.taxonomy_version for item in selected):
-            raise AnnotationError("adjudication 输入 taxonomy_version 不一致")
+            raise AnnotationError("adjudication inputs disagree on taxonomy_version")
 
     def to_dict(self) -> Dict[str, Any]:
         return {

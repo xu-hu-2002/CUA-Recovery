@@ -183,8 +183,8 @@ class AgentConfig:
             return self.live[name]
         except KeyError:
             raise KeyError(
-                f"{name!r} 不是 {self.agent_id} 的 live 字段；"
-                f"可用字段：{sorted(self.live)}"
+                f"{name!r} is not a live field of {self.agent_id}; "
+                f"available fields: {sorted(self.live)}"
             ) from None
 
 
@@ -204,46 +204,46 @@ def agent_id_for_type(agent_type: str) -> str:
     try:
         agent_id = AGENT_ID_BY_TYPE[agent_type]
     except KeyError:
-        raise ValueError(f"未知 RECOVERY MyPCBench agent_type：{agent_type!r}") from None
+        raise ValueError(f"unknown RECOVERY MyPCBench agent_type: {agent_type!r}") from None
     declared = os.environ.get("RECOVERY_AGENT_ID")
     if declared and declared != agent_id:
         raise AgentConfigError(
-            f"RECOVERY_AGENT_ID={declared!r} 与 agent_type={agent_type!r} 对应的 "
-            f"{agent_id!r} 不一致；scripts/collection/collect_trajectories.sh 的 resolve_agent() "
-            "和 agent_config.AGENT_ID_BY_TYPE 已经漂移，必须同时修"
+            f"RECOVERY_AGENT_ID={declared!r} does not match {agent_id!r} for "
+            f"agent_type={agent_type!r}; resolve_agent() in scripts/collection/collect_trajectories.sh "
+            "and agent_config.AGENT_ID_BY_TYPE have drifted and must be fixed together"
         )
     return agent_id
 
 
 def _coerce(agent_id: str, name: str, value: Any, spec: _Field) -> Any:
-    where = f"{agent_id}.yaml 的 {name}"
+    where = f"{name} in {agent_id}.yaml"
     if value is None:
         if spec.nullable:
             return None
-        raise AgentConfigError(f"{where} 不能是 null")
+        raise AgentConfigError(f"{where} must not be null")
     # bool is a subclass of int.
     if spec.kind is bool:
         if not isinstance(value, bool):
-            raise AgentConfigError(f"{where} 必须是 true/false，实际是 {value!r}")
+            raise AgentConfigError(f"{where} must be true/false, got {value!r}")
     elif spec.kind is int:
         if isinstance(value, bool) or not isinstance(value, int):
-            raise AgentConfigError(f"{where} 必须是整数，实际是 {value!r}")
+            raise AgentConfigError(f"{where} must be an integer, got {value!r}")
     elif spec.kind is float:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise AgentConfigError(f"{where} 必须是数值，实际是 {value!r}")
+            raise AgentConfigError(f"{where} must be a number, got {value!r}")
         value = float(value)
     elif spec.kind is str:
         if not isinstance(value, str) or not value.strip():
-            raise AgentConfigError(f"{where} 必须是非空字符串，实际是 {value!r}")
+            raise AgentConfigError(f"{where} must be a non-empty string, got {value!r}")
     else:  # pragma: no cover
-        raise AgentConfigError(f"{where} 的 spec 类型无法校验：{spec.kind!r}")
+        raise AgentConfigError(f"{where} has an uncheckable spec type: {spec.kind!r}")
 
     if spec.choices is not None and value not in spec.choices:
         raise AgentConfigError(
-            f"{where} 只能取 {sorted(spec.choices)} 之一，实际是 {value!r}"
+            f"{where} must be one of {sorted(spec.choices)}, got {value!r}"
         )
     if spec.minimum is not None and value < spec.minimum:
-        raise AgentConfigError(f"{where} 不能小于 {spec.minimum}，实际是 {value!r}")
+        raise AgentConfigError(f"{where} must be at least {spec.minimum}, got {value!r}")
     return value
 
 
@@ -258,36 +258,36 @@ def load_config(agent_id: str) -> AgentConfig:
     spec = _SPECS.get(agent_id)
     if spec is None:
         raise AgentConfigError(
-            f"没有为 {agent_id!r} 定义 spec；新增 agent config 必须同时在 "
-            "agent_config._SPECS 里登记 scaffold 与 serving"
+            f"no spec defined for {agent_id!r}; a new agent config must also register "
+            "its scaffold and serving in agent_config._SPECS"
         )
 
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover
-        raise AgentConfigError("缺少 PyYAML；请重新安装依赖 `pip install -e .`") from exc
+        raise AgentConfigError("PyYAML missing; reinstall dependencies with `pip install -e .`") from exc
 
     path = config_dir() / f"{agent_id}.yaml"
     if not path.is_file():
-        raise AgentConfigError(f"找不到 agent 配置：{path}")
+        raise AgentConfigError(f"agent config not found: {path}")
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
-        raise AgentConfigError(f"{path} 不是一个 YAML 映射")
+        raise AgentConfigError(f"{path} is not a YAML mapping")
 
     required = _required_fields(spec)
     if _ENV_REFERENCE.fullmatch(str(document.get("checkpoint", ""))):
         required.pop("revision")
     missing = [name for name in required if name not in document]
     if missing:
-        raise AgentConfigError(f"{agent_id}.yaml 缺少必填字段：{missing}")
+        raise AgentConfigError(f"{agent_id}.yaml is missing required fields: {missing}")
     if document["agent_id"] != agent_id:
         raise AgentConfigError(
-            f"{path} 里的 agent_id={document['agent_id']!r} 与文件名不一致"
+            f"agent_id={document['agent_id']!r} in {path} does not match the file name"
         )
     if document["scaffold"] != spec.scaffold:
         raise AgentConfigError(
-            f"{agent_id}.yaml 的 scaffold={document['scaffold']!r} 与 spec 声明的 "
-            f"{spec.scaffold!r} 不一致；换 scaffold 必须同时改 agent_config 的 spec"
+            f"scaffold={document['scaffold']!r} in {agent_id}.yaml does not match the spec "
+            f"{spec.scaffold!r}; changing the scaffold requires updating the agent_config spec"
         )
 
     for name, rule in required.items():
@@ -301,20 +301,20 @@ def load_config(agent_id: str) -> AgentConfig:
     )
     if forbidden:
         hint = (
-            "本地 serving 的并发度由 GPU 数 / tensor_parallel_size 推导"
+            "local serving concurrency is derived from GPU count / tensor_parallel_size"
             if spec.serving == LOCAL_VLLM
-            else "托管 API 不占卡，没有 tensor_parallel_size 可言"
+            else "hosted APIs use no local GPUs, so tensor_parallel_size does not apply"
         )
-        raise AgentConfigError(f"{agent_id}.yaml 不该出现 {forbidden}；{hint}")
+        raise AgentConfigError(f"{agent_id}.yaml must not contain {forbidden}; {hint}")
     unknown = sorted(set(document) - allowed - {"num_vms", "tensor_parallel_size", "served_model_name"})
     if unknown:
         raise AgentConfigError(
-            f"{agent_id}.yaml 出现未知字段：{unknown}；"
-            "live 字段名拼错会被当成未知键拦下，请对照 agent_config._SPECS"
+            f"{agent_id}.yaml has unknown fields: {unknown}; "
+            "misspelled live field names are rejected as unknown keys, see agent_config._SPECS"
         )
     absent = sorted(set(spec.live) - set(document))
     if absent:
-        raise AgentConfigError(f"{agent_id}.yaml 缺少 live 字段：{absent}")
+        raise AgentConfigError(f"{agent_id}.yaml is missing live fields: {absent}")
 
     live = {
         name: _coerce(agent_id, name, document[name], rule)
@@ -322,7 +322,7 @@ def load_config(agent_id: str) -> AgentConfig:
     }
     if "history_turns" in live and live["history_turns"] < live["max_images_in_context"]:
         raise AgentConfigError(
-            f"{agent_id}.yaml 的 history_turns({live['history_turns']}) 不能小于 "
+            f"history_turns({live['history_turns']}) in {agent_id}.yaml must not be less than "
             f"max_images_in_context({live['max_images_in_context']})"
         )
     return AgentConfig(
@@ -345,7 +345,7 @@ def resolve_checkpoint(config: AgentConfig) -> str:
     resolved = os.environ.get(match.group(1), "").strip()
     if not resolved:
         raise AgentConfigError(
-            f"{config.agent_id}.yaml 的 checkpoint 取自环境变量 {match.group(1)}，但它没有设置"
+            f"checkpoint in {config.agent_id}.yaml comes from environment variable {match.group(1)}, which is not set"
         )
     return resolved
 
@@ -356,8 +356,8 @@ def load_agent_config(agent_id: str) -> AgentConfig:
     config = load_config(agent_id)
     if config.scaffold == UPSTREAM_RUNNER:
         raise AgentConfigError(
-            f"{agent_id} 走的是 MyPCBench 内置 agent"
-            f"（--agent-type {config.document['agent_type']}），RECOVERY 构造不到它，"
-            "它的 yaml 仍然是纯文档；不要在这里加载"
+            f"{agent_id} uses a built-in MyPCBench agent"
+            f" (--agent-type {config.document['agent_type']}) that RECOVERY cannot construct; "
+            "its yaml is documentation only, do not load it here"
         )
     return config

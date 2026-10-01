@@ -16,7 +16,7 @@ export PYTHON_BIN="${PYTHON_BIN:-python3}"
 export COLLECTION_ID="${COLLECTION_ID:-v1}"
 
 die() {
-  printf '错误：%s\n' "$*" >&2
+  printf 'error: %s\n' "$*" >&2
   exit 1
 }
 
@@ -34,7 +34,7 @@ from pathlib import Path
 
 path, want = Path(sys.argv[1]), sys.argv[2]
 if not path.is_file():
-    raise SystemExit(f"找不到采集配置：{path}（用 COLLECT_CONFIG= 覆盖）")
+    raise SystemExit(f"Collection config not found: {path} (override with COLLECT_CONFIG=)")
 for raw in path.read_text(encoding="utf-8").splitlines():
     line = raw.strip()
     if not line or line.startswith("#") or ":" not in line:
@@ -47,16 +47,16 @@ for raw in path.read_text(encoding="utf-8").splitlines():
         print(value)
         raise SystemExit(0)
     break
-raise SystemExit(f"{path}: 缺少可用的键 {want}")
+raise SystemExit(f"{path}: missing usable key {want}")
 PY
 }
 
 resolve_protocol_param() {
   local var="$1" key="$2" from_config
   from_config="$(collection_config_value "$key")" \
-    || die "读取 ${COLLECT_CONFIG} 的 ${key} 失败"
+    || die "Failed to read ${key} from ${COLLECT_CONFIG}"
   if [[ -n "${!var:-}" && "${!var}" != "$from_config" ]]; then
-    COLLECT_ENV_OVERRIDES+=("${var}=${!var}（config 为 ${from_config}）")
+    COLLECT_ENV_OVERRIDES+=("${var}=${!var} (config: ${from_config})")
     if [[ "${ALLOW_CONFIG_OVERRIDE:-0}" == "1" ]]; then
       COLLECT_ENV_FORWARD+=("${var}=${!var}")
       return 0
@@ -108,7 +108,7 @@ for argument in "$@"; do
     --confirm) CONFIRMED=1 ;;
     --resume) RESUME=1 ;;
     -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
-    -*) die "未知参数：${argument}（只接受 --confirm 和 --resume）" ;;
+    -*) die "Unknown argument: ${argument} (only --confirm and --resume are accepted)" ;;
     *) AGENTS+=("$argument") ;;
   esac
 done
@@ -126,68 +126,68 @@ existing_episodes() {
   printf '%s\n' "${n:-0}"
 }
 
-printf '================ MyPCBench 正式 collection ================\n'
+printf '================ MyPCBench formal collection ================\n'
 printf '  COLLECTION_ID : %s\n' "$COLLECTION_ID"
-printf '  采集配置      : %s\n' "${COLLECT_CONFIG#"${REPO_ROOT}/"}"
+printf '  Config        : %s\n' "${COLLECT_CONFIG#"${REPO_ROOT}/"}"
 if (( TASK_COUNT > 0 )); then
-  printf '  每个 agent    : %s tasks × %s repeats = %s episodes\n' \
+  printf '  Per agent     : %s tasks × %s repeats = %s episodes\n' \
     "$TASK_COUNT" "$REPEATS" "$((TASK_COUNT * REPEATS))"
 else
-  printf '  每个 agent    : ? tasks（读不到 %s）× %s repeats\n' "$TASKS_FILE" "$REPEATS"
+  printf '  Per agent     : ? tasks (cannot read %s) × %s repeats\n' "$TASKS_FILE" "$REPEATS"
 fi
 printf '  MAX_STEPS     : %s\n' "$MAX_STEPS"
 printf '  TASK_TIMEOUT  : %ss\n' "$TASK_TIMEOUT"
 printf '  Python        : %s\n' "$PYTHON_BIN"
-printf '  输出          : artifacts/raw_rollouts/mypcbench/%s/<agent>/\n' "$COLLECTION_ID"
+printf '  Output        : artifacts/raw_rollouts/mypcbench/%s/<agent>/\n' "$COLLECTION_ID"
 if (( ${#COLLECT_ENV_OVERRIDES[@]} > 0 )); then
   if [[ "${ALLOW_CONFIG_OVERRIDE:-0}" == "1" ]]; then
-    printf '  ★ 环境变量覆盖 : %s\n' "${COLLECT_ENV_OVERRIDES[*]}"
+    printf '  ★ Env overrides: %s\n' "${COLLECT_ENV_OVERRIDES[*]}"
   else
-    printf '  ⚠ 以下环境变量与 config 冲突，已按 config 跑（collect_trajectories.sh 也会忽略它们）：%s\n' \
+    printf '  ⚠ These environment variables conflict with config; config wins (collect_trajectories.sh ignores them too): %s\n' \
       "${COLLECT_ENV_OVERRIDES[*]}"
-    printf '    要让它们生效请一并设 ALLOW_CONFIG_OVERRIDE=1；正式跑数请改 config。\n'
+    printf '    Set ALLOW_CONFIG_OVERRIDE=1 to apply them; for formal runs, edit the config.\n'
   fi
 fi
-printf '\n  %-20s %-8s %-10s %-9s %s\n' agent NUM_VMS 每步 预估 已有结果
+printf '\n  %-20s %-8s %-10s %-9s %s\n' agent NUM_VMS step ETA existing
 total_hours=0
 stale_total=0
 for agent_id in "${AGENTS[@]}"; do
   num_vms="$(agent_num_vms "$agent_id")"
   step_s="$(agent_step_seconds "$agent_id")" \
-    || die "${agent_id} 没有 eta_step_seconds；请在 configs/agents/${agent_id}.yaml 里补上"
+    || die "${agent_id} has no eta_step_seconds; add it to configs/agents/${agent_id}.yaml"
   hours="$(awk -v e="$((TASK_COUNT * REPEATS))" -v s="$step_s" -v v="$num_vms" \
     -v n="$AVG_STEPS_PER_EPISODE" 'BEGIN{printf "%.1f", e*n*s/v/3600}')"
   total_hours="$(awk -v a="$total_hours" -v b="$hours" 'BEGIN{printf "%.1f", a+b}')"
   stale="$(existing_episodes "$agent_id")"
   stale_total=$((stale_total + stale))
   if (( stale > 0 )); then
-    note="$( (( RESUME )) && printf '%s 个，跳过不重跑' "$stale" || printf '%s 个，将被删除重跑' "$stale" )"
+    note="$( (( RESUME )) && printf '%s, kept (skip)' "$stale" || printf '%s, will be deleted and rerun' "$stale" )"
   else
     note="-"
   fi
   printf '  %-20s %-8s %-10s ~%-8s %s\n' "$agent_id" "$num_vms" "${step_s}s" "${hours}h" "$note"
 done
-printf '  %-20s %-8s %-10s ~%-8s\n' '（合计）' '' '' "${total_hours}h"
+printf '  %-20s %-8s %-10s ~%-8s\n' '(total)' '' '' "${total_hours}h"
 cat <<EOF
 
-  预估按每 episode 平均 ${AVG_STEPS_PER_EPISODE} 步估算，仅供参考。
-  模型由 collect_trajectories.sh 自动启动 / 等 ready / 跑完自动停止，多个 agent 串行。
-  会使用 .env 里的真实 OPENAI_API_KEY 给 VM 内 NPC 自动回复。
+  ETA assumes ${AVG_STEPS_PER_EPISODE} steps per episode on average; rough guide only.
+  collect_trajectories.sh starts each model, waits for ready and stops it when done; agents run sequentially.
+  The real OPENAI_API_KEY from .env is used for NPC auto-replies inside the VM.
 EOF
 if (( stale_total > 0 )); then
   if (( RESUME )); then
-    printf '\n  --resume：保留已完成的 %s 个 episode，只补跑缺的。\n' "$stale_total"
+    printf '\n  --resume: keep %s finished episodes and only run the missing ones.\n' "$stale_total"
   else
-    printf '\n  ⚠ 将删除 %s 个已有 episode 后重跑（REPEATS=%s，重跑即覆盖）。\n' \
+    printf '\n  ⚠ Will delete %s existing episodes and rerun (REPEATS=%s, rerun overwrites).\n' \
       "$stale_total" "$REPEATS"
-    printf '    想保留并只补跑缺的，改用 --resume。\n'
+    printf '    To keep them and only run the missing ones, use --resume.\n'
   fi
 fi
 printf '===========================================================\n'
 
 grep -q '^formal_collection_authorized: true' "$MODELS_LOCK" || die \
-  "configs/models.lock.yaml 里 formal_collection_authorized 还是 false。
-     确认 revision、runtime image 和 endpoint gate 都核对过之后，手动改成 true 再跑。"
+  "formal_collection_authorized is still false in configs/models.lock.yaml.
+     After checking revision, runtime image and endpoint gate, set it to true manually and rerun."
 
 if ! "$PYTHON_BIN" - "$ROOT_DOTENV" <<'PY'
 import sys
@@ -210,14 +210,14 @@ for raw in path.read_text(encoding="utf-8").splitlines():
 raise SystemExit(1)
 PY
 then
-  die ".env 里 OPENAI_API_KEY 是空的。
-     完整 184 任务采集需要真实可用的 key —— MyPCBench 会把它注入 VM 内的
-     BuzzChat/WorkBuzz，供 NPC 自动回复；涉及聊天的任务没有它就做不了。
-     填好之后重跑本命令。"
+  die "OPENAI_API_KEY in .env is empty.
+     The full 184-task collection needs a working key: MyPCBench injects it into
+     BuzzChat/WorkBuzz in the VM for NPC auto-replies; chat tasks cannot run without it.
+     Fill it in and rerun this command."
 fi
 
 if (( CONFIRMED == 0 )); then
-  printf '\n这是预览，没有启动任何东西。确认无误后加 --confirm：\n'
+  printf '\nThis is a preview; nothing was started. Add --confirm when ready:\n'
   printf '  bash scripts/collection/collect_all.sh --confirm %s\n' "${AGENTS[*]}"
   exit 0
 fi
@@ -226,7 +226,7 @@ if [[ -z "${TMUX:-}" && "${RECOVERY_TMUX:-1}" != "0" ]]; then
   session="recovery-collect-${COLLECTION_ID}"
   session="$(tr -c '[:alnum:]_-' '-' <<< "$session" | sed 's/-$//')"
   tmux has-session -t "=${session}" 2>/dev/null && die \
-    "tmux session 已存在：${session}（跑完的旧 session 用 tmux kill-session -t =${session} 删掉）"
+    "tmux session already exists: ${session} (remove a finished one with tmux kill-session -t =${session})"
   local_flags=(--confirm)
   (( RESUME )) && local_flags+=(--resume)
 
@@ -251,11 +251,11 @@ if [[ -z "${TMUX:-}" && "${RECOVERY_TMUX:-1}" != "0" ]]; then
   printf -v log_text '%q ' tail -n +1 -f "$COLLECTION_LOG"
   tmux new-session -d -s "$session" -n collection -c "$REPO_ROOT" "$log_text"
   tmux new-window -d -t "$session" -n monitor -c "$REPO_ROOT" "watch -n 2 nvidia-smi"
-  printf '\n已启动（PID %s），与终端完全脱离，Ctrl-C 打不到它。\n\n' "$collection_pid"
-  printf '  看日志  : tmux attach -t %s\n' "$session"
-  printf '  日志文件: %s\n' "$COLLECTION_LOG"
-  printf '  要中止  : pkill -TERM -f "run_parallel_tasks.py.*%s"\n' "$COLLECTION_ID"
-  printf '            （正常跑完会自动清理，不需要手动停）\n'
+  printf '\nStarted (PID %s), fully detached from this terminal; Ctrl-C will not reach it.\n\n' "$collection_pid"
+  printf '  Logs    : tmux attach -t %s\n' "$session"
+  printf '  Log file: %s\n' "$COLLECTION_LOG"
+  printf '  Abort   : pkill -TERM -f "run_parallel_tasks.py.*%s"\n' "$COLLECTION_ID"
+  printf '            (cleans up automatically when done; no need to stop it)\n'
   exit 0
 fi
 
@@ -271,7 +271,7 @@ for agent_id in "${AGENTS[@]}"; do
   export_agent_env "$agent_id"
   if (( RESUME == 0 )) && [[ -d "${RUN_ROOT}/${agent_id}" ]]; then
     stale="$(existing_episodes "$agent_id")"
-    printf '[RECOVERY] 清空 %s 的旧结果（%s 个 episode）以便重跑\n' "$agent_id" "$stale"
+    printf '[RECOVERY] Clearing old results of %s (%s episodes) for rerun\n' "$agent_id" "$stale"
     rm -rf "${RUN_ROOT:?}/${agent_id:?}"
   fi
   printf '\n[RECOVERY] ===== %s (NUM_VMS=%s) =====\n' "$agent_id" "$agent_vms"
@@ -281,11 +281,11 @@ for agent_id in "${AGENTS[@]}"; do
   while IFS= read -r d; do
     if compgen -G "${d}/step_*.png" >/dev/null; then valid=$((valid+1)); else empty=$((empty+1)); fi
   done < <(find "${RUN_ROOT}/${agent_id}" -name result.txt -printf '%h\n' 2>/dev/null)
-  printf '[RECOVERY] %s 完成校验：有效 %s，空壳 %s\n' "$agent_id" "$valid" "$empty"
+  printf '[RECOVERY] %s check: valid %s, empty %s\n' "$agent_id" "$valid" "$empty"
   if (( empty > valid )); then
-    die "${agent_id} 的空壳(${empty}) 多于有效(${valid})；endpoint 很可能中途挂了。
-     中止队列，不再跑后面的 agent。检查 ${COLLECTION_LOG} 和 artifacts/serving_logs/。"
+    die "${agent_id} has more empty (${empty}) than valid (${valid}) episodes; the endpoint likely died mid-run.
+     Aborting the queue; remaining agents will not run. Check ${COLLECTION_LOG} and artifacts/serving_logs/."
   fi
 done
 
-printf '\n[RECOVERY] 全部完成：artifacts/raw_rollouts/mypcbench/%s\n' "$COLLECTION_ID"
+printf '\n[RECOVERY] All done: artifacts/raw_rollouts/mypcbench/%s\n' "$COLLECTION_ID"

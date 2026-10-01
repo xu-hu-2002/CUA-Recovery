@@ -57,7 +57,7 @@ class PyAutoGUIBackend:
         try:
             import pyautogui  # type: ignore
         except ImportError as exc:
-            raise RuntimeError("真实 replay 需要安装可选依赖: pip install -e '.[desktop]'") from exc
+            raise RuntimeError("real replay needs optional dependencies: pip install -e '.[desktop]'") from exc
         self._pyautogui = pyautogui
 
     def click(self, x: int, y: int, button: str, clicks: int = 1) -> None:
@@ -206,7 +206,7 @@ class CanonicalExecutor:
             raise TypeError("shell actions require an isolated VM backend")
         if isinstance(action, TerminateAction):
             return
-        raise TypeError("未处理的 action: %s" % type(action).__name__)
+        raise TypeError("unhandled action: %s" % type(action).__name__)
 
 
 def compile_pyautogui(action: Action) -> str:
@@ -275,4 +275,4 @@ def compile_pyautogui(action: Action) -> str:
         return "\n".join("# VM shell: %s" % command for command in action.commands)
     if isinstance(action, TerminateAction):
         return "# terminate(status=%r, answer=%r)" % (action.status, action.answer)
-    raise TypeError("未处理的 action: %s" % type(action).__name__)
+    raise TypeError("unhandled action: %s" % type(action).__name__)

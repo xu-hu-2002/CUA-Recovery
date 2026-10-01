@@ -41,7 +41,7 @@ EOF
 }
 
 die() {
-  printf '错误：%s\n' "$*" >&2
+  printf 'error: %s\n' "$*" >&2
   exit 1
 }
 
@@ -92,7 +92,7 @@ cpuset_slice() {
 agent_gpu_group() {
   local agent_id="$1" index="$2" tp
   tp="$(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id")" \
-    || die "configs/agents/${agent_id}.yaml 缺少 tensor_parallel_size"
+    || die "configs/agents/${agent_id}.yaml is missing tensor_parallel_size"
   awk -v devices="$(usable_gpu_indices)" -v tp="$tp" -v idx="$index" '
     BEGIN {
       n = split(devices, all, ",")
@@ -110,7 +110,7 @@ short_name() {
     rerail_35b_a3b) printf 'rerail\n' ;;
     evocua_32b) printf 'evocua\n' ;;
     opencua_72b) printf 'opencua72b\n' ;;
-    *) die "未知 agent_id：$1" ;;
+    *) die "Unknown agent_id: $1" ;;
   esac
 }
 
@@ -119,46 +119,46 @@ session_name() {
 }
 
 assert_tools() {
-  command -v docker >/dev/null 2>&1 || die "找不到 docker"
-  command -v tmux >/dev/null 2>&1 || die "找不到 tmux"
-  command -v nvidia-smi >/dev/null 2>&1 || die "找不到 nvidia-smi"
-  [[ -d "$HF_CACHE_ROOT" ]] || die "Hugging Face cache 不存在：${HF_CACHE_ROOT}"
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+  command -v tmux >/dev/null 2>&1 || die "tmux not found"
+  command -v nvidia-smi >/dev/null 2>&1 || die "nvidia-smi not found"
+  [[ -d "$HF_CACHE_ROOT" ]] || die "Hugging Face cache does not exist: ${HF_CACHE_ROOT}"
 }
 
 assert_evocua_image() {
   docker image inspect "$EVOCUA_IMAGE" >/dev/null 2>&1 || die \
-    "本地没有 EvoCUA runtime image：${EVOCUA_IMAGE}
-     它不在任何 registry 上，请先构建：bash serving/build_evocua_image.sh"
+    "EvoCUA runtime image not found locally: ${EVOCUA_IMAGE}
+     It is not on any registry; build it first: bash serving/build_evocua_image.sh"
 
   local want_dockerfile actual_dockerfile
   want_dockerfile="$(config_scalar "$MODELS_LOCK" dockerfile_sha256 || true)"
-  [[ -n "$want_dockerfile" ]] || die "models.lock.yaml 里没有 dockerfile_sha256"
-  [[ -f "$EVOCUA_DOCKERFILE" ]] || die "找不到 ${EVOCUA_DOCKERFILE}"
+  [[ -n "$want_dockerfile" ]] || die "models.lock.yaml has no dockerfile_sha256"
+  [[ -f "$EVOCUA_DOCKERFILE" ]] || die "${EVOCUA_DOCKERFILE} not found"
   actual_dockerfile="$(sha256sum "$EVOCUA_DOCKERFILE" | awk '{print $1}')"
   [[ "$actual_dockerfile" == "$want_dockerfile" ]] || die \
-    "EvoCUA Dockerfile 与 lock 不一致：期望 ${want_dockerfile}，实际 ${actual_dockerfile}"
+    "EvoCUA Dockerfile does not match the lock: expected ${want_dockerfile}, got ${actual_dockerfile}"
 
   local base_digest base_layers image_layers
   base_digest="$(config_scalar "$MODELS_LOCK" base_amd64_digest || true)"
-  [[ -n "$base_digest" ]] || die "models.lock.yaml 里没有 base_amd64_digest"
+  [[ -n "$base_digest" ]] || die "models.lock.yaml has no base_amd64_digest"
   base_layers="$(docker image inspect "vllm/vllm-openai@${base_digest}" \
     --format '{{range .RootFS.Layers}}{{.}}
 {{end}}' 2>/dev/null || true)"
   if [[ -z "$base_layers" ]]; then
-    info "警告：本机没有冻结 base image vllm/vllm-openai@${base_digest}，跳过 base 校验"
+    info "Warning: frozen base image vllm/vllm-openai@${base_digest} not present locally; skipping base check"
   else
     image_layers="$(docker image inspect "$EVOCUA_IMAGE" \
       --format '{{range .RootFS.Layers}}{{.}}
 {{end}}')"
     [[ "${image_layers}"$'\n' == "${base_layers}"$'\n'* ]] || die \
-      "${EVOCUA_IMAGE} 不是从冻结 base ${base_digest} 构建的；请重新构建：bash serving/build_evocua_image.sh"
+      "${EVOCUA_IMAGE} was not built from frozen base ${base_digest}; rebuild: bash serving/build_evocua_image.sh"
   fi
 
   if [[ -n "$EVOCUA_IMAGE_ID" ]]; then
     local actual_id
     actual_id="$(docker image inspect "$EVOCUA_IMAGE" --format '{{.Id}}')"
     [[ "$actual_id" == "$EVOCUA_IMAGE_ID" ]] || die \
-      "EvoCUA image ID 与显式 pin 不符：期望 ${EVOCUA_IMAGE_ID}，实际 ${actual_id}"
+      "EvoCUA image ID does not match the explicit pin: expected ${EVOCUA_IMAGE_ID}, got ${actual_id}"
   fi
 }
 
@@ -173,7 +173,7 @@ assert_runtime_image() {
       return 0
       ;;
   esac
-  docker image inspect "$image" >/dev/null 2>&1 || die "冻结 runtime image 不存在：${image}"
+  docker image inspect "$image" >/dev/null 2>&1 || die "Frozen runtime image does not exist: ${image}"
 }
 
 agent_checkpoint() {
@@ -182,7 +182,7 @@ agent_checkpoint() {
   if [[ "$value" =~ ^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$ ]]; then
     name="${BASH_REMATCH[1]}"
     value="${!name:-}"
-    [[ -n "$value" ]] || die "${1} 的 checkpoint 需要环境变量 ${name}"
+    [[ -n "$value" ]] || die "checkpoint of ${1} needs environment variable ${name}"
   fi
   printf '%s\n' "$value"
 }
@@ -261,7 +261,7 @@ print_base_urls() {
     [[ -z "$urls" ]] || urls+=","
     urls+="http://127.0.0.1:$((SERVING_PORT_BASE + index))/v1"
   done
-  info "写入本地 .env 的 endpoint 行（不含密钥）："
+  info "Endpoint lines for local .env (no secrets):"
   printf '%s="%s"\n' "$variable" "$urls"
 }
 
@@ -273,25 +273,25 @@ start_model() {
   short="$(short_name "$agent_id")"
   session="$(session_name "$agent_id")"
   local ceiling
-  ceiling="$(max_replicas "$agent_id")" || die "无法推导 ${agent_id} 的 endpoint 数"
+  ceiling="$(max_replicas "$agent_id")" || die "Cannot derive endpoint count for ${agent_id}"
   [[ -z "$replicas" ]] && replicas="$ceiling"
-  [[ "$replicas" =~ ^[1-9][0-9]*$ ]] || die "replicas 必须是正整数"
+  [[ "$replicas" =~ ^[1-9][0-9]*$ ]] || die "replicas must be a positive integer"
   if (( replicas > ceiling )); then
-    die "${agent_id} 在本机最多起 ${ceiling} 个 endpoint
-     （可用 GPU $(usable_gpu_count) 张 / tensor_parallel_size $(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id")，
-     再受 RECOVERY_MAX_ENDPOINTS=${RECOVERY_MAX_ENDPOINTS:-4} 限制）；请求的 ${replicas} 超了。"
+    die "${agent_id} can run at most ${ceiling} endpoints on this host
+     (usable GPUs $(usable_gpu_count) / tensor_parallel_size $(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id"),
+     capped by RECOVERY_MAX_ENDPOINTS=${RECOVERY_MAX_ENDPOINTS:-4}); requested ${replicas} exceeds it."
   fi
-  info "${agent_id}：可用 GPU $(usable_gpu_count) 张，TP $(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id")，起 ${replicas} 个 endpoint"
+  info "${agent_id}: usable GPUs $(usable_gpu_count), TP $(agent_tensor_parallel_size "$REPO_ROOT" "$agent_id"), starting ${replicas} endpoints"
 
   assert_tools
   assert_runtime_image "$agent_id"
   local snapshot
   snapshot="$(snapshot_path "$agent_id")"
-  [[ -d "$snapshot" ]] || die "冻结 model snapshot 不存在：${snapshot}"
-  tmux has-session -t "=${session}" 2>/dev/null && die "tmux session 已存在：${session}"
+  [[ -d "$snapshot" ]] || die "Frozen model snapshot does not exist: ${snapshot}"
+  tmux has-session -t "=${session}" 2>/dev/null && die "tmux session already exists: ${session}"
   if [[ "${ALLOW_BUSY_GPU:-0}" != "1" ]] && \
     nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits | grep -q '[0-9]'; then
-    die "检测到 GPU compute process；拒绝抢卡。确认归属后可显式设置 ALLOW_BUSY_GPU=1"
+    die "GPU compute process detected; refusing to take the GPU. Once ownership is confirmed, set ALLOW_BUSY_GPU=1"
   fi
 
   append_model_args "$agent_id"
@@ -308,7 +308,7 @@ start_model() {
   for ((index = 0; index < replicas; index++)); do
     probe_port=$((SERVING_PORT_BASE + index))
     if ss -ltn "sport = :${probe_port}" 2>/dev/null | grep -q ":${probe_port}"; then
-      die "端口 ${probe_port} 已被占用（${agent_id} 需要 ${SERVING_PORT_BASE}..$((SERVING_PORT_BASE + replicas - 1))）；换一段：SERVING_PORT_BASE=8100"
+      die "Port ${probe_port} is in use (${agent_id} needs ${SERVING_PORT_BASE}..$((SERVING_PORT_BASE + replicas - 1))); use another range: SERVING_PORT_BASE=8100"
     fi
   done
 
@@ -319,7 +319,7 @@ start_model() {
     local cpu_set
     gpu_request="\"device=$(agent_gpu_group "$agent_id" "$index")\""
     cpu_set="$(cpuset_slice "$SERVING_CPUSET" "$index" "$replicas")" \
-      || die "SERVING_CPUSET=${SERVING_CPUSET} 切不出 ${replicas} 份"
+      || die "SERVING_CPUSET=${SERVING_CPUSET} cannot be split into ${replicas} parts"
     local -a docker_command=(
       docker run --rm --name "$container"
       --label recovery.project=RECOVERY --label "recovery.agent_id=${agent_id}"
@@ -346,13 +346,13 @@ start_model() {
   if [[ "$DRY_RUN" != "1" ]]; then
     tmux new-window -d -t "$session" -n monitor -c "$REPO_ROOT" "watch -n 2 nvidia-smi"
     tmux select-window -t "${session}:r0"
-    info "已启动 tmux session ${session}；日志：${log_dir}"
-    info "查看：tmux attach -t ${session}"
+    info "Started tmux session ${session}; logs: ${log_dir}"
+    info "View: tmux attach -t ${session}"
   else
-    info "dry-run：没有创建 tmux session、container 或 endpoint，也没有 API 请求"
+    info "dry-run: no tmux session, container or endpoint created, and no API request"
   fi
   print_base_urls "$agent_id" "$replicas"
-  info "脚本未调用 /v1/models，也未调用 OpenAI API；请等待日志显示 server ready"
+  info "This script did not call /v1/models or the OpenAI API; wait for the log to show server ready"
 }
 
 stop_model() {
@@ -371,7 +371,7 @@ stop_model() {
   if tmux has-session -t "=${session}" 2>/dev/null; then
     tmux kill-session -t "=${session}"
   fi
-  info "已停止 ${agent_id} 的精确匹配 container/session"
+  info "Stopped exactly matching container/session of ${agent_id}"
 }
 
 status_model() {
@@ -395,10 +395,10 @@ status_model() {
 
 attach_model() {
   local agent_id="$1"
-  command -v tmux >/dev/null 2>&1 || die "找不到 tmux"
+  command -v tmux >/dev/null 2>&1 || die "tmux not found"
   local session
   session="$(session_name "$agent_id")"
-  tmux has-session -t "=${session}" 2>/dev/null || die "tmux session 不存在：${session}"
+  tmux has-session -t "=${session}" 2>/dev/null || die "tmux session does not exist: ${session}"
   exec tmux attach -t "=${session}"
 }
 

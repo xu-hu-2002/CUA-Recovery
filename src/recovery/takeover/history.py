@@ -26,7 +26,7 @@ def build_native_history(
     boundary_step_id = -1
     for step in frozen_steps:
         if step.step_id <= previous_step_id:
-            raise ValueError("history steps 必须按严格递增的 step_id 排列")
+            raise ValueError("history steps must be in strictly increasing step_id order")
         adapter.capabilities.require(step.action)
         rendered = adapter.render_step(step)
         messages.extend(rendered)
@@ -72,7 +72,7 @@ class NativeHistoryArtifact:
         )
         actual = hashlib.sha256(payload.encode("utf-8")).hexdigest()
         if self.messages_sha256 != actual:
-            raise ValueError("native history messages_sha256 不匹配")
+            raise ValueError("native history messages_sha256 mismatch")
         if self.conformance_passed:
             require_sha256(self.conformance_probe_sha256, "conformance_probe_sha256")
         for value in self.replay_observation_sha256s:
@@ -142,7 +142,7 @@ def build_native_history_artifact(
     frozen_steps = tuple(steps)
     expected_indices = tuple(step.action_index_global for step in frozen_steps)
     if expected_indices != tuple(sorted(set(expected_indices))):
-        raise ValueError("native history action indices 必须严格递增且唯一")
+        raise ValueError("native history action indices must be strictly increasing and unique")
     messages = tuple(build_native_history(adapter, frozen_steps))
     payload = json.dumps(messages, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     capabilities = getattr(adapter, "capabilities")
@@ -172,7 +172,7 @@ def build_native_history_from_replay(
     """Render corrected history solely from accepted per-action VM replay evidence."""
 
     if not replay_verification.accepted_for_release:
-        raise ValueError("native history 只能从 accepted real-VM replay 构建")
+        raise ValueError("native history can only be built from an accepted real-VM replay")
     steps_by_id = {step.action_index_global: step for step in steps}
     selected = []
     for index, log in zip(
@@ -180,12 +180,12 @@ def build_native_history_from_replay(
         replay_verification.per_action_log,
     ):
         if index not in steps_by_id:
-            raise ValueError("replay/canonical action index 不一致")
+            raise ValueError("replay/canonical action index mismatch")
         step = steps_by_id[index]
         if not log.get("observation_before_uri") or not log.get(
             "observation_before_sha256"
         ):
-            raise ValueError("replay log 缺少 corrected pre-action observation")
+            raise ValueError("replay log is missing the corrected pre-action observation")
         selected.append(
             HistoryStep(
                 step_id=index,

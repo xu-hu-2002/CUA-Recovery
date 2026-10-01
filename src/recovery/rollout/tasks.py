@@ -21,7 +21,7 @@ def source_spec(name: str, config_path: Path = SOURCES_CONFIG) -> Dict[str, Any]
         if spec["source_benchmark"] == name:
             return dict(spec)
     known = [spec["source_benchmark"] for spec in sources]
-    raise ValueError(f"未知 task_source {name!r}；{config_path} 里只有 {known}")
+    raise ValueError(f"unknown task_source {name!r}; {config_path} only has {known}")
 
 
 def _rerail_grading(workflow_id: str, rubrics_dir: Path) -> Optional[Dict[str, Any]]:
@@ -61,7 +61,7 @@ def load_source_tasks(
         rubrics_dir = REPO_ROOT / spec["rubrics_dir"]
         on_missing = spec.get("on_missing_rubric", "error")
         if on_missing not in ("error", "skip"):
-            raise ValueError(f"{name}: on_missing_rubric 只能是 error | skip")
+            raise ValueError(f"{name}: on_missing_rubric must be error | skip")
         tasks, missing = [], []
         for row in rows:
             if (origins and row["origin"] not in origins) or (
@@ -75,20 +75,20 @@ def load_source_tasks(
             tasks.append({**_rerail_task(row), "grading": grading})
         if missing and on_missing == "error":
             raise ValueError(
-                f"{name}: {len(missing)} 个 workflow 在 {rubrics_dir} 没有组合 rubric"
-                f"（如 {missing[:3]}）；先重跑合成生成 rubrics/，或设 on_missing_rubric: skip"
+                f"{name}: {len(missing)} workflows have no composed rubric in {rubrics_dir}"
+                f" (e.g. {missing[:3]}); rerun synthesis to generate rubrics/, or set on_missing_rubric: skip"
             )
         if missing:
-            print(f"[tasks] {name}: 跳过 {len(missing)} 个缺 rubric 的 workflow", file=sys.stderr)
+            print(f"[tasks] {name}: skipping {len(missing)} workflows without a rubric", file=sys.stderr)
         return tasks
-    raise ValueError(f"{name}: 不支持的 task_format {spec['task_format']!r}")
+    raise ValueError(f"{name}: unsupported task_format {spec['task_format']!r}")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--source", required=True)
-    parser.add_argument("--tasks-file", type=Path, help="覆盖 sources.yaml 的 tasks_file（如分片）")
-    parser.add_argument("--out", type=Path, help="写出 runner 格式任务；缺省只打印默认 tasks_file")
+    parser.add_argument("--tasks-file", type=Path, help="override tasks_file from sources.yaml (e.g. a shard)")
+    parser.add_argument("--out", type=Path, help="write tasks in runner format; by default only print the default tasks_file")
     parser.add_argument("--config", type=Path, default=SOURCES_CONFIG)
     args = parser.parse_args(argv)
     spec = source_spec(args.source, args.config)
@@ -97,7 +97,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     tasks = load_source_tasks(args.source, args.tasks_file, args.config)
     if not tasks:
-        raise SystemExit(f"{args.source}: 过滤后没有任务")
+        raise SystemExit(f"{args.source}: no tasks after filtering")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(tasks, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     graded = sum(bool((task.get("grading") or {}).get("rubrics")) for task in tasks)

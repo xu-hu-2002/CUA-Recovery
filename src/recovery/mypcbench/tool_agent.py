@@ -117,7 +117,7 @@ class ToolAgentProtocol:
 
     def __post_init__(self) -> None:
         if self.multi_tool_policy not in _MULTI_TOOL_POLICIES:
-            raise ValueError(f"未知 multi_tool_policy：{self.multi_tool_policy}")
+            raise ValueError(f"unknown multi_tool_policy: {self.multi_tool_policy}")
 
 
 _SAFE_KEY = re.compile(r"^[A-Za-z0-9_+\-]{1,32}$")
@@ -152,20 +152,20 @@ def validate_pyautogui_program(code: str) -> str:
     """Validate that text-code agent output contains only literal PyAutoGUI calls."""
 
     if not isinstance(code, str):
-        raise ToolCallError("PyAutoGUI program 必须是字符串")
+        raise ToolCallError("PyAutoGUI program must be a string")
     if code in {"WAIT", "DONE", "FAIL"}:
         return code
     if not code.strip() or len(code) > 20000:
-        raise ToolCallError("PyAutoGUI program 为空或过长")
+        raise ToolCallError("PyAutoGUI program is empty or too long")
     try:
         tree = ast.parse(code, mode="exec")
     except SyntaxError as exc:
-        raise ToolCallError("PyAutoGUI program 语法无效") from exc
+        raise ToolCallError("PyAutoGUI program has invalid syntax") from exc
     if not 1 <= len(tree.body) <= 2000:
-        raise ToolCallError("每步只允许 1--2000 个 PyAutoGUI 调用")
+        raise ToolCallError("each step allows only 1--2000 PyAutoGUI calls")
     for statement in tree.body:
         if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
-            raise ToolCallError("只允许直接调用 PyAutoGUI，不允许赋值、import 或控制流")
+            raise ToolCallError("only direct PyAutoGUI calls are allowed; no assignment, import or control flow")
         call = statement.value
         function = call.func
         if not (
@@ -174,16 +174,16 @@ def validate_pyautogui_program(code: str) -> str:
             and function.value.id == "pyautogui"
             and function.attr in _SAFE_PYAUTOGUI_METHODS
         ):
-            raise ToolCallError("调用不在 PyAutoGUI 白名单中")
+            raise ToolCallError("call is not in the PyAutoGUI allowlist")
         if any(keyword.arg is None for keyword in call.keywords):
-            raise ToolCallError("不允许 **kwargs 展开")
+            raise ToolCallError("**kwargs unpacking is not allowed")
         try:
             for argument in call.args:
                 ast.literal_eval(argument)
             for keyword in call.keywords:
                 ast.literal_eval(keyword.value)
         except (ValueError, TypeError) as exc:
-            raise ToolCallError("PyAutoGUI 参数必须是 literal，不能包含表达式") from exc
+            raise ToolCallError("PyAutoGUI arguments must be literals, not expressions") from exc
     return code
 
 
@@ -376,14 +376,14 @@ def build_shell_tool() -> dict[str, Any]:
 def _number(args: Mapping[str, Any], name: str) -> float:
     value = args.get(name)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ToolCallError(f"{name} 必须是数值")
+        raise ToolCallError(f"{name} must be a number")
     return float(value)
 
 
 def _boolean(args: Mapping[str, Any], name: str, default: bool = False) -> bool:
     value = args.get(name, default)
     if not isinstance(value, bool):
-        raise ToolCallError(f"{name} 必须是 boolean")
+        raise ToolCallError(f"{name} must be a boolean")
     return value
 
 
@@ -393,9 +393,9 @@ class SafePyAutoGUICompiler:
     def __init__(self, screen_size: tuple[int, int], coordinate_protocol: str):
         self.width, self.height = screen_size
         if self.width <= 0 or self.height <= 0:
-            raise ValueError("screen_size 必须为正数")
+            raise ValueError("screen_size must be positive")
         if coordinate_protocol not in {"absolute_pixels", "normalized_0_1000"}:
-            raise ValueError(f"未知坐标协议：{coordinate_protocol}")
+            raise ValueError(f"unknown coordinate protocol: {coordinate_protocol}")
         self.coordinate_protocol = coordinate_protocol
         self.clamps: list[dict[str, Any]] = []
 
@@ -409,7 +409,7 @@ class SafePyAutoGUICompiler:
             if pair is not None:
                 coordinate_args = {**args, x_name: pair[0], y_name: pair[1]}
                 logger.warning(
-                    "兼容解析 %s=%r 为坐标对 %s=%s, %s=%s（协议 %s）",
+                    "leniently parsed %s=%r as coordinate pair %s=%s, %s=%s (protocol %s)",
                     x_name,
                     raw_x,
                     x_name,
@@ -422,12 +422,12 @@ class SafePyAutoGUICompiler:
         y = _number(coordinate_args, y_name)
         if self.coordinate_protocol == "normalized_0_1000":
             if not 0 <= x <= 1000 or not 0 <= y <= 1000:
-                raise ToolCallError("归一化坐标必须位于 [0, 1000]")
+                raise ToolCallError("normalized coordinates must be within [0, 1000]")
             x = x * (self.width - 1) / 1000
             y = y * (self.height - 1) / 1000
         if not 0 <= x < self.width or not 0 <= y < self.height:
             raise ToolCallError(
-                f"坐标 ({x}, {y}) 越过 {self.width}x{self.height} 屏幕边界"
+                f"coordinate ({x}, {y}) is outside the {self.width}x{self.height} screen"
             )
         return round(x), round(y)
 
@@ -435,18 +435,18 @@ class SafePyAutoGUICompiler:
     def _button(args: Mapping[str, Any]) -> str:
         button = args.get("button", "left")
         if button not in _BUTTONS:
-            raise ToolCallError(f"非法鼠标键：{button!r}")
+            raise ToolCallError(f"invalid mouse button: {button!r}")
         return str(button)
 
     @staticmethod
     def _reject_unknown(args: Mapping[str, Any], allowed: set[str]) -> None:
         unknown = set(args) - allowed
         if unknown:
-            raise ToolCallError(f"tool arguments 包含未知字段：{sorted(unknown)!r}")
+            raise ToolCallError(f"tool arguments contain unknown fields: {sorted(unknown)!r}")
 
     def compile(self, name: str, args: Mapping[str, Any]) -> list[str]:
         if not isinstance(args, Mapping):
-            raise ToolCallError("tool arguments 必须是 JSON object")
+            raise ToolCallError("tool arguments must be a JSON object")
 
         if name in {"click", "double_click"}:
             self._reject_unknown(args, {"x", "y", "button"})
@@ -459,9 +459,9 @@ class SafePyAutoGUICompiler:
             self._reject_unknown(args, {"content", "clear_existing", "press_enter"})
             content = args.get("content")
             if not isinstance(content, str):
-                raise ToolCallError("write.content 必须是字符串")
+                raise ToolCallError("write.content must be a string")
             if len(content) > 10000:
-                raise ToolCallError("单次 write 超过 10000 字符")
+                raise ToolCallError("a single write exceeds 10000 characters")
             actions: list[str] = []
             if _boolean(args, "clear_existing"):
                 actions.append("pyautogui.hotkey('ctrl', 'a')")
@@ -474,9 +474,9 @@ class SafePyAutoGUICompiler:
             self._reject_unknown(args, {"keys"})
             keys = args.get("keys")
             if not isinstance(keys, list) or not 1 <= len(keys) <= 5:
-                raise ToolCallError("hotkey.keys 必须包含 1--5 个按键")
+                raise ToolCallError("hotkey.keys must contain 1--5 keys")
             if not all(isinstance(key, str) and _SAFE_KEY.fullmatch(key) for key in keys):
-                raise ToolCallError("hotkey 包含非法按键名")
+                raise ToolCallError("hotkey contains an invalid key name")
             quoted = ", ".join(repr(key.lower()) for key in keys)
             if len(keys) == 1:
                 return [f"pyautogui.press({quoted})"]
@@ -516,7 +516,7 @@ class SafePyAutoGUICompiler:
             button = self._button(args)
             duration = _number(args, "duration_s") if "duration_s" in args else 0.5
             if not 0 <= duration <= 10:
-                raise ToolCallError("drag.duration_s 必须位于 [0, 10]")
+                raise ToolCallError("drag.duration_s must be within [0, 10]")
             return [
                 f"pyautogui.moveTo({start_x}, {start_y})",
                 f"pyautogui.dragTo({end_x}, {end_y}, duration={duration:g}, button={button!r})",
@@ -526,17 +526,17 @@ class SafePyAutoGUICompiler:
             self._reject_unknown(args, {"seconds"})
             seconds = _number(args, "seconds") if "seconds" in args else 2
             if not 0 <= seconds <= 30:
-                raise ToolCallError("wait.seconds 必须位于 [0, 30]")
+                raise ToolCallError("wait.seconds must be within [0, 30]")
             return ["WAIT"]
 
         if name == "answer":
             self._reject_unknown(args, {"status", "content"})
             status = args.get("status")
             if status not in {"success", "failure"}:
-                raise ToolCallError("answer.status 必须是 success 或 failure")
+                raise ToolCallError("answer.status must be success or failure")
             return ["DONE" if status == "success" else "FAIL"]
 
-        raise ToolCallError(f"未注册的 tool：{name!r}")
+        raise ToolCallError(f"unregistered tool: {name!r}")
 
 
 def _tool_call_dict(call: Any, fallback_index: int) -> dict[str, Any]:
@@ -595,7 +595,7 @@ def _content_tool_calls(content: Optional[str]) -> list[dict[str, Any]]:
 def _read_frozen_prompt(filename: str) -> str:
     path = REPO_ROOT / "prompts" / "agents" / filename
     if not path.is_file():
-        raise RuntimeError(f"找不到冻结 prompt：{path}")
+        raise RuntimeError(f"frozen prompt not found: {path}")
     return path.read_text(encoding="utf-8").strip()
 
 
@@ -609,7 +609,7 @@ def compose_system_prompt(scaffold_filename: str, *, has_bash: bool = False) -> 
     for filename in (scaffold_filename, shared_file):
         path = REPO_ROOT / "prompts" / "agents" / filename
         if not path.is_file():
-            raise RuntimeError(f"找不到冻结 prompt：{path}")
+            raise RuntimeError(f"frozen prompt not found: {path}")
     root = REPO_ROOT / "prompts" / "agents"
     scaffold = (root / scaffold_filename).read_text(encoding="utf-8")
     shared = (root / shared_file).read_text(encoding="utf-8")
@@ -648,8 +648,8 @@ class NativeToolComputerAgent:
             self.tools.append(build_shell_tool())
         if protocol.enable_bash and env is None:
             logger.warning(
-                "enable_bash=True 但 runner 没有传入 env：bash 调用会收到"
-                "明确的错误提示并回退 GUI 路径"
+                "enable_bash=True but the runner passed no env: bash calls will get "
+                "an explicit error and fall back to the GUI path"
             )
         self._base_url = base_url or os.environ.get("OPENAI_BASE_URL")
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY") or "EMPTY"
@@ -664,7 +664,7 @@ class NativeToolComputerAgent:
         accounting = os.environ.get("RECOVERY_BASH_ACCOUNTING", "internal")
         if accounting not in ("internal", "steps"):
             raise ValueError(
-                f"RECOVERY_BASH_ACCOUNTING 只接受 internal/steps，实际为 {accounting!r}"
+                f"RECOVERY_BASH_ACCOUNTING must be internal or steps, got {accounting!r}"
             )
         self._bash_accounting = accounting
         self._consecutive_bash_steps = 0
@@ -685,9 +685,9 @@ class NativeToolComputerAgent:
             try:
                 from openai import OpenAI
             except ImportError as exc:  # pragma: no cover
-                raise RuntimeError("缺少 openai；请安装 `pip install -e '.[collection]'`") from exc
+                raise RuntimeError("openai missing; install with `pip install -e '.[collection]'`") from exc
             if not self._base_url:
-                raise RuntimeError("缺少 OPENAI_BASE_URL，无法连接本地推理服务")
+                raise RuntimeError("OPENAI_BASE_URL missing; cannot reach the local inference server")
             self._client = OpenAI(base_url=self._base_url, api_key=self._api_key)
         return self._client
 
@@ -856,7 +856,7 @@ class NativeToolComputerAgent:
     @staticmethod
     def _image_url(screenshot: bytes) -> str:
         if not isinstance(screenshot, (bytes, bytearray)):
-            raise TypeError("obs['screenshot'] 必须是 PNG/JPEG bytes")
+            raise TypeError("obs['screenshot'] must be PNG/JPEG bytes")
         return "data:image/png;base64," + base64.b64encode(screenshot).decode("ascii")
 
     @staticmethod
@@ -1028,7 +1028,7 @@ class NativeToolComputerAgent:
         if not calls:
             calls = _content_tool_calls(content)
         if not calls:
-            raise ToolCallError("模型没有返回可解析的 tool call")
+            raise ToolCallError("the model returned no parsable tool call")
 
         if self.protocol.multi_tool_policy == EXECUTE_ALL_CALLS_IN_ORDER:
             executed, collapsed = calls, []
@@ -1037,20 +1037,27 @@ class NativeToolComputerAgent:
         names = [self._call_name(call) for call in executed]
         if self.protocol.multi_tool_policy == ONE_INTERACTION_PLUS_COLLAPSED_WAITS:
             if sum(name != "wait" for name in names) > 1:
-                raise BatchedToolCallError("当前 agent 每张截图最多一个交互动作")
+                raise BatchedToolCallError(
+                    "this agent allows at most one interaction per screenshot"
+                )
             if "bash" in names and len(executed) > 1:
                 raise BatchedToolCallError("bash must be returned as the only tool call")
             if "answer" in names and len(executed) > 1:
-                raise BatchedToolCallError("answer 必须单独返回，不能与其他 tool call 同批")
+                raise BatchedToolCallError(
+                    "answer must be returned alone, not batched with other tool calls"
+                )
         elif "answer" in names:
             if names.count("answer") > 1 or names[-1] != "answer":
-                raise ToolCallError("execute_all 批次中的 answer 最多一个且必须位于末尾")
+                raise ToolCallError(
+                    "an execute_all batch may contain at most one answer, and it must be last"
+                )
 
         if self.protocol.enable_bash:
             bash_count = sum(name == "bash" for name in names)
             if bash_count > 1 or (bash_count == 1 and len(executed) > 1):
                 raise BatchedToolCallError(
-                    "bash 必须单独一个 tool call 返回：一次一条命令，不与其他动作混发"
+                    "bash must be returned as the only tool call: one command at a time, "
+                    "not mixed with other actions"
                 )
 
         actions: list[str] = []
@@ -1062,19 +1069,19 @@ class NativeToolComputerAgent:
             try:
                 arguments = json.loads(function.get("arguments") or "{}")
             except json.JSONDecodeError as exc:
-                raise ToolCallError(f"{name} arguments 不是合法 JSON") from exc
+                raise ToolCallError(f"{name} arguments are not valid JSON") from exc
             if str(name) == "bash" and self.protocol.enable_bash:
                 command = arguments.get("command")
                 if not isinstance(command, str) or not command.strip():
-                    raise ToolCallError("bash.command 必须是非空字符串")
+                    raise ToolCallError("bash.command must be a non-empty string")
                 if len(command) > _BASH_COMMAND_MAX_CHARS:
                     raise ToolCallError(
-                        f"bash.command 超过 {_BASH_COMMAND_MAX_CHARS} 字符上限"
+                        f"bash.command exceeds the {_BASH_COMMAND_MAX_CHARS}-character limit"
                     )
                 unknown = set(arguments) - {"command"}
                 if unknown:
                     raise ToolCallError(
-                        f"bash arguments 包含未知字段：{sorted(unknown)!r}"
+                        f"bash arguments contain unknown fields: {sorted(unknown)!r}"
                     )
                 summaries.append(
                     {"name": "bash", "arguments": arguments, "compiled": []}
@@ -1284,7 +1291,7 @@ class NativeToolComputerAgent:
                 if schema_repairs_left > 0:
                     schema_repairs_left -= 1
                     request_messages.extend([assistant_message, *rejection_messages])
-                    logger.warning("tool schema 校验失败，执行一次有界修复：%s", error)
+                    logger.warning("tool schema validation failed, running one bounded repair: %s", error)
                     continue
 
                 abort = {"type": "INVALID_TOOL_CALL", "error": error}
@@ -1438,7 +1445,7 @@ class NativeToolComputerAgent:
                 if loop_repairs_left > 0:
                     loop_repairs_left -= 1
                     request_messages.extend([assistant_message, rejection])
-                    logger.warning("检测到重复动作循环，执行一次有界重规划：%s", loop_reason)
+                    logger.warning("repeated action loop detected, running one bounded replan: %s", loop_reason)
                     continue
 
                 abort = {"type": "LOOP_ABORT", "reason": loop_reason}

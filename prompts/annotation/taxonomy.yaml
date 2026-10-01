@@ -1,19 +1,31 @@
-# 开放编码阶段的候选提示，不限制人工提出新 error type，也不代表最终类别数。
-version: draft
+version: paper-12
 categories:
   planning:
     - fabricate_data
+    - scope_error
     - misunderstand_task_objective
-    - lack_of_knowledge
   perception:
-    - progress_misperception
-    - detail_misperception
-    - state_misinterpretation
     - ineffective_action
+    - progress_misperception
+    - state_misinterpretation
+    - detail_misperception
   execution:
+    - typing_or_parameter_error
     - grounding_failure
     - incorrect_ui_element
-    - typing_or_parameter_error
   termination:
-    - fail_to_terminate
     - premature_completion
+    - budget_exhaustion
+descriptions:
+  fabricate_data: "Uses data that was never obtained from the screen, files, tool output, or other reliable evidence."
+  scope_error: "Processes a data range, time range, or set of objects that does not match the task requirements."
+  misunderstand_task_objective: "Misreads the final goal, deliverable, target objects, or key constraints of the task, or lacks the domain knowledge or procedure the task requires."
+  ineffective_action: "Executes an action that does not advance the task and produces no expected change in the UI or system state."
+  progress_misperception: "Misjudges which work is done, which steps remain, or how far the task has progressed."
+  state_misinterpretation: "Misjudges the current page, application, data, login or loading state, or tool capability (for example, treats an applied change as not applied or an available tool as unavailable) and acts on that belief."
+  detail_misperception: "Overlooks or misreads a local piece of information, value, text, or specific requirement that affects the result."
+  typing_or_parameter_error: "Enters incorrect text, numbers, dates, paths, coordinates, or tool parameters."
+  grounding_failure: "Knows what to operate on but fails to locate it precisely, so the click, drag, or other action lands in the wrong place."
+  incorrect_ui_element: "Chooses a button, field, menu, or other UI element whose function differs from the intended one, or writes content into the wrong section, region, or target object."
+  premature_completion: "Reports success, submits results, or ends the task before every requirement is met."
+  budget_exhaustion: "Runs out of the step or time budget, including continuing invalid or repeated actions after the task has clearly succeeded or cannot proceed."

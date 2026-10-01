@@ -31,13 +31,13 @@ class CanonicalStep:
 
     def __post_init__(self) -> None:
         if self.step_id < 0:
-            raise ValueError("step_id 不能为负数")
+            raise ValueError("step_id must not be negative")
         if self.turn_index is not None and self.turn_index < 0:
-            raise ValueError("turn_index 不能为负数")
+            raise ValueError("turn_index must not be negative")
         if self.action_index_within_turn < 0:
-            raise ValueError("action_index_within_turn 不能为负数")
+            raise ValueError("action_index_within_turn must not be negative")
         if self.repaired and not self.repair_patch_id:
-            raise ValueError("repaired step 必须记录 repair_patch_id")
+            raise ValueError("a repaired step must record repair_patch_id")
 
     @property
     def action_index_global(self) -> int:
@@ -71,7 +71,7 @@ class CanonicalStep:
         step_id = int(raw.get("action_index_global", raw.get("step_id", -1)))
         legacy_step_id = raw.get("step_id")
         if legacy_step_id is not None and int(legacy_step_id) != step_id:
-            raise ValueError("step_id 与 action_index_global 不一致")
+            raise ValueError("step_id does not match action_index_global")
         return cls(
             step_id=step_id,
             observation_before_sha256=str(raw["observation_before_sha256"]),

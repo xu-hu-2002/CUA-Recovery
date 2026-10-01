@@ -174,8 +174,8 @@ index 0687d5f..f7b8144 100644
          step_summary_parts: List[str] = []
          message_text_parts: List[str] = []
          reasoning_text_parts: List[str] = []
--        # RECOVERY: 本轮执行过的 shell 命令 + 输出，供纯工具轮回填 response_text。
-+        # RECOVERY: 本轮所有可见 tool call + output，写进 response_text 供轨迹/judge 使用。
+-        # RECOVERY: shell commands + outputs run this turn, used to fill response_text on tool-only turns.
++        # RECOVERY: every visible tool call + output this turn, written into response_text for the trajectory/judge.
          _tool_transcript: List[str] = []
  
          for item in response.output:
@@ -197,18 +197,18 @@ index 0687d5f..f7b8144 100644
                  for cmd in commands:
                      stdout, stderr, outcome = self._execute_shell_command(
 @@ -471,14 +481,22 @@ class _OpenAICUABase(OpenAIBaseAgent):
-                     # 中间的工具工作」，意图被空载荷架空。gpt-5.5 有 50.5% 的步数是
-                     # 这种纯工具轮，33.9% 的失败 rubric 判词是「截图里看不到」。
+                     # the intermediate tool work", which an empty payload defeats. 50.5% of gpt-5.5 steps are
+                     # tool-only turns, and 33.9% of failed rubric verdicts say "not visible in the screenshot".
                      #
--                    # 判官侧 _build_history_and_images() 会把每步 raw_response_text
--                    # 截到 600 字符，所以这里就按能装下的预算裁剪，别指望下游放宽。
+-                    # On the judge side, _build_history_and_images() truncates each step's raw_response_text
+-                    # to 600 characters, so trim to a budget that fits; do not expect downstream to relax it.
 -                    _out = (stdout or "").strip() or (stderr or "").strip()
 -                    _tool_transcript.append(
 -                        f"$ {cmd[:200]}\n{_out[:300]}"
 -                        + ("…" if len(_out) > 300 else "")
 -                        + f" [{outcome_repr}]"
 -                    )
-+                    # 下游仍会设置单步消息上限，因此只保留足够判定行为与结果的摘要。
++                    # Downstream still caps each step's message, so keep only a summary sufficient to judge behavior and outcome.
 +
 +                # This is the same provider-visible message shape sent back on the
 +                # next Responses API request, with large streams bounded for traj size.
@@ -255,19 +255,19 @@ index 0687d5f..f7b8144 100644
          else:
              response_text = message_text
  
--        # RECOVERY: 纯工具轮（模型只发了工具调用、没发消息文本）时，用本轮的命令+输出
--        # 充当 response_text，让这一步在轨迹里留下实际内容而不是空串。
-+        # RECOVERY: 每个 tool call 都必须进入 response_text，即使同轮也有可见文本。
-+        # judge 以 message/action trajectory 为主证据，不能只保存自然语言而丢掉调用。
+-        # RECOVERY: on tool-only turns (tool calls but no message text), use this turn's commands + outputs
+-        # as response_text so the step leaves real content in the trajectory instead of an empty string.
++        # RECOVERY: every tool call must go into response_text, even when the turn also has visible text.
++        # The judge relies mainly on the message/action trajectory, so calls must not be dropped in favor of prose.
          #
--        # 只在 response_text 为空时回填，不覆盖模型真正说过的话；也不参与下面的
--        # DONE/FAIL 哨兵扫描（scan_terminal 仍只看 message_text），所以不会因为某条
--        # 命令的输出里恰好有 "DONE" 就误判结束。
+-        # Only fill when response_text is empty, never overwrite what the model said; this also stays out of the
+-        # DONE/FAIL sentinel scan below (scan_terminal still only reads message_text), so a command
+-        # output that happens to contain "DONE" cannot end the episode by mistake.
 -        if not response_text.strip() and _tool_transcript:
 -            response_text = "[tool] " + "\n[tool] ".join(_tool_transcript)
-+        # 追加而不覆盖模型真正说过的话；也不参与下面的 DONE/FAIL 哨兵扫描
-+        # （scan_terminal 仍只看 message_text），所以不会因为某条命令的输出里
-+        # 恰好有 "DONE" 就误判结束。
++        # Append without overwriting what the model said; this also stays out of the DONE/FAIL sentinel scan below
++        # (scan_terminal still only reads message_text), so a command output that
++        # happens to contain "DONE" cannot end the episode by mistake.
 +        if _tool_transcript:
 +            tool_text = "[tool] " + "\n[tool] ".join(_tool_transcript)
 +            response_text = (response_text.rstrip() + "\n" + tool_text).strip()
@@ -363,16 +363,16 @@ index 6cea2e7..e373954 100644
                  step_idx += 1
                  continue
 -            logger.warning("No actions returned at step %d", step_idx + 1)
-+            # RECOVERY: 这条 break 是绝大多数 episode 中断的出口（v1 首采 39/39、
-+            # 重跑 14/39、bashfix probe 6/20），但它原本既不记原因也不写轨迹：
-+            # response_text 在这里被直接丢弃，事后只剩一行 "No actions returned
-+            # at step N"，无从判断模型究竟返回了什么 —— 是空响应、是重试耗尽后的
-+            # "(openai api error: ...)"、还是给了最终答复却没带 ```DONE``` 哨兵。
-+            # 三者的处置方式完全不同，所以必须把证据留下。
++            # RECOVERY: this break is where most episodes stop (v1 first pass 39/39,
++            # rerun 14/39, bashfix probe 6/20), but it used to log no reason and write no trajectory:
++            # response_text was dropped here, leaving only the line "No actions returned
++            # at step N", with no way to tell what the model returned: an empty response, an
++            # "(openai api error: ...)" after exhausted retries, or a final answer without the ```DONE``` sentinel.
++            # Each needs different handling, so the evidence must be kept.
 +            #
-+            # 注意上面的 API 错误检测只匹配 "Error code:" 前缀，而 agent 重试耗尽
-+            # 时返回的是 "(openai api error: ...)"，匹配不上，于是那条路径也从这里
-+            # 退出。日志里带上 resp_str 才能把两者区分开。
++            # Note the API error check above only matches the "Error code:" prefix, while an agent that
++            # exhausts retries returns "(openai api error: ...)", which does not match, so that path also
++            # exits here. Logging resp_str is what tells the two apart.
 +            logger.warning(
 +                "No actions returned at step %d — response=%r has_pending=%s "
 +                "empty_streak=%d api_errors=%d",
@@ -386,10 +386,10 @@ index 6cea2e7..e373954 100644
 +                "action": "NO_ACTIONS",
 +                "response": resp_str,
 +                "reward": 0.0,
-+                # done=False 是有意的：这一步是中断不是完成。整套分析用
-+                # any(step.done) 区分「agent 自己发了 DONE」与「被 harness 掐断」，
-+                # 写 True 会让中断的 episode 混进完成集里。上游的 PREDICT_CRASH
-+                # 行写的是 True，那是另一回事（进程崩了，没有可继续的语义）。
++                # done=False is intentional: this step is an abort, not a completion. The analysis uses
++                # any(step.done) to tell "the agent sent DONE" from "cut off by the harness";
++                # writing True would mix aborted episodes into the completed set. The upstream PREDICT_CRASH
++                # row writes True, which is a different case (the process crashed, nothing to continue).
 +                "done": False,
 +                "info": {
 +                    "kind": "abort_no_actions",

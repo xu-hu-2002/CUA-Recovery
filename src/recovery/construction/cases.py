@@ -69,19 +69,19 @@ class DepthInstance:
 
     def __post_init__(self) -> None:
         if self.depth not in DEPTH_GRID:
-            raise CaseConstructionError("depth 必须属于 %s" % (DEPTH_GRID,))
+            raise CaseConstructionError("depth must be in %s" % (DEPTH_GRID,))
         if self.replay_end_action_index != self.root_cause_action_index + self.depth:
-            raise CaseConstructionError("replay_end_action_index 必须等于 root + depth")
+            raise CaseConstructionError("replay_end_action_index must equal root + depth")
         if not self.executed_action_indices:
-            raise CaseConstructionError("cleaned depth instance 不能为空")
+            raise CaseConstructionError("cleaned depth instance must not be empty")
         if self.executed_action_indices != tuple(sorted(set(self.executed_action_indices))):
-            raise CaseConstructionError("cleaned action indices 必须严格递增且唯一")
+            raise CaseConstructionError("cleaned action indices must be strictly increasing and unique")
         if any(index < 0 or index > self.replay_end_action_index for index in self.executed_action_indices):
-            raise CaseConstructionError("cleaned action index 超出 source prefix depth 边界")
+            raise CaseConstructionError("cleaned action index is beyond the source prefix depth boundary")
         if self.root_cause_action_index not in self.executed_action_indices:
-            raise CaseConstructionError("cleaned prefix 不能删除 root-cause action")
+            raise CaseConstructionError("cleaned prefix must not drop the root-cause action")
         if self.history_action_indices != self.executed_action_indices:
-            raise CaseConstructionError("injected history 必须与 replay executed actions 同源")
+            raise CaseConstructionError("injected history must come from the replay executed actions")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -161,32 +161,32 @@ def build_case_plan(
     require_error_explicit: bool = True,
 ) -> CasePlan:
     if not case_id.strip() or not trajectory_id.strip() or not source_trajectory_sha256.strip():
-        raise CaseConstructionError("case/source provenance 不能为空")
+        raise CaseConstructionError("case/source provenance must not be empty")
     actual_indices = [step.action_index_global for step in steps]
     if actual_indices != list(range(len(steps))):
-        raise CaseConstructionError("canonical action indices 必须从 0 连续递增")
+        raise CaseConstructionError("canonical action indices must be contiguous from 0")
     if adjudication.trajectory_id != trajectory_id:
-        raise CaseConstructionError("adjudication trajectory_id 与 case source 不一致")
+        raise CaseConstructionError("adjudication trajectory_id does not match the case source")
     root = adjudication.root_cause_action_index
     if root >= len(steps):
-        raise CaseConstructionError("root cause 超出轨迹")
+        raise CaseConstructionError("root cause is beyond the trajectory")
     if root == 0 and (
         not steps[0].observation_before_sha256 or not steps[0].observation_before_uri
     ):
-        raise CaseConstructionError("root=0 缺少 initial pre-action observation，证据不完整")
+        raise CaseConstructionError("root=0 is missing the initial pre-action observation; evidence incomplete")
     if (
         adjudication.identifiable_at_action_index is not None
         and adjudication.identifiable_at_action_index >= len(steps)
     ):
-        raise CaseConstructionError("error horizon 超出轨迹")
+        raise CaseConstructionError("error horizon is beyond the trajectory")
     if any(patch.case_id != case_id for patch in patches):
-        raise CaseConstructionError("repair patch case_id 不一致")
+        raise CaseConstructionError("repair patch case_id mismatch")
     if any(patch.root_cause_step != root for patch in patches):
-        raise CaseConstructionError("repair patch root 与 adjudication 不一致")
+        raise CaseConstructionError("repair patch root does not match adjudication")
     if prefix_audit.case_id != case_id or prefix_audit.root_cause_action_index != root:
-        raise CaseConstructionError("prefix audit case/root 与 adjudication 不一致")
+        raise CaseConstructionError("prefix audit case/root does not match adjudication")
     if prefix_audit.source_trajectory_sha256 != source_trajectory_sha256:
-        raise CaseConstructionError("prefix audit source trajectory hash 不一致")
+        raise CaseConstructionError("prefix audit source trajectory hash mismatch")
     audited, _ = eligible_depths(root, len(steps) - 1, None, require_error_explicit=False)
     available, unavailable = eligible_depths(
         root,
@@ -195,21 +195,21 @@ def build_case_plan(
         require_error_explicit=require_error_explicit,
     )
     if not available:
-        raise CaseConstructionError("轨迹没有任何可用 depth instance: %s" % unavailable)
+        raise CaseConstructionError("trajectory has no usable depth instance: %s" % unavailable)
     audit_end = root + max(audited)
     if prefix_audit.audit_end_action_index > audit_end:
         raise CaseConstructionError(
-            "prefix audit end 超出最大可用 depth 边界: %d" % audit_end
+            "prefix audit end is beyond the maximum usable depth boundary: %d" % audit_end
         )
     prefix_audit.validate_patches(patches)
 
     repaired = apply_repair_patches(steps[: audit_end + 1], patches)
     repaired_by_id = {step.action_index_global: step for step in repaired}
     if root not in repaired_by_id or repaired_by_id[root].action != steps[root].action:
-        raise CaseConstructionError("cleaning 不能删除或修改 root-cause action")
+        raise CaseConstructionError("cleaning must not drop or modify the root-cause action")
     for step in repaired:
         if step.action_index_global >= root and step.action != steps[step.action_index_global].action:
-            raise CaseConstructionError("root 及其后的 retained actions 必须保持原动作")
+            raise CaseConstructionError("retained actions at and after root must stay unchanged")
 
     instances = []
     for depth in available:

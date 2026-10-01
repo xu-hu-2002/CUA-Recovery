@@ -56,7 +56,7 @@ class EvoCUAS2Adapter:
 
     def __init__(self, instruction: str, *, source_agent: str = "evocua_32b") -> None:
         if not instruction.strip():
-            raise ValueError("EvoCUA native history 需要非空 task instruction")
+            raise ValueError("EvoCUA native history needs a non-empty task instruction")
         self.instruction = instruction
         self.source_agent = source_agent
 

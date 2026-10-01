@@ -39,7 +39,7 @@ JOB_MAX_ATTEMPTS="${JOB_MAX_ATTEMPTS:-3}"
 JOB_RETRY_DELAY="${JOB_RETRY_DELAY:-10}"
 
 need_value() {
-  [[ $# -ge 2 && -n "$2" ]] || { echo "FATAL: $1 需要一个值" >&2; exit 2; }
+  [[ $# -ge 2 && -n "$2" ]] || { echo "FATAL: $1 needs a value" >&2; exit 2; }
 }
 
 while [[ $# -gt 0 ]]; do
