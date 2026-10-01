@@ -79,6 +79,12 @@ python main.py synthesis freeze_source_splits
 python main.py collection collect_all --confirm
 ```
 
+Rollouts on composed workflows need the in-VM infrastructure installed once per VM:
+
+```bash
+python main.py collection install_vm_infra deploy
+```
+
 ### 3. Judge rollouts
 
 ```bash

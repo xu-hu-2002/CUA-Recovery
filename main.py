@@ -37,6 +37,7 @@ COMMANDS = {
         "serve_open_source": ("collection/serve_open_source.sh", "Start/stop frozen vLLM endpoints for open-source agents."),
         "collect_all": ("collection/collect_all.sh", "Preset entry for the full MyPCBench collection."),
         "collect_trajectories": ("collection/collect_trajectories.sh", "Collect raw trajectories for one agent."),
+        "install_vm_infra": ("collection/install_vm_infra.py", "Install the in-VM recovery infrastructure."),
         "run_rollout_v1": ("collection/run_rollout_v1.py", "Run a batch of (task, world, agent, seed) rollouts."),
     },
     "judge": {

@@ -40,7 +40,7 @@ def preflight(control: RecoveryControlClient, config: dict, image_digest: str) -
     ]
     if config["preflight"].get("require_triggers_installed") and missing:
         raise SystemExit(
-            "triggers missing on: %s (run infra/README.md step 1)" % ", ".join(missing)
+            "triggers missing on: %s (run: python main.py collection install_vm_infra deploy)" % ", ".join(missing)
         )
     if config["preflight"].get("require_tracer_files") and not status.get("trace_files"):
         raise SystemExit("no tracer files under the trace directory; is the drop-in installed?")
