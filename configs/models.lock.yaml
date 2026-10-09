@@ -5,17 +5,6 @@ mypcbench:
   image_dataset_revision: aca6ec996c60f3567b6701028eb7d177297f405f
   published_compressed_sha256: 61729f831588720b56a8ed46548fac003205cc53e414cec573ce269d1a52cef3
   local_uncompressed_sha256: 29e6ef0230655501920ad7b08c38e16c0d39e94c5be8220de2cf723885759e90
-collection_ids:
-  dummy_smoke: smoke_dummy_20260802
-  qwen3_5_35b_a3b_smoke: smoke_qwen3_5_35b_a3b_20260802
-  evocua_32b_smoke: smoke_evocua_32b_20260802
-  opencua_72b_smoke: smoke_opencua_72b_20260802
-  qwen3_5_35b_a3b_context_smoke: smoke30_qwen3_5_exact_context_v2_20260803
-  evocua_32b_extended_smoke: smoke20_evocua_32b_20260803
-  opencua_72b_extended_smoke: smoke20_opencua_72b_20260803
-  qwen3_5_35b_a3b_formal_reserved: mypcbench_v1_qwen35_20260802
-  evocua_32b_formal_reserved: mypcbench_v1_evocua32b_20260802
-  opencua_72b_formal_reserved: mypcbench_v1_opencua72b_20260802
 formal_collection_authorized: true
 
 collection_policy:
@@ -46,7 +35,6 @@ runtimes:
     image: recovery/evocua-vllm:0.11.0-transformers4.57.3
     base_amd64_digest: sha256:d8d39b59e909d2378ac4feeb191f7e7b6f1342477dc66b7c47cec89e9985ad8a
     dockerfile_sha256: df0ed5a2a2ffc5dee81770f76f76d18710e9194365f4e08ad01051c923a6cc4e
-    local_image_id_observed_on_build_host: sha256:c4861d44de2b489549d2803faf46488f2a4b6dc56466793a396dede11f52c683
     python: 3.12.11
     torch: 2.8.0+cu128
     transformers: 4.57.3
@@ -62,17 +50,12 @@ models:
       history_n: 100
       context_policy: tokenize_oldest_first_v1
       tokenizer_image_policy: same_dimensions_distinct_hash_v1
-      reason: "The official wrapper defaults to 32768 tokens / 100-turn history; with the old 12288 server context this was shown incompatible by HTTP 400 (once at startup, once at step 10), so the completion budget was lowered to 4096. Server context is now 49152 (see probe_serving_overrides below), but 4096 is a completion budget, not a context budget, so it is kept"
       formal_collection_requires_confirmation: true
     probe_serving_overrides:
       enforce_eager: false
       disable_custom_all_reduce: true
       max_model_len: 49152
-      max_model_len_reason: "Raised together after all scaffolds were aligned to history_n=100 / image_max=20. At 12288, tokenize_oldest_first_v1 trimmed 27429 tokens to 8159, so the nominal 100/20 ran at about 30%, a confound in comparisons; no trimming at 49152"
       max_model_len_measured: false
-      max_model_len_invalidates: "v1 qwen3_5 rollouts collected at 12288 cannot be merged directly with the new value"
-      reason: "Reuses the evocua_32b A6000 setup. Local A/B on 2026-08-04 (GPU 2,3, other params identical, 400-token fixed-length generation x3): --enforce-eager 11.2 tok/s, --disable-custom-all-reduce 98.7 tok/s, 8.8x; short prompt 11.5 -> 117.2 tok/s, 10.2x. KV cache 241824 -> 239712 tokens. Dropping enforce-eager without disable-custom-all-reduce crashes with custom_all_reduce.cuh:455 'invalid argument'"
-      reproducibility_note: "Greedy decoding no longer matches eager mode verbatim: the first 705 characters match, then paraphrases. Caused by floating-point reduction order; stable within the same configuration"
       formal_collection_requires_confirmation: true
   evocua_32b:
     checkpoint: meituan/EvoCUA-32B-20260105
@@ -84,7 +67,6 @@ models:
       gpu_memory_utilization: 0.95
       max_num_seqs: 1
       disable_custom_all_reduce: true
-      reason: "A6000 TP2: native 262144 context required 32.00 GiB KV per GPU but only 4.19 GiB was available; custom all-reduce CUDA graph capture also failed"
       formal_collection_requires_confirmation: true
   opencua_72b:
     checkpoint: xlangai/OpenCUA-72B
