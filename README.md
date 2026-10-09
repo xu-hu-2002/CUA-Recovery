@@ -138,7 +138,7 @@ All parameters live in `configs/`. The defaults follow the paper.
 | `configs/collection/mypcbench_runtime.yaml` | Clean-start budget (150 steps, 3,600 s), repeats (3), screenshots in context (20) |
 | `configs/takeover/takeover.yaml` | Takeover budget (100 steps), depths, repeats, prefix repair, replay-state verification |
 | `configs/environments/mypcbench_1280x800.yaml` | Determinism commands and per-step state probes |
-| `configs/judges/default.yaml` | Judge model, Error Awareness Rate settings, Pass@k aggregation |
+| `configs/judges/default.yaml` | Judge model, rubric judge settings, Error Awareness Rate settings, Pass@k aggregation |
 | `configs/synthesis/sampling_v1.yaml` | Workflow composition, mutation-test gate, dependency-length buckets |
 | `configs/synthesis/workflow_splits_v1.yaml` | Train/test split (377 / 100) |
 | `configs/train/sft_v1.yaml` | Hint schedule, teacher, leak filter, SFT objective and hyperparameters |
