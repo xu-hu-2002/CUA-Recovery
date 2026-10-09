@@ -51,12 +51,6 @@ source .venv/bin/activate
 
 3. Fill in `.env` with the API keys and endpoints you use.
 
-## Hardware
-
-- Open-weight agents are served with vLLM on AMD MI308X GPUs, 8 GPUs per job (TP=8).
-- Smoke tests and API-based agents run on NVIDIA RTX A6000 (48 GB), TP=2.
-- ReRail-35B-A3B is fine-tuned on 64 × AMD MI308X for 18 hours.
-
 ## Quick Start
 
 Every stage runs through `main.py`:
@@ -128,10 +122,10 @@ python examples/error_type_distribution.py <labels_dir>
 
 ## Benchmark
 
-| Suite | Tasks | Examples | Labels |
-|---|---|---|---|
-| CUA-Recovery-Test | 100 | 2,250 erroneous states (602 / 443 / 373 / 328 / 273 / 231 at *d* = 0–25) | Human-verified |
-| CUA-Recovery-Train | 377 | 8,577 verified recovery trajectories | Verifier-confirmed |
+| Suite | Tasks | Examples |
+|---|---|---|
+| CUA-Recovery-Test | 100 | 2,250 erroneous states |
+| CUA-Recovery-Train | 377 | 8,577 verified recovery trajectories |
 
 Rollouts are collected from GPT-5.5, Claude Opus 4.8, Kimi-K3, Qwen3.5-35B-A3B, EvoCUA-32B, and OpenCUA-72B. The dataset release is coming soon.
 
