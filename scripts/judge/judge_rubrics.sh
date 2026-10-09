@@ -11,7 +11,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-${REPO_ROOT}/artifacts/raw_rollouts/mypcbench}"
 JUDGE_SCRIPT="${JUDGE_SCRIPT:-${REPO_ROOT}/third_party/MyPCBench/agent-harness/judge_results.py}"
 JUDGE_LOG_ROOT="${JUDGE_LOG_ROOT:-${REPO_ROOT}/artifacts/judge_logs}"
 ROOT_DOTENV="${ROOT_DOTENV:-${REPO_ROOT}/.env}"
-JUDGE_CONFIG="${JUDGE_CONFIG:-${REPO_ROOT}/configs/judges/mypcbench_rubric.yaml}"
+JUDGE_CONFIG="${JUDGE_CONFIG:-${REPO_ROOT}/configs/judges/default.yaml}"
 REGISTRY_PY="${SCRIPT_DIR}/judge_model_registry.py"
 BUNDLE_PY="${SCRIPT_DIR}/../takeover/bundle_prefix.py"
 JUDGE_WRAPPER="${SCRIPT_DIR}/full_traj_judge.py"
@@ -92,6 +92,8 @@ load_judge_config() {
 import re
 import sys
 
+import yaml
+
 path = sys.argv[1]
 ENV_MAP = {
     "flavor": "MYPCBENCH_JUDGE_FLAVOR",
@@ -107,28 +109,22 @@ ENV_MAP = {
     "timeout_seconds": "RECOVERY_JUDGE_TIMEOUT",
     "api_key_env": "RECOVERY_JUDGE_API_KEY_ENV",
     "force_official_endpoint": "RECOVERY_JUDGE_FORCE_OFFICIAL_ENDPOINT",
-    "judge_id": None,
-    "status": None,
 }
 value_pattern = re.compile(r'^[A-Za-z0-9_.\-]+$')
 
 with open(path, encoding="utf-8") as handle:
-    for lineno, raw in enumerate(handle, start=1):
-        stripped = raw.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if ":" not in stripped:
-            raise SystemExit(f"{path}:{lineno}: expected key: value")
-        key, text = stripped.split(":", 1)
-        key = key.strip()
-        text = text.split("#", 1)[0].strip().strip('"').strip("'")
-        if key not in ENV_MAP:
-            raise SystemExit(f"{path}:{lineno}: unknown config key {key!r} (see the allowlist in load_judge_config)")
-        if ENV_MAP[key] is None or not text:
-            continue
-        if not value_pattern.fullmatch(text):
-            raise SystemExit(f"{path}:{lineno}: value {text!r} contains invalid characters")
-        print(f"{ENV_MAP[key]}={text}")
+    section = (yaml.safe_load(handle) or {}).get("rubric")
+if not isinstance(section, dict):
+    raise SystemExit(f"{path}: missing the rubric section")
+for key, value in section.items():
+    if key not in ENV_MAP:
+        raise SystemExit(f"{path}: unknown rubric key {key!r} (see the allowlist in load_judge_config)")
+    if value is None or value == "":
+        continue
+    text = str(value).lower() if isinstance(value, bool) else str(value)
+    if not value_pattern.fullmatch(text):
+        raise SystemExit(f"{path}: rubric.{key} value {text!r} contains invalid characters")
+    print(f"{ENV_MAP[key]}={text}")
 PY
   )" || die "Failed to parse judge config: ${config_path}"
 
