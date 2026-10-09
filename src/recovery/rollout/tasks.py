@@ -12,16 +12,35 @@ from typing import Any, Dict, List, Mapping, Optional
 import yaml
 
 REPO_ROOT = Path(os.environ.get("RECOVERY_REPO_ROOT", Path(__file__).resolve().parents[3]))
-SOURCES_CONFIG = REPO_ROOT / "configs" / "collection" / "sources.yaml"
+SOURCES: List[Dict[str, Any]] = [
+    {
+        "source_benchmark": "mypcbench",
+        "tasks_file": "third_party/MyPCBench/tasks/final/all_tasks_with_grading.json",
+        "task_format": "mypcbench_graded",
+    },
+    {
+        "source_benchmark": "rerail_workflows",
+        "tasks_file": "data/synthesis/generation/final_v1/rollout_tasks.json",
+        "task_format": "rerail_rollout_tasks",
+        "origins": ["composed", "seed"],
+        "world_variants": ["base"],
+        "rubrics_dir": "data/synthesis/generation/final_v1/rubrics",
+        "on_missing_rubric": "error",
+    },
+]
 
 
-def source_spec(name: str, config_path: Path = SOURCES_CONFIG) -> Dict[str, Any]:
-    sources = yaml.safe_load(config_path.read_text(encoding="utf-8"))["sources"]
+def source_spec(name: str, config_path: Optional[Path] = None) -> Dict[str, Any]:
+    sources = (
+        yaml.safe_load(config_path.read_text(encoding="utf-8"))["sources"]
+        if config_path
+        else SOURCES
+    )
     for spec in sources:
         if spec["source_benchmark"] == name:
             return dict(spec)
     known = [spec["source_benchmark"] for spec in sources]
-    raise ValueError(f"unknown task_source {name!r}; {config_path} only has {known}")
+    raise ValueError(f"unknown task_source {name!r}; known sources: {known}")
 
 
 def _rerail_grading(workflow_id: str, rubrics_dir: Path) -> Optional[Dict[str, Any]]:
@@ -48,7 +67,7 @@ def _rerail_task(row: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def load_source_tasks(
-    name: str, tasks_file: Optional[Path] = None, config_path: Path = SOURCES_CONFIG
+    name: str, tasks_file: Optional[Path] = None, config_path: Optional[Path] = None
 ) -> List[Dict[str, Any]]:
     spec = source_spec(name, config_path)
     path = tasks_file or REPO_ROOT / spec["tasks_file"]
@@ -87,9 +106,9 @@ def load_source_tasks(
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--source", required=True)
-    parser.add_argument("--tasks-file", type=Path, help="override tasks_file from sources.yaml (e.g. a shard)")
+    parser.add_argument("--tasks-file", type=Path, help="override the source's default tasks file (e.g. a shard)")
     parser.add_argument("--out", type=Path, help="write tasks in runner format; by default only print the default tasks_file")
-    parser.add_argument("--config", type=Path, default=SOURCES_CONFIG)
+    parser.add_argument("--config", type=Path, help="YAML source list to use instead of the built-in one")
     args = parser.parse_args(argv)
     spec = source_spec(args.source, args.config)
     if args.out is None:
