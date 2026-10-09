@@ -60,7 +60,7 @@ def main() -> int:
     parser.add_argument("--agent", action="append", default=[], help="RECOVERY agent id(s)")
     parser.add_argument("--task-id", action="append", default=[])
     parser.add_argument("--seed", type=int, action="append", default=[])
-    parser.add_argument("--task-source", help="source name in configs/collection/sources.yaml")
+    parser.add_argument("--task-source", help="task source name (mypcbench | rerail_workflows)")
     parser.add_argument("--tasks-file", type=Path, help="task file in that source format (e.g. a shard)")
     args = parser.parse_args()
     config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
