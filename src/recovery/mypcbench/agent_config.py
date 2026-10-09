@@ -28,7 +28,6 @@ LOCAL_VLLM = "local_vllm"
 HOSTED_API = "hosted_api"
 
 AGENT_ID_BY_TYPE: Mapping[str, str] = {
-    "recovery_kimi_k3": "kimi_k3",
     "recovery_kimi_k3_cuabash": "kimi_k3_cuabash",
     "recovery_evocua": "evocua_32b",
     "recovery_opencua": "opencua_72b",
@@ -135,7 +134,6 @@ _UPSTREAM_COMMON_LIVE: Mapping[str, _Field] = {
 }
 
 _SPECS: Mapping[str, _AgentSpec] = {
-    "kimi_k3": _AgentSpec(RECOVERY_TOOL_AGENT, HOSTED_API, live=_TOOL_AGENT_LIVE),
     "kimi_k3_cuabash": _AgentSpec(RECOVERY_TOOL_AGENT, HOSTED_API, live=_TOOL_AGENT_LIVE),
     "evocua_32b": _AgentSpec(
         UPSTREAM_OFFICIAL,

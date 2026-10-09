@@ -385,13 +385,6 @@ def create_mypcbench_agent(
         )
         return config
 
-    if agent_type == "recovery_kimi_k3":
-        return NativeToolComputerAgent(
-            model,
-            screen_size,
-            protocol_from_config(configured()),
-            api_key=os.environ.get("KIMI_K3_API_KEY"),
-        )
     if agent_type == "recovery_kimi_k3_cuabash":
         return NativeToolComputerAgent(
             model,

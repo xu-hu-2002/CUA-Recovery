@@ -1525,9 +1525,5 @@ def protocol_from_config(config: AgentConfig) -> ToolAgentProtocol:
     )
 
 
-def kimi_k3_protocol() -> ToolAgentProtocol:
-    return protocol_from_config(load_agent_config("kimi_k3"))
-
-
 def kimi_k3_cuabash_protocol() -> ToolAgentProtocol:
     return protocol_from_config(load_agent_config("kimi_k3_cuabash"))
