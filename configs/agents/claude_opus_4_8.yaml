@@ -20,16 +20,5 @@ tool_turn_ratio_observed: 0.146
 
 num_vms: 4
 eta_step_seconds: 60.0
-eta_step_seconds_source: median inter-step interval of the full v1 collection
-status: collected_f2_complete
-
-notes: >-
-  The Anthropic protocol is stateless (full history is resent every turn), so the
-  gateway's Zero Data Retention does not affect it. CLAUDE_PROMPT_CACHING_BETA=0 is
-  required: Bedrock rejects the anthropic-beta header combining computer-use and
-  prompt-caching (ValidationException: invalid beta flag); either alone works.
-  Served via Bedrock, so versions may differ slightly from Anthropic's first-party
-  API; record this in the collection manifest.
-  2026-08-10 decision: collection keeps the bare model name without the aws. prefix.
-  F2 completed with the bare name, the prefix does not change the model's inherent
-  latency (~60s median per step), and the aws. prefix has no full-collection evidence.
+eta_step_seconds_source: median inter-step interval of the full collection
+status: released

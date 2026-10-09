@@ -19,5 +19,5 @@ temperature: 0.01
 step_budget_policy: runner_authoritative_upstream_guard_plus_one
 upstream_max_steps_fallback: 50
 eta_step_seconds: 9.7
-eta_step_seconds_source: measured median step time on smoke20
-status: smoke20_task_completed_step16_visual_download_evidence
+eta_step_seconds_source: measured median step time
+status: released
