@@ -39,8 +39,7 @@
       "admission": "admitted",
       "concurrency": 4,
       "timeout_seconds": 2400,
-      "proven_max_images": 50,
-      "admission_note": "9/10 real full-trajectory canary valid; isolated upstream 404 is handled by bounded same-model missing-only retry"
+      "proven_max_images": 50
     }
   }
 }
