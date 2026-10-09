@@ -366,11 +366,6 @@ resolve_agent() {
       RESOLVED_MODEL="${GPT55_MODEL:-gpt-5.5}"
       RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
       ;;
-    kimi_k3)
-      RESOLVED_AGENT_TYPE="recovery_kimi_k3"
-      RESOLVED_MODEL="${KIMI_K3_MODEL:-kimi-k3}"
-      RESOLVED_REQUIRED_ENV="OPENAI_API_KEY"
-      ;;
     kimi_k3_cuabash)
       RESOLVED_AGENT_TYPE="recovery_kimi_k3_cuabash"
       RESOLVED_MODEL="${KIMI_K3_MODEL:-kimi-k3}"
