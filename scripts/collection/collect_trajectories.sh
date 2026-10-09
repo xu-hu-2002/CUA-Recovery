@@ -980,7 +980,6 @@ source_files = [
     pathlib.Path(os.environ["RECOVERY_ENVIRONMENT_CONFIG"]),
     repo_root / "infra/snapshot/changelog_replay.py",
     repo_root / "infra/volatile_columns.json",
-    repo_root / "configs/collection/sources.yaml",
 ]
 for external_file in (
     evocua_root / "mm_agents/evocua/evocua_agent.py",
