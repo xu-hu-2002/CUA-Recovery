@@ -20,6 +20,7 @@ from recovery.takeover.source_logs import sanitize_visible_response  # noqa: E40
 sys.path.insert(0, str(REPOSITORY / "scripts" / "judge"))
 from judge_model_registry import load_config  # noqa: E402
 
+TAKEOVER_CONFIG = REPOSITORY / "configs" / "takeover" / "takeover.yaml"
 STALE_RESULTS = ("osworld_full_traj_result.json", "rubric_judge_result.json")
 CONTINUED = "(same model turn as the previous step)"
 PREFIX_DIR = "prefix_replay"
@@ -282,9 +283,9 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     cache: dict = {}
-    final_state_config = load_config()["final_state"]
-    max_chars = int(final_state_config["max_chars"])
-    environment = Path(str(final_state_config["environment_config"]))
+    max_chars = int(load_config()["final_state"]["max_chars"])
+    takeover = yaml.safe_load(TAKEOVER_CONFIG.read_text(encoding="utf-8"))
+    environment = Path(str(takeover["environment_config"]))
     environment = environment if environment.is_absolute() else REPOSITORY / environment
     probe_file = str(yaml.safe_load(environment.read_text(encoding="utf-8"))["state_probe_file"])
     for cell in map(Path, argv):
