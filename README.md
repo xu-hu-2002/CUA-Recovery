@@ -33,7 +33,7 @@ Fine-tuning Qwen3.5-35B-A3B on CUA-Recovery-Train gives **ReRail-35B-A3B**.
 ### Prerequisites
 
 - Python 3.9 or higher
-- Git and KVM to run the MyPCBench virtual machine (the image is about 16.5 GB)
+- Git and KVM to run the desktop virtual machine (the image is about 16.5 GB)
 
 ### Setup
 
@@ -63,7 +63,7 @@ python main.py <stage> <command> --help  # arguments of one command
 ### 1. Build workflows (ReRail)
 
 ```bash
-python main.py synthesis generate_tasks_v1 --ir-dir <accepted_ir_dir> --tasks <mypcbench_tasks.json> --out <bundle_dir>
+python main.py synthesis generate_tasks_v1 --ir-dir <accepted_ir_dir> --tasks <seed_tasks.json> --out <bundle_dir>
 python main.py synthesis freeze_source_splits
 ```
 
@@ -107,7 +107,7 @@ python main.py judge summarize_takeover --output-root <takeover_output_root>
 
 ```bash
 python main.py train recovery_gen_v1 --cases <cases.jsonl> --gold-dir <gold_dir> --ir-dir <ir_dir> \
-    --task-dir <task_dir> --qcow2 <mypcbench.qcow2> --live-db-dir <db_dir>
+    --task-dir <task_dir> --qcow2 <vm_image.qcow2> --live-db-dir <db_dir>
 python main.py train build_training_v1 --traces <traces> --analyses <analyses> --gold-dir <gold_dir> \
     --ir-dir <ir_dir> --out <sft_dir>
 ```
@@ -135,9 +135,9 @@ All parameters live in `configs/`. The defaults follow the paper.
 
 | File | Controls |
 |---|---|
-| `configs/collection/mypcbench_runtime.yaml` | Clean-start budget (150 steps, 3,600 s), repeats (3), screenshots in context (20) |
+| `configs/collection/*.yaml` | Clean-start budget (150 steps, 3,600 s), repeats (3), screenshots in context (20) |
 | `configs/takeover/takeover.yaml` | Takeover budget (100 steps), depths, repeats, prefix repair, replay-state verification |
-| `configs/environments/mypcbench_1280x800.yaml` | Determinism commands and per-step state probes |
+| `configs/environments/*.yaml` | Determinism commands and per-step state probes |
 | `configs/judges/default.yaml` | Judge model, rubric judge settings, Error Awareness Rate settings, Pass@k aggregation |
 | `configs/synthesis/sampling_v1.yaml` | Workflow composition, mutation-test gate, dependency-length buckets |
 | `configs/synthesis/workflow_splits_v1.yaml` | Train/test split (377 / 100) |
@@ -164,7 +164,7 @@ CUA-Recovery/
 │   ├── derived/            # Derived-build layout and schema validation
 │   ├── construction/       # Prefix repair and takeover-state selection
 │   ├── takeover/, replay/  # Takeover protocol and replay verification
-│   ├── mypcbench/          # Agent scaffolds for MyPCBench
+│   ├── mypcbench/          # Agent scaffolds
 │   ├── adapters/           # Native-history rendering per agent
 │   ├── evaluation/         # Rubric Score and Pass@k
 │   └── train/              # Recovery generation and SFT samples
@@ -177,7 +177,7 @@ CUA-Recovery/
 ├── examples/               # Minimal analysis examples
 ├── infra/                  # In-VM change-log triggers, tracer and control-API extension
 ├── serving/                # vLLM serving image for EvoCUA
-└── patches/                # Patches applied to MyPCBench
+└── patches/                # Patches applied to third_party/
 ```
 
 ## Evaluation Metrics
